@@ -1,157 +1,112 @@
-# Powerline 输入区域：体验与交付
+# Powerline 输入区域：当前体验指南
 
-## 改了什么
+## 这一版按什么显示
 
-在 `/settings` → **底栏设置** → **输入区域风格**选择 `powerline`。
-原生 `native` 仍是出厂默认，极简界面保持原生；只在隔离体验环境预选 Powerline，没有替换稳定安装。
-
-Powerline 将模型:强度、数字上下文、费用、订阅窗口、目录、Git 和插件字段融入输入框顶边，
-最后一行输入与圆角底边共用一行。先预留右组，再按配置顺序放入完整左字段；
-放不下的字段隔一空行移到输入框下方，默认 `drop`，可选 `wrap`。不虚构 Shell/Agent 数据。
-工作时显示紧凑阶段、耗时、中断提示，上下各留一空行，空闲时工作行和两侧留白一起撤下；额外 Token 计数默认关闭。
-模型图标由 `modelIcons` 按模型 ID 首个匹配，未匹配才用通用 ``。订阅窗口独立于费用显示剩余比例、相对重置倒计时，悬停给出完整日期；过期只提示等待后端更新，不自行补满。
-详情是按需浮层，通知也不推动输入框。模型/强度入口、危险权限和插件接缝保留。
-费用沿用宿主既有处理，没有新增币种换算或计费规则。卡片、侧栏和工作流不在本轮范围内。
-
-**按你的 AGENTS.md 反馈收敛了接入方式：**
+本机实际参考与来源位置见 [reference.md](reference.md)，不再用自行设计的独立额度栏代替参考。
+以下省略图标、上下文等其他字段：
 
 ```text
-下游 HudPlacement 组合具体风格
-  ├─ PromptInput → 中性 PromptChrome（边框、留白、行内控件、外边距）
-  └─ StatusLine → 中性 render(view)（宿主已计算的字段和详情）
+DeepSeek  deepseek-flash:high
+Codex     gpt-5:high week:80% (6d)
+Claude    claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 ```
 
-`PromptInput` 和 `StatusLine` 不再导入或判断 Powerline；原生 `EffortInputBorder` 完全未改。
-没有复制编辑器/原生渲染器、运行时覆写或依赖升级。接口成员均被实际使用，不建立通用插件框架。
-配置表、类型及两套 Schema 是保留宿主设置兼容的必要接入。
-相对上游，编辑器/Chat/StatusLine 三处热点合计 +62/-20 行；原生边框、渲染器和依赖文件无改动；04 没有再改这三处热点，详见 `refinements-patch-surface.log`。
-完整配置与双语说明见 [input-region.md](../../docs/downstream/input-region.md)。
+- 订阅窗口紧跟模型/强度，共用一个不可拆分字段。Codex 仅 week，Claude 为 5h/week，其他后端及缺失窗口隐藏；费用开关不控制它，不按模型名字猜订阅身份。
+- 剩余值四舍五入后，低于 10 红、低于 25 黄、其余绿；重置括号淡显。倒计时向上取整为 m/h/d，不足一分钟为 `now`，不会据此补满额度。
+- 撤掉演示中的 ◆/◉/✳ 品牌映射。默认与参考一样用通用 ``；每模型图标覆盖能力保留，不臆造品牌默认值。
+- 自定义图标共用最宽显示单元槽位，再加一格间隔。裸 `✳` 等单符号明确为 VS16 emoji 呈现；显式选择符保留。普通一格、两格/CJK、emoji 图标的名称起始列已做无头终端断言，但不冒充真实字体像素验收。
+- 工作行上下各一空行，空闲时一起撤下；输入框下方一空行。此前确认的留白保留。
+- 原生 `native` 仍为默认，极简界面保持原生；原生编辑器、边框和渲染器未改。费用按宿主处理，不新增金额换算。卡片、侧栏和工作流不调整。
 
-## Agent 已验证的行为与边界
+配置说明见 [input-region.md](../../docs/downstream/input-region.md)。此前独立 `quota` 字段不再使用：窗口随 `model` 显隐和溢出。
 
-| 验证 | 当前结果 |
-| --- | --- |
-| 实际 Chat，inline/fullscreen × 60/180 列 | 90 项通过：默认融合、CJK/多行、左右组、drop/wrap、标签、显式下置、草稿与中段光标、插件详情/点击/撤销、通知、工作行上下留白及框下留白、模型切换图标/fallback、独立额度/重置/刷新/到期/详情 |
-| 配置/布局纯模块 | 28 项通过；包含外侧留白 0/2、右组预算、整字段前缀、阈值、样式非法值回落；另有 7 项图标选择/匹配/安全配置检查 |
-| 只读 Git 临时仓库（本轮未修改） | 上轮 15 项通过；重命名、分离头、未出生分支、异常、索引不变、缓存边界、超过 TTL 的慢请求共享 |
-| 生产设置表单与双注册表 | 保存部分 JSON、非法输入拒绝、清除、实时应用通过；另验证新服务重载保存值 |
-| 原生/插件回归 | 本轮原生 HUD 14 项通过；未修改的显示 31 项、插件字段 114 项、原生选区与光标沿用上轮记录，新样式插件交互另由上述 90 项覆盖 |
-| 编译/静态接缝 | `compile:src`、i18n、生产设置表单、设置声明、适配器边界、终端尺寸来源、diff 格式检查通过 |
-| 真实隔离应用 | 打包产物已加载；PTY 进入底栏设置，预置 Powerline，PTY 切至原生再切回并显示「已保存」，退出码 0；写路径和重载由生产设置回归覆盖 |
-| 离线固定指标演示 | 两种模式 PTY 各 16 步：图标/组/工作态/插件/上下文/溢出/风格，以及订阅快照刷新、过期提示、模型轮换，退出码均为 0 |
+## 先重启你正在看的演示
 
-修复前后证据：新增 Git 检查先复现用户 Git 配置把未跟踪数隐藏为 0，修复后为 1；
-慢请求现在持续共享，缓存 TTL 从完成时起算。布局留白和控制符本轮集成的通过证据在 `refinements-layout.log`，不补造缺失的旧版 red 截图。
-本轮没有重建完整旧版视觉截图来充当 Before；先前的三项布局候选不是扩展规格的通过证据。
-
-两项测试环境事实避免误读：无头终端须启用仓库已有的现代 Emoji 宽度表，否则鲸鱼会产生假残影；
-显示颜色断言需清除继承的 TMUX 并使用 truecolor。没有为此修改底层渲染器或放宽断言。
-
-这些都是 Agent 验证，**不代表你的视觉验收**。字体、配色观感、IME、长期交互、Windows/macOS 实机仍未验收。
-全量 CI、发布门禁和真实模型请求没有运行。
-合并模型/强度的两个点击区域、真实 activity 摘要、正数上传计数和分离头 Git 的呈现尚无专项自动断言；不把插件点击或 Git 纯模块检查当作这些场景已验收。
-
-## 如何审查
-
-1. [HudPlacement](../../src/components/HudPlacement.tsx)：下游组合点，检查编辑器键和 Provider 身份保持。
-2. [PromptChrome](../../src/components/PromptChrome.tsx)、[StatusLinePresentation](../../src/components/StatusLinePresentation.ts)：检查中性接口及原生回落；原生状态/键处理不外移。
-3. [Powerline 模块](../../src/powerline/)：配置、宽度分配、具体边框和字段呈现；指标来自宿主，Git 是独立只读缓存。
-4. [真实 Chat 回归](../../scripts/downstream/verify-powerline-input.tsx)与 [生产设置回归](../../scripts/verify-settings-compat.mjs)：检查草稿/中段光标、真实表单保存/清除，不把预置文件当作 UI 保存证据。
-
-## 已准备的体验环境
-
-仓库：`/home/liyihang/projects/dsh-src/dsh-tui`。Node `v24.16.0`、pnpm `11.21.0`、DSH CLI `0.2.1-rc.5`。
-编译产物、隔离包及配置已准备，本轮 PTY 子进程均已退出，未启动另行维护的服务。
-没有复制真实凭据或历史会话，也没有发送模型请求。
-
-### A. 真实应用与设置
+**演示没有热更新。检测到你仍有旧演示运行，我没有替你结束它。请在旧演示里 Ctrl+C 退出，再执行：**
 
 ```sh
 cd /home/liyihang/projects/dsh-src/dsh-tui
-bash .local/hud-app/start.sh
-```
-
-脚本用 `env -i` 启动，HOME/profile 都在 `.local/hud-app/`，预选 Powerline、中文及低对比静态主题。
-应用刚启动没有已结算费用/上下文时，相关字段缺席正常；固定值请看 B。
-**不要在真实应用提交测试草稿或添加凭据；本轮只体验输入、设置和原生选择器。**
-
-| 场景 / 操作 | 预期与失败信号 |
-| --- | --- |
-| 输入 `/settings`，选 **底栏设置**，Enter；在 **输入区域风格**用左右键切换，Esc 返回 | 立即切换，不出现双重 HUD；关闭后再启动仍保留选择。字段缺失、自动恢复旧值、输入失效都是失败 |
-| 同页 **Powerline 外观选项**输入 `{"icons":"ascii","separator":"|","left":["cwd","model","context","cost","quota","git","plugins"]}` | 目录前移、ASCII 图标；未填值继续跟随预设。不是保存整个预设快照 |
-| 输入 `{"icons":"bogus"}` 或破损 JSON | 拒绝保存；Esc 放弃。留空则恢复预设 |
-| **HUD 位置**明确选下方，再选上方 | 下置为框下的普通状态行，上置融入顶边；不额外画第二个框。未设置的位置：原生下方、Powerline 顶边 |
-| 输入草稿，移动光标，切换风格再继续输入；打开 `/model` 后 Esc 返回 | 草稿、光标和焦点保留；选择器在 HUD 上方浮出，不永久占提示行 |
-
-Powerline 的顺序/分隔符由外观选项 `left/right/separator` 控制；旧的 **HUD 字段顺序 / HUD 分隔符**只控制原生风格。
-极简界面不会套用 Powerline。真实 UI 的左右键切换与「已保存」提示已由 Agent 验证；写路径/重载另由生产设置回归验证。JSON 编辑及字体观感仍可按上表亲自体验。
-两次 Ctrl+C 退出。恢复本次体验预设：选择 Powerline、上方，清空外观选项；恢复原生则只选 `native`。
-
-### B. 固定指标的安全离线演示
-
-```sh
 node --import tsx/esm scripts/downstream/hud-demo.tsx
 # 原生终端滚动模式：
 node --import tsx/esm scripts/downstream/hud-demo.tsx --inline
 ```
 
-这是实际 Chat/Channel 的离线 fixture，**不是完整后端会话**；拒绝消息提交，不调用模型。
-初始 DeepSeek/high、25.0%/100k、历史成本报告 `$0.1250`，以及模拟订阅窗口（5小时剩余75%、7天剩余60%），不是账单或真实账户额度。模型轮换不会伪造新的花费。
-Git 仍只读查询当前本地工作树，数字不是固定样例。演示状态只活在本进程，HOME 在 `.local/hud-demo/home/`。
+这是三个独立的离线后端场景，不是实际模型/账户迁移。使用实际 Chat/Channel，但拒绝消息提交；
+没有读取真实凭据、调用模型或联网获取额度。初始为 DeepSeek、25.0%/100k、历史成本样例 `$0.1250`，无订阅窗口。
+Git 只读查询当前本地工作树，其数字不是固定样例。样例 HOME 在 `.local/hud-demo/home/`。
 
-下列都是**演示键，不是产品快捷键**：
+下列是**演示键，不是产品快捷键**：
 
-| 操作 | 观察 |
+| 操作 | 预期观察 / 失败信号 |
 | --- | --- |
-| 输入 CJK 和多行草稿；移动光标；Alt+4 两次 | 原生/Powerline 来回切换，输入继续有效；无双重编辑器 |
-| Alt+1 | 顶边融合 / 框下状态行切换 |
-| Alt+2 | Nerd / ASCII 图标切换；费用数值不变 |
-| Alt+3 | 目录前移 / 恢复预设组顺序 |
-| Alt+5 两次 | 实际阶段 fixture 开始/结束，工作行上下各一空行，与输入框隔开；结束时工作行和两侧留白一起撤下 |
-| Alt+7；fullscreen 悬停插件字段；再 Alt+7 | `构建 42%` 按插件原值和语义色显示，详情浮出，撤销后消失 |
-| Alt+8 多次 | 上下文 25% / 75% / 95% 循环，后两者黄/红；没有进度条 |
-| 缩窄终端并 Alt+6 | drop/wrap 切换，字段保持完整，溢出在输入框下方；不能把长字段挤碎塞进首行 |
-| Alt+0 | DeepSeek/GPT/Claude 样例模型轮换；在 Nerd 模式观察 ◆ / ◉ / ✳ 随模型变化。这些是演示配置，不是内置品牌默认值 |
-| Alt+9 多次；fullscreen 悬停额度 | 刷新模拟窗口快照，依次可见较低剩余、重置已过期的「待更新」、再恢复新快照；悬停看完整本地重置日期。不是联网刷新 |
-| Ctrl+C | 退出并恢复终端 |
+| 启动 DeepSeek 场景 | 通用模型图标，不出现 ◆ 品牌映射，也不出现 week/5h 订阅窗口 |
+| Alt+0 一次 | 切到 Codex：模型段末尾 `week:80% (6d)`，不出现 5h；没有独立额度分隔段 |
+| 再 Alt+0 | 切到 Claude：模型段末尾 `5h:80% (2h) week:24% (6d)`，80% 绿、24% 黄，括号淡显 |
+| 在 Codex/Claude 按 Alt+9 | 更新模拟快照；可见黄/红低剩余和到期 `(now)`，继续按会回到新快照；不联网，不因到期自动加满。DeepSeek 会提示先切换场景，不凭空生成额度 |
+| fullscreen 悬停模型段 | 原有模型信息及额度详情、完整本地重置日期浮出，输入框不移动 |
+| Alt+5 两次 | 紧凑工作行及其上下留白出现/撤下；与输入框隔一空行 |
+| 输入 CJK/多行草稿，移动光标，Alt+4 两次 | 原生/Powerline 往返，不丢草稿、中段光标或输入焦点 |
+| Alt+1 / Alt+2 / Alt+3 | 切位置 / Nerd-ASCII 图标模式 / 目录前移；显示设置在场景间共用。自定义规则只在 Nerd 模式生效 |
+| Alt+7；悬停；再 Alt+7 | 插件 `构建 42%` 保留原值、语义色、详情和撤销生命周期 |
+| Alt+8 | 当前场景的上下文 25/75/95% 循环，数值而非进度条 |
+| 缩窄后 Alt+6 | drop/wrap；整个模型/强度/订阅段一起溢出，不拆开凑首行。过宽字段不强行缩小 |
+| Ctrl+C | 正常退出并恢复终端 |
 
-在实际设置页可使用部分覆盖 `{"icons":"nerd","modelIcons":[{"pattern":"^deepseek","icon":"◆"},{"pattern":"^gpt","icon":"◉"},{"pattern":"^claude","icon":"✳"}]}`。
-匹配模型 ID 而非显示别名，按列表顺序、忽略大小写；未匹配仍显示 ``。ASCII 模式统一为 `model`，none 模式隐藏图标。
-`quota` 默认在费用后，既有自定义 left/right 列表需自行加入 `quota` 才会显示。真实 start.sh 不会为没有上报数据的后端造出用量或额度。
+如果显示仍是 `5小时 余… ↻…` 或 DeepSeek 仍有 ◆，就是旧演示进程/旧文件，不是这版默认场景。
+若 Alt 被终端拦截，可用真实设置页；字体缺字时选 ASCII，并设置 `separator:"|"`。
 
-若 Alt 被终端拦截，可先用 A 的设置页；字体缺字时选 ASCII 并设置 `separator:"|"`。
-详情可能盖住工作行或转录尾部，这是按需浮层的取舍，不为它永久保留空行。
+## 真实隔离应用与模型图标配置
 
-## 风险、回退与复核
+```sh
+bash .local/hud-app/start.sh
+```
 
-- 稳定安装、全局配置和共享分支未切换，未 push/发布。`native` 是可逆的恢复入口；Powerline 覆盖可保留或清空。
-- `.local/` 的隔离配置与产物不会随代码回退消失；不需要时可删除 `.local/hud-app/`、`.local/hud-demo/`，证据建议保留。
-  不要运行 `dev:copy-config` 或 `/update` 来覆盖私有候选。
-- 首次组合打包/安装命令超过 120 秒未返回，被工具终止；不能把该次记作正常退出。
-  后续分步重新打包、隔离安装已成功；本轮 04 安装在 40 秒限时内正常退出 0，日志为 `refinements-install.log`。
-  本轮 8 个相关模块与编译目录逐一比对一致，SHA-256 留存在 `refinements-install-integrity.log`；新产物的应用与设置 UI 再次正常启动、退出。
-  首次迟退原因未定位，保留原始记录供发布安装复核。
-- 重置时间已核对 Codex 的秒→毫秒适配及既有 usage 命令；其他后端的真实 deadline 单位尚未验证，接口注释与部分适配路径存在单位差异；非 Codex 后端若上报秒级值，会显示待更新/1970 年日期。本轮不猜测转换、不修改后端；不把离线快照当作真实账户或跨后端验收。
-- 当前隔离 tarball 在 `.local/hud-app/packages/powerline-refinements/`；前两版包仍保留在相邻目录。
-  这是本机准备态，不承诺全新机器一键重建。没有运行全量发布/打包门禁，不可据此切换稳定版。
-- 修改中性接口/编辑器几何后重跑 A 的切换和 B 的 CJK/多行；修改布局后重跑窄屏和左右组；
-  修改插件/配置生命周期后重跑保存、清除、浮层及撤销；发布前再跑全量门禁和跨平台人工体验。
+仍是 `.local/hud-app/` 下的独立 HOME/profile，`env -i` 启动；本轮包已更新，没有切换全局稳定安装。
+在 `/settings` → **底栏设置** → **输入区域风格**选择 Powerline。
+真实应用不会为没有上报数据的后端造出上下文占用或订阅额度；换成一个 GPT 名称也不等于接入了 Codex 订阅。
+本轮不在真实应用提交测试消息、登录或复制账号配置。
 
-## 交付依据
+要自定义图标，在 **Powerline 外观选项**的现有 JSON 中合入规则；以下仅示意语法，不是品牌默认图标：
 
-- 来源：[spec.md](spec.md)，本机参考的归属说明保留在规格；代码和配置采用宿主中性命名。
-- 模式：本地 Markdown 票据驱动。01 配置/布局/Git，02 输入区域接入，03 首轮验收，04 体验留白、图标及订阅演示；主代理整合、验证，工作树隔离委派只读 Git、布局与模型图标切片。
-- 基线：`v0.18.0` / `1d0d946f459da5149aba64cc6cc0ef7da304053c`。
-  旧候选/规格检查点 `01fa0cea`；模块整合 `f3a981b0`、`ce37d8fd`、`698e95b9`；输入接口整合 `d9134d1d`，首轮产品代码 `ae4b31dd`（补正未知上传计数，同时收窄 Chat 的显示拼接）；04 图标切片 `0ee044d4`，当前已验证产品代码 `531c9613`。
-  首次验收提交 `d5227d4f` 后，04 在原有下游模块及字典/设置提示中迭代，不改原生编辑器、原生状态栏生产器、渲染器或后端。当前 04 的代码提交与产物见下方证据说明。
-- 执行命令：`pnpm compile:src`；以下五项均用 `node --import tsx/esm` 执行：
-  `scripts/downstream/verify-powerline-layout.ts`、`scripts/downstream/verify-powerline-git.ts`、
-  `scripts/downstream/verify-powerline-input.tsx`、`scripts/downstream/verify-hud.tsx`、`scripts/downstream/verify-model-icon.ts`。
-  同样执行 `scripts/` 下的 `verify-settings-compat.mjs`、`verify-settings-definitions.ts`、`verify-adapter-boundary.ts`、`verify-display-settings.tsx`、`verify-status-fields.tsx`、`verify-input-selection.tsx`、`verify-native-cursor.tsx`；
-  `verify-i18n.ts`、`verify-source-hygiene.mjs`、`pnpm verify:terminal-size-source`；`git diff --check`。没有根级 `test/lint` 或全量 CI 通过的声称。
-- 本轮证据：`.local/hud-evidence/refinements-*.log`、`refinements-pack.json`、PTY 的 `powerline-app.ansi`、`powerline-demo-{fullscreen,inline}.ansi`；早期 `powerline-*.log` 保留历史，不能拿旧数量替代本轮 90 项结果。
-  `.local/hud-evidence/smoke-powerline.py` 为本机有界 PTY 复核脚本。打包使用 `npm pack --ignore-scripts`，没有借生命周期脚本运行全量门禁。
-- 独立审查：布局/Git、中性接口和首轮最终代码复审 PASS；04 代码及交付复审均 OK（无运行态阻塞，文档精度建议已处理）；单位及真实账户验证边界见风险节。只读审查没有代替主代理执行测试。
-  首轮归档在 `.local/hud-evidence/powerline-review-{architecture,code,delivery}.md`，04 归档在 `.local/hud-evidence/refinements-review-{code,delivery}.md`。
-- 保留：集成工作树及布局、Git、模型图标三个 worker 工作树和 `/tmp/dsh-hud-baseline.eGs0OD`；基线仅做过 TMUX 环境失败的对照，不代替当前分支验证。
-  先前候选交付记录可从 `01fa0cea:.scratch/hud/delivery.md` 恢复。
+```json
+{"icons":"nerd","modelIcons":[{"pattern":"^my-model$","icon":"M"}]}
+```
+
+匹配原始模型 ID、忽略大小写，按列表首个匹配；未匹配仍用 ``。不要为了示例覆盖掉已有的其他 JSON 选项。
+ASCII 模式统一为 `model`，none 隐藏图标。留空外观选项恢复预设；选择 native 恢复原生，不必删除覆盖。
+两次 Ctrl+C 退出真实应用。
+
+## 已验证与未验证
+
+本轮 Agent 证据，不是你的视觉验收：
+
+| 边界 | 结果 |
+| --- | --- |
+| 实际 Chat，inline/fullscreen × 60/180 列 | 98 项：中段光标、CJK/多行、留白、插件、图标名称起始列、模型附属周额度、颜色阈值、淡色重置、刷新/到期/详情 |
+| 订阅展示契约 | 8 项：Codex/Claude/其他后端、窗口顺序/缺失、阈值、剩余值取整、ceil m/h/d/now、不伪造补满；旧格式 red 为 `5h 80% left reset 2h · 7d…144h`，新格式 green 为 `week:80% (6d)` |
+| 图标选择/前缀、终端宽度 | 15 + 4 项：共享槽位、fallback、VS16、CJK、ASCII/none、真实模拟终端中的名称列；模拟器把 ✳️ 当一格的 red 由图标 worker 报告记录，主集成复核 green |
+| 配置/布局、原生 HUD | 28 + 14 项通过；生产设置表单保存/清除/重载、编译、i18n、边界、设置声明、源码与终端尺寸检查通过 |
+| 原生后端适配边界 | Claude 76 项 controls + 32 项 notices；Codex 126 项 controls。已有 CLI 记录证明秒时间戳，Claude 新断言先 red，再在窗口投影处统一乘 1000；不修改 raw info，不导致 notice 二次转换 |
+| 离线交互 | 两种模式各 18 步退出 0；DeepSeek 初始画面无 week，Codex/Claude 文字和 now/刷新场景均验证 |
+| 隔离二进制 | 安装/模块比对与真实入口证据见下方产物记录 |
+
+已有源码和原始 CLI 记录现在确认 Codex/Claude 的窗口在适配器边界统一为 epoch 毫秒。
+前一版的“单位未知/1970 风险”不再留给 UI 猜测；根因在本轮用回归修正。没有据此声称真实账号认证/联网额度已验收。
+真实字体、Windows/macOS、IME、VS15/ZWJ/复杂组合和东亚模糊宽度仍需人工检查。测试模拟器补齐了 VS16，但没有改生产渲染器或证明所有 Unicode 组合。
+旧版正常显示的原生显示 31、插件字段 114、Git 15、选区/原生光标记录保留，不把它们伪称为本轮新执行的数量。
+全量 CI/发布门禁留到发布前；没有根级 test/lint 或真实模型调用通过的声称。
+
+## 接入、回退与证据
+
+- 阅读顺序： [实际参考](reference.md) → `src/powerline/quota.ts` / `modelIcon.ts` → `fields.tsx` / `Status.tsx` → 下游 `HudPlacement`。
+  继续复用中性 PromptChrome/render(view)，不在原生编辑器或状态栏生产器散落具体风格判断。
+- 05 唯一必要的原生后端行为补正是 Claude 窗口秒→毫秒（`93c047c9`，在 `src/agent/events.ts` 的 RateLimitView、`src/adapter/ports/channel-view.ts` 的 ChannelRateLimit 明确毫秒约定，并补回归），没有新增请求、认证、计费或后端架构。
+- `native` 可恢复原生，覆盖留空可恢复预设。稳定安装、全局配置、共享分支没切换，未 push/发布。
+  本机 `.local/hud-app/`、`.local/hud-demo/` 是可删除的准备态；建议保留 `.local/hud-evidence/`，不运行 dev:copy-config 或 /update 覆盖私有候选。
+- 基线 v0.18.0 / `1d0d946f`；04 交付 `04b703f7`；05 图标 worker `7be34e47` 经 cherry-pick 整合为 `64c98f24`，单位补正 `93c047c9`，产品代码 `932f159b`。
+- 当前检查记录：`.local/hud-evidence/alignment-*.log`；旧版真实 PTY 输入保存在 `alignment-before/`，不重造 Before。
+  当前 PTY 为 `powerline-demo-{fullscreen,inline}.ansi`，初始无额度场景为对应的 `*-initial-scene.ansi`。
+  `scripts/downstream/` 下本轮执行的文件为 `verify-powerline-input.tsx`、`verify-subscription-display.ts`、`verify-model-icon.ts`、`verify-model-icon-width.ts`、`verify-powerline-layout.ts`、`verify-hud.tsx`；均使用 `node --import tsx/esm`，具体说明见文件头。
+- 当前隔离产物在 `.local/hud-app/packages/powerline-reference/`；`alignment-install.log` 为退出 0，`alignment-install-integrity.log` 记录 8 个模块与编译文件逐一相同的 SHA-256/cmp。真实应用 PTY 38 步退出 0，没有切换稳定安装。
+- 独立代码复审 `2a05a824` OK；交付复审 `637de5b1` OK with notes，已修正源码行号、原始/视图时间单位和整合提交的对应关系。原始报告在 `alignment-review-{code,delivery}.md`，审查为只读，不冒充执行者。
+- 05 工单完成实现、定向检查和隔离体验准备。Agent 启动验证不代替你的实机字体/视觉验收；未运行全量发布门禁。
