@@ -4,7 +4,7 @@
  * node --import tsx/esm scripts/downstream/verify-powerline-git.ts */
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -189,6 +189,30 @@ try {
     assert.equal(newest, firstReads[32])
     // ...while the first one was evicted, so it cannot accumulate without limit.
     assert.notEqual(oldest, firstReads[0])
+  })
+
+  await check('untracked counts do not silently become clean under user git config', async () => {
+    const dir = await initRepo('hidden-untracked')
+    await git(dir, 'config', 'status.showUntrackedFiles', 'no')
+    await writeFile(join(dir, 'loose.txt'), 'x\n')
+    assert.equal((await readPowerlineGit(dir))?.untracked, 1)
+  })
+
+  if (process.platform !== 'win32') await check('a slow in-flight read stays shared beyond the result cache TTL', async () => {
+    const bin = join(root, 'slow-bin'), cwd = join(root, 'slow-cwd')
+    await mkdir(bin); await mkdir(cwd)
+    const shim = join(bin, 'git')
+    await writeFile(shim, `#!${process.execPath}\nsetTimeout(() => process.stdout.write('## main\\0'), 1300)\n`)
+    await chmod(shim, 0o755)
+    const oldPath = process.env.PATH
+    try {
+      process.env.PATH = `${bin}:${oldPath}`
+      const first = readPowerlineGit(cwd)
+      await sleep(1050)
+      const second = readPowerlineGit(cwd)
+      await Promise.all([first, second])
+      assert.equal(first, second)
+    } finally { process.env.PATH = oldPath }
   })
 
   await check('the module schedules no timer of its own', async () => {

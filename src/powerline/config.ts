@@ -25,6 +25,7 @@ export interface PowerlineColors {
   cost: string
   thinking: string
   plugin: string
+  agent: string
 }
 
 /** A model family color rule; the first matching pattern wins. */
@@ -37,7 +38,6 @@ export interface PowerlineModelColor {
 export interface PowerlineOptions {
   left: string[]
   right: string[]
-  secondary: string[]
   separator: string
   icons: PowerlineIcons
   padding: number
@@ -59,7 +59,7 @@ const CONTEXT_MODES = ['full', 'percent'] as const
 const OVERFLOWS = ['drop', 'wrap'] as const
 const COLOR_KEYS = [
   'marker', 'model', 'path', 'gitClean', 'gitDirty', 'context', 'warning',
-  'error', 'separator', 'border', 'cost', 'thinking', 'plugin',
+  'error', 'separator', 'border', 'cost', 'thinking', 'plugin', 'agent',
 ] as const satisfies readonly (keyof PowerlineColors)[]
 
 const MAX_PADDING = 8
@@ -69,7 +69,6 @@ const MAX_MARKER_WIDTH = 8
 
 const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'] as const
 const DEFAULT_RIGHT = ['agent'] as const
-const DEFAULT_SECONDARY: readonly string[] = []
 const DEFAULT_SEPARATOR = '\ue0b1'
 const DEFAULT_MARKER = '🐋'
 const DEFAULT_WARN_PERCENT = 70
@@ -91,6 +90,7 @@ const DEFAULT_COLORS: PowerlineColors = {
   cost: 'text',
   thinking: 'subtle',
   plugin: 'text',
+  agent: 'text',
 }
 
 const DEFAULT_MODEL_COLORS: readonly PowerlineModelColor[] = [
@@ -204,7 +204,6 @@ export function normalizePowerlineOptions(value: unknown): PowerlineOptions {
   return {
     left: normalizeFieldIds(raw.left, DEFAULT_LEFT),
     right: normalizeFieldIds(raw.right, DEFAULT_RIGHT),
-    secondary: normalizeFieldIds(raw.secondary, DEFAULT_SECONDARY),
     separator: normalizeGlyph(raw.separator, DEFAULT_SEPARATOR, MAX_SEPARATOR_WIDTH),
     icons: isOneOf(raw.icons, ICONS) ? raw.icons : 'nerd',
     padding: clampInteger(raw.padding, 0, MAX_PADDING, 1),
@@ -249,7 +248,6 @@ function isModelColorsInput(value: unknown): boolean {
 function hasValidTypes(raw: Record<string, unknown>): boolean {
   return (raw.left === undefined || isStringArray(raw.left))
     && (raw.right === undefined || isStringArray(raw.right))
-    && (raw.secondary === undefined || isStringArray(raw.secondary))
     && (raw.separator === undefined || isGlyph(raw.separator, MAX_SEPARATOR_WIDTH))
     && (raw.icons === undefined || isOneOf(raw.icons, ICONS))
     && (raw.padding === undefined || isFiniteNumber(raw.padding))

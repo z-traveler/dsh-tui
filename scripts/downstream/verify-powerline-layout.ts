@@ -11,7 +11,6 @@ function check(label: string, test: () => void) { test(); console.log(`PASS ${++
 const DEFAULTS = {
   left: ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'],
   right: ['agent'],
-  secondary: [],
   separator: '\ue0b1',
   icons: 'nerd',
   padding: 1,
@@ -36,6 +35,7 @@ const DEFAULTS = {
     cost: 'text',
     thinking: 'subtle',
     plugin: 'text',
+    agent: 'text',
   },
   modelColors: [
     { pattern: 'deepseek', color: '#6e9bc5' },
@@ -59,8 +59,8 @@ check('resolved options are fresh copies, not shared defaults', () => {
 })
 
 check('explicit empty field groups are respected', () => {
-  assert.deepEqual(normalizePowerlineOptions({ left: [], right: [], secondary: [] }), {
-    ...DEFAULTS, left: [], right: [], secondary: [],
+  assert.deepEqual(normalizePowerlineOptions({ left: [], right: [] }), {
+    ...DEFAULTS, left: [], right: [],
   })
 })
 
@@ -68,16 +68,14 @@ check('field ids are trimmed, deduplicated and non-strings skipped', () => {
   const options = normalizePowerlineOptions({
     left: [' model ', 'model', '', 3, 'git'],
     right: ['agent', 'agent'],
-    secondary: ['cost'],
   })
   assert.deepEqual(options.left, ['model', 'git'])
   assert.deepEqual(options.right, ['agent'])
-  assert.deepEqual(options.secondary, ['cost'])
 })
 
 check('wrong top-level field types fall back per field', () => {
   const options = normalizePowerlineOptions({
-    left: 'model', right: 7, secondary: null,
+    left: 'model', right: 7,
     separator: '', icons: 'emoji', padding: '1', secondaryOverflow: 'push',
     path: 'middle', context: 'tokens', warnPercent: '70', errorPercent: {},
     maxRows: 'many', marker: '   ', colors: 'blue', modelColors: 'deepseek',
@@ -191,14 +189,6 @@ check('a wide row keeps every configured field in its group', () => {
   assert.deepEqual(layout.secondary, [])
 })
 
-check('secondary-configured ids render on the primary row, not the overflow rows', () => {
-  const fields = ['model', 'cost', 'git'].map(key => field(key, 5))
-  const layout = layoutPowerlineFields(fields, options({ left: ['model'], secondary: ['cost'], right: [] }), 200)
-  assert.deepEqual(keys(layout.left), ['model', 'cost'])
-  assert.deepEqual(layout.secondary, [])
-  assert.deepEqual(keys(layout.right), [])
-})
-
 check('right fields reserve width first and the left row stops at the first nonfit', () => {
   const layout = layoutPowerlineFields(
     [field('a', 4), field('b', 4), field('c', 4), field('r', 6)],
@@ -226,7 +216,7 @@ check('configured ids render once even when repeated or placed in two groups', (
   const other = field('model', 99)
   const layout = layoutPowerlineFields(
     [model, other, field('agent', 3), field('cost', 3)],
-    options({ left: ['model', 'model', 'cost'], right: ['agent', 'model', 'cost'], secondary: ['cost'] }),
+    options({ left: ['model', 'model', 'cost'], right: ['agent', 'model', 'cost'] }),
     200,
   )
   assert.deepEqual(keys(layout.left), ['model', 'cost'])
@@ -238,7 +228,7 @@ check('configured ids render once even when repeated or placed in two groups', (
 check('unknown configured ids are ignored and unconfigured fields never render', () => {
   const layout = layoutPowerlineFields(
     [field('a', 2), field('b', 2), field('unused', 2)],
-    options({ left: ['a', 'missing', 'plugin:unknown'], right: [], secondary: [] }),
+    options({ left: ['a', 'missing', 'plugin:unknown'], right: [] }),
     40,
   )
   assert.deepEqual(keys(layout.left), ['a'])
@@ -249,7 +239,7 @@ check('unknown configured ids are ignored and unconfigured fields never render',
 check('a namespace sentinel selects namespaced fields in input order', () => {
   const layout = layoutPowerlineFields(
     [field('marker', 2), field('plugins:git', 3), field('plugins:todo', 3), field('plugin:other', 3)],
-    options({ left: ['marker', 'plugins'], right: [], secondary: [] }),
+    options({ left: ['marker', 'plugins'], right: [] }),
     40,
   )
   assert.deepEqual(keys(layout.left), ['marker', 'plugins:git', 'plugins:todo'])

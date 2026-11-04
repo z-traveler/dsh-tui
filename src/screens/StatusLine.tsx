@@ -1,4 +1,5 @@
 import React from 'react'
+import type { StatusLinePresentation } from '../components/StatusLinePresentation.js'
 import { hudSeparator, orderHudFields } from '../hudLayout.js'
 import { Box, Text, useTerminalSize, useTheme } from '../ui.js'
 import type { Color } from '../ink/styles.js'
@@ -230,8 +231,10 @@ export function StatusLine({
   wake,
   activity: projectedActivity,
   pluginFields,
+  render,
 }: {
   channel: Channel
+  render?: (view: StatusLinePresentation) => React.ReactNode
   selectionActive?: boolean
   helpOpen?: boolean
   /** Plugin footer fields (`tuiStatus.setField`), already normalized by the
@@ -733,6 +736,18 @@ const selectionBadge = formatSelectionBadge(channel.selection)
     showActivity ||
     showTrajectory ||
     hint !== ''
+
+  if (render !== undefined) return render({
+    fields: [...fullLeftFields, ...rightFields], pluginFields: visibleFields, used: contextUsed, capacity: contextWindow,
+    supplemental: (showActivity || (!channel.working && trailer !== null) || showTrajectory) ? <Box flexDirection="row" gap={2} overflow="hidden">
+      {showActivity && activity !== undefined && <ActivityLine activity={activity} activityFrames={channel.activityFrames}
+        warnPct={contextPressurePct(occupancy)} warnDanger={(contextPressurePct(occupancy) ?? 0) >= 95} />}
+      {!channel.working && trailer}
+      {showTrajectory && wake !== undefined && <MiniWake band={wake.band} hint={wake.hint} working={channel.working} onOpen={wake.onOpen} hoverHint={wake.hoverHint} />}
+    </Box> : null,
+    detail: id => buildHoverDetail([...fullLeftFields, ...rightFields].find(field => field.key === id || field.id === id)?.id ?? null,
+      visibleFields, channel, occupancy, usage, columns, barColors, backendMode, modelPicker, contextBarSegmentColors(getTheme(themeName))),
+  })
 
   return (
     // Width is pinned to the terminal rather than inherited: `width="100%"`

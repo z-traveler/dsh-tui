@@ -8,6 +8,7 @@ import { t } from '../i18n.js'
 import { Box, Text, useInput, useTerminalSize, useTheme, type ScrollBoxHandle } from '../ui.js'
 import { COMPOSER_IMAGE_TOKEN, imageTokenSpans, imageTokenAround, snapOffImageToken, expandImageTokenRange, type ImageTokenSpan } from './composerImageTokens.js'
 import { EffortChargeGlyph } from './EffortChargeGlyph.js'
+import { PromptChrome } from './PromptChrome.js'
 import { EffortInputBorder, type InputBorderLabel } from './EffortInputBorder.js'
 import { EffortTierBadge } from './EffortTierBadge.js'
 import { cursorGlyphColor, getTheme } from '../theme.js'
@@ -631,6 +632,7 @@ export function PromptInput({
   now = Date.now,
 }: PromptInputProps) {
   const [themeName] = useTheme()
+  const chrome = React.useContext(PromptChrome)
   const nativeCursor = useNativeCursor()
   /**
    * Painted caret fill for static snapshots and atomic image-token focus.
@@ -3557,7 +3559,10 @@ export function PromptInput({
   // （既有调用方的可用列数逐列不变）。用实测常量而不是 stringWidth：该字符
   // 是 U+1F3E0+VS15，stringWidth 按码点算 2（含 VS15 仍是 2），终端只给 1，
   // 见 HOME_BUTTON_COLS 的说明。
-  const homeButtonCols = onOpenSessions === undefined ? 0 : HOME_BUTTON_COLS
+  const inputChrome = expanded ? null : chrome
+  const Frame = inputChrome?.Frame ?? EffortInputBorder
+  const inlineControls = inputChrome?.inlineControls ?? true
+  const homeButtonCols = !inlineControls || onOpenSessions === undefined ? 0 : HOME_BUTTON_COLS
   // 补全卡片边框与输入框 idle 边框同色（plan 模式下整套面板一起变 sage
   // 绿）。`/color` 会话强调色优先于主题 promptBorder（plan 模式仍整体走
   // sage 绿）。`?? ''` 防御最小 mock channel（只声明用到的字段的回归脚
@@ -3573,6 +3578,7 @@ export function PromptInput({
   const editorGutterCols = editorNoWidth + 3
   const inputWidth = expanded
     ? Math.max(1, columns - 4 - editorGutterCols)
+    : inputChrome !== null ? Math.max(1, columns - 2 * inputChrome.padding - vimBadgeCols)
     : Math.max(1, columns - 3 - vimBadgeCols - homeButtonCols - (expandEnabled ? 2 : 0))
   // 展开态无视折叠块：全屏编辑就是为了看全文（foldBlock 状态保留，
   // 收起后折叠显示恢复）。
@@ -4375,7 +4381,7 @@ export function PromptInput({
   if (suspended) return null
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column" marginTop={inputChrome?.marginTop ?? 1}>
       {/* 瞬态面板浮层（帮助/队列/补全）：零布局高度、向上覆盖转录尾部，
           帧高不随面板开关涨落——否则帧顶行会被滚进 scrollback 并在关闭
           重绘时二次写入（/model 切换多一份启动画的根因，见 OverlayAbove）。 */}
@@ -4576,18 +4582,19 @@ export function PromptInput({
           overlay can play on them (sweep → tier name → fade; see
           EffortInputBorder). Idle colour keeps the plan-mode accent the old
           Box border carried. */}
-      <EffortInputBorder
+      <Frame
         effort={channel.reasoningEffort}
         levels={channel.effortLevels}
         columns={columns}
         idleColor={promptAccent}
         topRightLabel={topRightLabel}
+        rows={Math.max(1, visibleLines.length)}
       >
         <Box flexDirection="row" alignItems="flex-start" width="100%">
           {/* ⌂ 会话列表入口：点击打开会话浏览；hover 提亮为输入框强调色。
               行首固定 2 列（`⌂` 1 列 + 分隔空格 1 列，见 homeButtonCols）；
               未传 onOpenSessions 时整体不渲染（宽度预算同步归还）。 */}
-          {onOpenSessions !== undefined && (
+          {inlineControls && onOpenSessions !== undefined && (
             <Box
               flexShrink={0}
               onClick={(event) => {
@@ -4610,11 +4617,11 @@ export function PromptInput({
               </Text>
             </Box>
           )}
-          <EffortChargeGlyph
+          {inlineControls && <EffortChargeGlyph
             effort={channel.reasoningEffort}
             levels={channel.effortLevels}
             working={channel.working}
-          />
+          />}
           {vimEnabled && (
             <Text bold color={vimInsert ? 'success' : 'warning'}>
               {vimInsert ? 'INSERT' : 'NORMAL'} </Text>
@@ -4638,12 +4645,12 @@ export function PromptInput({
                     本流自带偏移空格——不引入嵌套 Box，行数恒定；有文字
                     时不显示）。3 = 行内 `❯ `（2 列）+ 空输入块光标（1
                     列）；行首 ⌂ 入口渲染时徽标之前还要多占它的列数。 */}
-                <EffortTierBadge
+                {inlineControls && <EffortTierBadge
                   effort={channel.reasoningEffort}
                   levels={channel.effortLevels}
                   columns={columns}
                   leadingColumns={3 + homeButtonCols}
-                />
+                />}
               </>
             ) : (
               <Box flexDirection="column">{rendered}</Box>
@@ -4652,7 +4659,7 @@ export function PromptInput({
           {/* ⛶ 全屏草稿编辑入口：点击展开；hover 提亮为输入框强调色。
               inputWidth 已为它预留 2 列（见渲染派生区）；设置关闭时
               整体不渲染（宽度预算同步归还）。 */}
-          {expandEnabled && (
+          {inlineControls && expandEnabled && (
             <Box
               flexShrink={0}
               onClick={(event) => {
@@ -4676,7 +4683,7 @@ export function PromptInput({
             </Box>
           )}
         </Box>
-      </EffortInputBorder>
+      </Frame>
       {/* Agent-view footer: "← N agents" when background sessions are
           waiting on the user, "← for agents" otherwise — the ← affordance's
           discoverability hint. Only rendered when the Chat screen supplies

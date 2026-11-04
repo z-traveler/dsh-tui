@@ -1,6 +1,6 @@
 import type { StatusBarConfig } from './adapter/ports/channel-display.js'
 
-type HudLayout = Pick<StatusBarConfig, 'placement' | 'separator' | 'order'>
+type HudLayout = Pick<StatusBarConfig, 'placement' | 'separator' | 'order' | 'style' | 'powerline' | 'workingCounters'>
 
 // Public setting names map to existing view keys; metrics and visibility stay
 // with StatusLine. Unlisted fields are retained (including safety notices).
@@ -20,6 +20,9 @@ export function parseStatusBarOrder(value: string): string[] | undefined {
 /** Only explicit, valid choices extend the upstream preference object. */
 export function normalizeHudLayout(input: Record<string, unknown>): HudLayout {
   const result: HudLayout = {}
+  if (input.style === 'native' || input.style === 'powerline') result.style = input.style
+  if (Object.hasOwn(input, 'powerline')) result.powerline = input.powerline
+  if (typeof input.workingCounters === 'boolean') result.workingCounters = input.workingCounters
   if (input.placement === 'above' || input.placement === 'below') result.placement = input.placement
   if (input.separator === 'dot' || input.separator === 'powerline-thin') result.separator = input.separator
   if (typeof input.order === 'string') {

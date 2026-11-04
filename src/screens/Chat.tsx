@@ -77,6 +77,7 @@ import { ScrollbarGutter } from '../components/ScrollbarGutter.js'
 import type { TimelineSnapshot } from '../ink/timeline-rail.js'
 import { normalizeScrollGutter } from '../tuiDisplayPrefs.js'
 import { HudPlacement } from '../components/HudPlacement.js'
+import { PowerlineWorking } from '../powerline/Working.js'
 import { OverlayAbove } from '../components/OverlayAbove.js'
 import { TooltipLayer } from '../components/Tooltip.js'
 import { PromptInput, composerImageRefsForText, type PromptController } from '../components/PromptInput.js'
@@ -7237,7 +7238,14 @@ export function Chat({
             onClick={() => handle?.scrollToBottom()}
           />
         )}
-        {channel.working &&
+        {channel.working && channel.statusBar?.style === 'powerline' && !channel.minimalUi ? (
+          <PowerlineWorking channel={channel}
+            line={activitySlot && workingActivity?.phase !== 'idle' ? workingActivity?.line : undefined}
+            suffix={compactionBadge}
+            counters={channel.statusBar.workingCounters ? `↑ ${formatTokens(lastUploadTokens)} · ↓ ${formatTokens(Math.round(channel.responseChars / 4))}` : undefined}
+            elapsed={() => (pauseStartTimeRef.current ?? Date.now()) - loadingStartTimeRef.current - totalPausedMsRef.current}
+          />
+        ) : channel.working &&
           (activitySlot &&
           workingActivity !== undefined &&
           workingActivity.line !== '' &&
@@ -7318,7 +7326,7 @@ export function Chat({
             onDismiss={() => setBalance(null)}
           />
         )}
-        {statusEntries.length > 0 && (
+        {statusEntries.length > 0 && (channel.statusBar?.style !== 'powerline' || channel.minimalUi) && (
           // Plugin status contributions (tuiStatus seam): one joined line,
           // truncated by the Text wrap contract — the host owns the layout,
           // plugins own only their text.
@@ -7412,7 +7420,8 @@ export function Chat({
         ) : questionPanelNode !== null ? (
           questionPanelNode
         ) : null}
-        <HudPlacement placement={channel.minimalUi ? 'below' : channel.statusBar?.placement}>
+        <HudPlacement placement={channel.minimalUi ? 'below' : channel.statusBar?.placement}
+          style={channel.minimalUi ? 'native' : channel.statusBar?.style} powerline={channel.statusBar?.powerline} suspended={promptReplacementOpen} statusText={statusEntries.map(entry => entry.text).join(' · ')}>
         <PromptInput
           key="prompt-input"
           channel={channel}

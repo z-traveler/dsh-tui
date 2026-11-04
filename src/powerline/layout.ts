@@ -26,8 +26,8 @@ function visibleFieldWidth(field: { width: number }): number {
 /**
  * Fit HUD fields into the top row and the overflow rows below it.
  *
- * Group order decides who renders and where: `left` then `secondary` flow along
- * the primary row, `right` reserves its prefix from the right edge first. A
+ * Group order decides who renders and where: `left` flows along the primary
+ * row, `right` reserves its prefix from the right edge first. A
  * configured id also selects fields keyed `<id>:<suffix>`, so a plugin group can
  * add fields without listing every suffix. `width` is the row budget in terminal
  * cells.
@@ -53,7 +53,7 @@ export function layoutPowerlineFields<T extends { key: string; width: number }>(
     if (!byKey.has(field.key)) byKey.set(field.key, field)
   }
 
-  // Groups claim fields in config order (left, right, secondary), so a field
+  // Groups claim fields in config order (left, right), so a field
   // listed twice renders once, at its first placement.
   const claimed = new Set<string>()
   const group = (ids: readonly string[]): T[] => {
@@ -70,7 +70,6 @@ export function layoutPowerlineFields<T extends { key: string; width: number }>(
 
   const leftFields = group(options.left)
   const rightFields = group(options.right)
-  const secondaryFields = group(options.secondary)
 
   const separatorCost = stringWidth(options.separator) + 2
   const baseOverhead = options.padding * 2
@@ -99,7 +98,7 @@ export function layoutPowerlineFields<T extends { key: string; width: number }>(
   let leftWidth = 0
   let leftFull = false
   const primaryOverflow: T[] = []
-  for (const field of [...leftFields, ...secondaryFields]) {
+  for (const field of leftFields) {
     const needed = cost(left.length, field)
     if (!leftFull && leftWidth + needed <= leftAvailable) {
       left.push(field)

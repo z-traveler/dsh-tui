@@ -24,7 +24,7 @@ export interface PowerlineGitStatus {
   untracked: number
 }
 
-const STATUS_ARGS = ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--branch']
+const STATUS_ARGS = ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--branch', '--untracked-files=normal']
 const CACHE_TTL_MS = 1_000
 const CACHE_LIMIT = 32
 const EXEC_TIMEOUT_MS = 3_000
@@ -49,7 +49,11 @@ export function readPowerlineGit(cwd: string): Promise<PowerlineGitStatus | unde
   if (cached !== undefined && cached.expiresAt > now) return cached.read
   // Delete before insert so a re-read moves the key to the young end.
   cache.delete(key)
-  const entry: CacheEntry = { expiresAt: now + CACHE_TTL_MS, read: readStatus(key) }
+  const entry: CacheEntry = { expiresAt: Infinity, read: readStatus(key) }
+  entry.read = entry.read.then(value => {
+    entry.expiresAt = Date.now() + CACHE_TTL_MS
+    return value
+  })
   cache.set(key, entry)
   while (cache.size > CACHE_LIMIT) {
     const oldest = cache.keys().next()
@@ -66,7 +70,7 @@ async function readStatus(cwd: string): Promise<PowerlineGitStatus | undefined> 
 
 function runStatus(cwd: string): Promise<string | undefined> {
   return new Promise((done) => {
-    execFile('git', STATUS_ARGS, { cwd, timeout: EXEC_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES }, (error, stdout) => {
+    execFile('git', STATUS_ARGS, { cwd, timeout: EXEC_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES, windowsHide: true }, (error, stdout) => {
       // A missing git binary, a non-repository cwd, an unreadable directory, a
       // timeout or truncated output all read as unknown. The segment shows
       // nothing for them rather than claiming a clean worktree.

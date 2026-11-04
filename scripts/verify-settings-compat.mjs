@@ -18,11 +18,12 @@ import { bindComponentIdentity } from '../src/dsh-adapter/component-identity.ts'
 import { parseManifest, projectManifest } from '../src/adapter/standard/protocols.ts'
 import { testManifest } from './lib/plugin-test-utils.ts'
 import { Config } from '../src/dsh-adapter/index.ts'
+import { parsePowerlineOptions } from '../src/powerline/config.ts'
 import { configValues, createSettingsScope, editableConfig, resolveSettingsNamespace } from '../src/dsh-adapter/compat/settings.ts'
 import { createSettingsHosts } from '../src/dsh-adapter/channel/settings-host.ts'
 import { SettingsForm } from '../src/dsh-adapter/settingsEditor.ts'
 import TuiSettingsSectionsRuntime, { getHostSettingsSections, getLocalSettingsSectionsHost, trackHostSettingsSection } from '../src/dsh-adapter/settings-sections.ts'
-import { ALL_SIDE_PANELS, DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, SIDE_PANEL_ID_PATTERN, isTemporarySidePanelId, isPageMarginMode, normalizePageMargin, normalizePluginFieldsOrder, normalizeSidePanelPanels, parsePageMarginSpec, parsePluginFieldsOrder, parseSidePanelPanels } from '../src/tuiDisplayPrefs.ts'
+import { ALL_SIDE_PANELS, DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, SIDE_PANEL_ID_PATTERN, isTemporarySidePanelId, isPageMarginMode, normalizePageMargin, normalizePluginFieldsOrder, normalizeSidePanelPanels, normalizeStatusBar, parsePageMarginSpec, parsePluginFieldsOrder, parseSidePanelPanels } from '../src/tuiDisplayPrefs.ts'
 import { SPLASH_FONTS, SPLASH_FONT_OPTIONS, normalizeSplashFont } from '../src/components/splashFonts.ts'
 import { normalizeBrandSetting } from '../src/branding.ts'
 import { getLang, isLang } from '../src/i18n.ts'
@@ -191,12 +192,15 @@ const displayDeclaration = settingsBody.statements.find(node => ts.isVariableSta
 const displayBody = displayDeclaration.declarationList.declarations[0].initializer.body
 const panelsStatement = displayBody.statements.find(node => node.getText(source).includes('applySidePanelPanels'))
 assert.ok(panelsStatement, 'production applyDisplay carries the sidePanel.panels apply')
+const statusStatements = displayBody.statements.filter(node => /const statusBar =|channel\.setStatusBar\(/.test(node.getText(source)))
+assert.equal(statusStatements.length, 2, 'capture the real status config apply, including explicit option clears')
 const javascript = ts.transpileModule(`
   ${namespaceDeclaration}
   return ctx.inject(['settings'], settingsCtx => {
     ${declarations.join('\n')}
     const applyPanels = value => { ${panelsStatement.getText(source)} }
-    const apply = next => { observe(next); applyShortcuts(next); applyPanels(next) }
+    const applyStatus = value => { ${statusStatements.map(node => node.getText(source)).join('\n')} }
+    const apply = next => { observe(next); applyShortcuts(next); applyPanels(next); applyStatus(next) }
     apply(bootSettings)
     ${watchStatements[0].getText(source)}
     capture(settingsCtx, scope, applyShortcuts)
@@ -208,6 +212,7 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
   const root = new Context()
   const home = mkdtempSync(join(tmpdir(), 'dsh-tui-settings-'))
   const observed = []
+  const observedStatus = []
   const notices = []
   let owner, child, liveScope, applyShortcuts, runtime, legacyScopeSchema
   resetKeymapOverrides()
@@ -261,13 +266,13 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
         await bindSettings({
           ctx: runtimeCtx, configOwner: ctx, runtimeConfig, config: configValues(runtimeConfig), Schema, SHORTCUT_ACTIONS,
           applySidePanelPanels,
-          DEFAULT_STATUS_BAR, normalizePageMargin, isLang, Config, configValues, resolveSettingsNamespace, setKeymapOverrides,
+          DEFAULT_STATUS_BAR, normalizeStatusBar, normalizePageMargin, isLang, Config, configValues, resolveSettingsNamespace, setKeymapOverrides,
           // Capture the legacy scope's own schema: the production wiring hands
           // it a second hand-written statusBar list that has to stay in step
           // with Config (the `local` registry path reads values through it).
           createSettingsScope: (...args) => { legacyScopeSchema = args[3]; return createSettingsScope(...args) },
           bootedFullscreen: true, bootedTerminalImages: true,
-          t: key => key, notifyChannel: message => notices.push(message), channel: { notify: message => notices.push(message) },
+          t: key => key, notifyChannel: message => notices.push(message), channel: { notify: message => notices.push(message), setStatusBar: value => observedStatus.push(value) },
           observe: value => observed.push(value),
           capture(settingsCtx, scope, apply) { child = settingsCtx; liveScope = scope; applyShortcuts = apply },
         })
@@ -290,7 +295,7 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
       ALL_SIDE_PANELS, SIDE_PANEL_ID_PATTERN, isTemporarySidePanelId, normalizeSidePanelPanels, parseSidePanelPanels,
       // Plugin footer field list (statusBar.pluginFieldsOrder): its parse and
       // format callbacks validate/canonicalize through these two helpers.
-      parsePluginFieldsOrder, normalizePluginFieldsOrder,
+      parsePluginFieldsOrder, normalizePluginFieldsOrder, parsePowerlineOptions,
       bootedFullscreen: true, terminalImagesDisabledByEnv: false,
       readEffortPref: () => undefined, // Do not read the developer's persisted preferences.
     })
@@ -312,6 +317,12 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
     assert.ok(panelField)
     assert.equal(panelField.parse('todo,session:act1:search'), undefined, 'production parse refuses temporary addresses')
     assert.deepEqual(panelField.parse('todo,component:act1:search'), { kind: 'set', value: 'todo,component:act1:search' })
+    const powerlineField = section.fields.find(field => field.path.join('.') === 'statusBar.powerline')
+    assert.ok(powerlineField, 'production form exposes Powerline options')
+    assert.equal(powerlineField.parse('{broken'), undefined)
+    assert.equal(powerlineField.parse('{"icons":"bogus"}'), undefined)
+    assert.deepEqual(powerlineField.parse(''), { kind: 'clear' })
+    assert.equal(powerlineField.parse('{"icons":"ascii"}').value.icons, 'ascii')
     const form = new SettingsForm(host, view, section.fields)
     assert.equal(form.available, true, 'real describe() supplies the editable TUI section')
     assert.equal(form.field(diffField).text, 'split', 'the settings page shows the effective value')
@@ -388,6 +399,7 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
     form.edit(splashField, 'classic')
     form.edit(recapField, 'false')
     form.edit(costField, 'false')
+    form.edit(powerlineField, '{"icons":"ascii","padding":0}')
     assert.equal(form.field(recapField).invalid, false, `${registry}: recapOnOpen accepts a boolean edit`)
     assert.equal(form.field(costField).invalid, false, `${registry}: statusBar.cost accepts a boolean edit`)
     const saved = await form.save()
@@ -398,6 +410,11 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
     assert.equal(configValues(runtime).statusBar.cost, false, 'the panel persists the status-bar cost switch')
     assert.equal(owner.fiber, ownerFiber, 'editing settings does not remount the agent owner')
     assert.equal(observed.length, 1)
+    assert.equal(observedStatus.at(-1).powerline.icons, 'ascii', 'production form save reaches the real status apply')
+    assert.deepEqual(configValues(runtime).statusBar.powerline, { icons: 'ascii', padding: 0 }, 'save partial overrides, not a frozen preset snapshot')
+    form.edit(powerlineField, '')
+    assert.equal(await form.save(), true)
+    assert.equal(observedStatus.at(-1).powerline, undefined, 'clearing a field explicitly clears live channel options')
     assert.equal(panelEnabled(), true, 'unrelated form edits re-apply `*` without hiding a registered panel')
     assert.equal(temporaryEnabled(), true, 'unrelated real settings replay keeps temporary selection enabled')
     // Hide it the way the picker does — a session-only move — and let the

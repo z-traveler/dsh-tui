@@ -79,6 +79,12 @@ export type BrandSetting = 'auto' | 'deepseek' | 'claude' | 'codex'
 
 /** Individually selectable fields in the status footer. */
 export interface StatusBarConfig {
+  /** Opt-in input chrome; native preserves the upstream presentation. */
+  style?: 'native' | 'powerline'
+  /** Partial Powerline presentation options, validated by its renderer. */
+  powerline?: unknown
+  /** Extra token/speed counters on the compact working line. */
+  workingCounters?: boolean
   /** Place the existing HUD above or below the prompt; below is the default. */
   placement?: 'above' | 'below'
   /** Powerline thin requires a font with the U+E0B1 glyph. */

@@ -60,7 +60,7 @@ const SCROLL_GUTTERS = new Set<ScrollGutterMode>(['timeline', 'scrollbar', 'hidd
  *  purpose: a boolean member added to `StatusBarConfig`/`DEFAULT_STATUS_BAR`
  *  must not have to be repeated here, or `normalizeStatusBar` would silently
  *  drop its configured value. */
-type BooleanStatusBarKey = Exclude<keyof StatusBarConfig, 'pluginFieldsOrder' | 'placement' | 'separator' | 'order'>
+type BooleanStatusBarKey = Exclude<keyof StatusBarConfig, 'pluginFieldsOrder' | 'placement' | 'separator' | 'order' | 'style' | 'powerline' | 'workingCounters'>
 const STATUS_BAR_BOOLEAN_KEYS: readonly BooleanStatusBarKey[] = (
   Object.keys(DEFAULT_STATUS_BAR) as (keyof StatusBarConfig)[]
 ).filter((key): key is BooleanStatusBarKey => key !== 'pluginFieldsOrder')
