@@ -103,24 +103,40 @@ check('percent thresholds clamp and an inverted pair falls back to defaults', ()
   assert.equal(inverted.errorPercent, 90)
 })
 
-check('separator and marker accept text and reject blank or oversized values', () => {
+check('separator and marker accept text and reject blank, oversized or control-bearing values', () => {
   assert.equal(normalizePowerlineOptions({ separator: '|' }).separator, '|')
   assert.equal(normalizePowerlineOptions({ separator: ' │ ' }).separator, ' │ ')
   assert.equal(normalizePowerlineOptions({ separator: '' }).separator, '\ue0b1')
   assert.equal(normalizePowerlineOptions({ separator: 'x'.repeat(20) }).separator, '\ue0b1')
+  assert.equal(normalizePowerlineOptions({ separator: '\u001b[31m' }).separator, '\ue0b1')
+  assert.equal(normalizePowerlineOptions({ separator: '|\n|' }).separator, '\ue0b1')
   assert.equal(normalizePowerlineOptions({ marker: 'DSH' }).marker, 'DSH')
   assert.equal(normalizePowerlineOptions({ marker: '  ' }).marker, '🐋')
   assert.equal(normalizePowerlineOptions({ marker: 'm'.repeat(20) }).marker, '🐋')
+  assert.equal(normalizePowerlineOptions({ marker: '🐋\n' }).marker, '🐋')
+  assert.equal(normalizePowerlineOptions({ marker: '\u0007' }).marker, '🐋')
 })
 
-check('colors merge per key and ignore malformed values', () => {
+check('colors accept theme keys and renderer forms and reject everything else', () => {
   const colors = normalizePowerlineOptions({
-    colors: { model: '#000000', gitDirty: '', cost: 7, future: '#fff' },
+    colors: {
+      model: '#000000', gitDirty: '', cost: 7, future: '#fff',
+      path: 'accent', thinking: 'ansi256(200)', warning: 'ansi:red',
+      error: 'not-a-color', context: '#12', border: '#header',
+    },
   }).colors
-  assert.deepEqual(colors, { ...DEFAULTS.colors, model: '#000000' })
+  assert.deepEqual(colors, {
+    ...DEFAULTS.colors,
+    model: '#000000', path: 'accent', thinking: 'ansi256(200)', warning: 'ansi:red',
+  })
+  assert.equal(normalizePowerlineOptions({ colors: { model: '#000000\n' } }).colors.model, DEFAULTS.colors.model)
 })
 
-check('model color rules replace the defaults and malformed patterns are skipped', () => {
+check('default colors are valid under the same color contract', () => {
+  assert.deepEqual(parsePowerlineOptions(JSON.stringify(DEFAULTS)), DEFAULTS)
+})
+
+check('model color rules replace the defaults and malformed entries are skipped', () => {
   assert.deepEqual(normalizePowerlineOptions({ modelColors: [] }).modelColors, [])
   assert.deepEqual(normalizePowerlineOptions({
     modelColors: [
@@ -128,6 +144,7 @@ check('model color rules replace the defaults and malformed patterns are skipped
       { pattern: ' deepseek ', color: ' #6e9bc5 ' },
       { pattern: 'gpt' },
       { color: '#ffffff' },
+      { pattern: 'claude', color: 'not-a-color' },
       'claude',
     ],
   }).modelColors, [{ pattern: 'deepseek', color: '#6e9bc5' }])
@@ -140,6 +157,11 @@ check('parsePowerlineOptions resolves valid JSON and rejects malformed input', (
     'not json', '[]', '"powerline"', 'null', '1',
     '{"left":[1]}', '{"icons":"emoji"}', '{"padding":"1"}', '{"colors":{"model":1}}',
     '{"modelColors":[{"pattern":"x"}]}', '{"modelColors":"x"}', '{"secondaryOverflow":"push"}',
+    '{"path":"middle"}', '{"context":"tokens"}',
+    '{"colors":{"model":"not-a-color"}}', '{"colors":{"model":"#fff\\n"}}',
+    '{"modelColors":[{"pattern":"gpt","color":"not-a-color"}]}',
+    '{"marker":""}', '{"marker":"🐋\\n"}', '{"separator":"\\u001b[31m"}',
+    '{"separator":"xxxxxxxxxxxxxxxxxxxx"}',
   ]) {
     assert.equal(parsePowerlineOptions(text), undefined, text)
   }
@@ -148,6 +170,9 @@ check('parsePowerlineOptions resolves valid JSON and rejects malformed input', (
 check('parsePowerlineOptions keeps partial colors and skips unparsable patterns', () => {
   assert.deepEqual(parsePowerlineOptions('{"colors":{"gitDirty":"#ff0000"}}'), {
     ...DEFAULTS, colors: { ...DEFAULTS.colors, gitDirty: '#ff0000' },
+  })
+  assert.deepEqual(parsePowerlineOptions('{"colors":{"gitDirty":"ansi:red"}}'), {
+    ...DEFAULTS, colors: { ...DEFAULTS.colors, gitDirty: 'ansi:red' },
   })
   assert.deepEqual(parsePowerlineOptions('{"modelColors":[{"pattern":"[","color":"#ff0000"}]}'), {
     ...DEFAULTS, modelColors: [],
@@ -232,19 +257,50 @@ check('a namespace sentinel selects namespaced fields in input order', () => {
   assert.deepEqual(layout.secondary, [])
 })
 
-check('padding and separator cells are charged per field', () => {
+check('outer padding and separator spaces are charged per rendered row', () => {
   const fields = [field('a', 3), field('b', 3)]
   const padded = options({ left: ['a', 'b'], right: [], padding: 2, separator: '界' })
+  // Row = 2*2 outer cells + a(3) + (界=2 plus two spaces) + b(3) = 14 cells.
   assert.deepEqual(keys(layoutPowerlineFields(fields, padded, 7).left), ['a'])
-  assert.deepEqual(keys(layoutPowerlineFields(fields, padded, 16).left), ['a', 'b'])
+  assert.deepEqual(keys(layoutPowerlineFields(fields, padded, 14).left), ['a', 'b'])
   assert.deepEqual(layoutPowerlineFields(fields, padded, 9).secondary.map(keys), [['b']])
+})
+
+check('padding 0 keeps only the separator spaces between fields', () => {
+  const fields = [field('a', 4), field('b', 4), field('r', 6)]
+  const bare = options({ left: ['a', 'b'], right: ['r'], padding: 0, separator: '|' })
+  // Right row = r(6), no outer cells; left budget = width - 6.
+  // Left row = a(4) + |+2 spaces + b(4) = 11 cells, so 17 fits and 16 does not.
+  assert.deepEqual(keys(layoutPowerlineFields(fields, bare, 17).left), ['a', 'b'])
+  assert.deepEqual(keys(layoutPowerlineFields(fields, bare, 16).left), ['a'])
+  const narrow = layoutPowerlineFields(fields, bare, 13)
+  assert.deepEqual(keys(narrow.left), ['a'])
+  assert.deepEqual(keys(narrow.right), ['r'])
+  assert.deepEqual(narrow.secondary.map(keys), [['b']])
+})
+
+check('padding 2 applies once per row and once to the reserved right row', () => {
+  const fields = [field('a', 3), field('r1', 2), field('r2', 2)]
+  const padded = options({ left: ['a'], right: ['r1', 'r2'], padding: 2, separator: '|' })
+  // Right row = 2*2 + r1(2) + |+2 spaces + r2(2) = 11 cells; left budget = width - 11.
+  // Left row = 2*2 + a(3) = 7 cells, so 18 fits and 17 does not.
+  const fitting = layoutPowerlineFields(fields, padded, 18)
+  assert.deepEqual(keys(fitting.left), ['a'])
+  assert.deepEqual(keys(fitting.right), ['r1', 'r2'])
+  const tight = layoutPowerlineFields(fields, padded, 17)
+  assert.deepEqual(keys(tight.left), [])
+  assert.deepEqual(tight.secondary.map(keys), [['a']])
+  // At width 10 the right row keeps r1 (6 cells) and overflows r2.
+  const narrow = layoutPowerlineFields(fields, padded, 10)
+  assert.deepEqual(keys(narrow.right), ['r1'])
+  assert.deepEqual(narrow.secondary.map(keys), [['a']])
 })
 
 check('drop mode stops at the first nonfit in a row', () => {
   const fields = [field('a', 3), field('b', 3), field('c', 5), field('d', 3)]
   const layout = layoutPowerlineFields(fields, options({
     left: ['a', 'b', 'c', 'd'], right: [], padding: 0, separator: '|', secondaryOverflow: 'drop',
-  }), 7)
+  }), 9)
   assert.deepEqual(keys(layout.left), ['a', 'b'])
   assert.deepEqual(layout.secondary.map(keys), [['c']])
 })
@@ -253,7 +309,7 @@ check('wrap mode moves the nonfit field to a new row and keeps ordering', () => 
   const fields = [field('a', 3), field('b', 3), field('c', 5), field('d', 3)]
   const layout = layoutPowerlineFields(fields, options({
     left: ['a', 'b', 'c', 'd'], right: [], padding: 0, separator: '|', secondaryOverflow: 'wrap',
-  }), 7)
+  }), 9)
   assert.deepEqual(keys(layout.left), ['a', 'b'])
   assert.deepEqual(layout.secondary.map(keys), [['c'], ['d']])
 })
@@ -263,12 +319,12 @@ check('a field wider than a whole row is dropped without shrinking it', () => {
   const fields = [field('a', 3), field('b', 3), wide, field('d', 3)]
   const wrapped = layoutPowerlineFields(fields, options({
     left: ['a', 'b', 'e', 'd'], right: [], padding: 0, separator: '|', secondaryOverflow: 'wrap',
-  }), 7)
+  }), 9)
   assert.deepEqual(keys(wrapped.left), ['a', 'b'])
   assert.deepEqual(wrapped.secondary.map(keys), [['d']])
   const dropped = layoutPowerlineFields(fields, options({
     left: ['a', 'b', 'e', 'd'], right: [], padding: 0, separator: '|', secondaryOverflow: 'drop',
-  }), 7)
+  }), 9)
   assert.deepEqual(dropped.secondary, [])
 })
 

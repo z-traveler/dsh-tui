@@ -30,9 +30,14 @@ function visibleFieldWidth(field: { width: number }): number {
  * the primary row, `right` reserves its prefix from the right edge first. A
  * configured id also selects fields keyed `<id>:<suffix>`, so a plugin group can
  * add fields without listing every suffix. `width` is the row budget in terminal
- * cells; every field is charged its own width plus `2 * padding`, and the
- * separator is charged between adjacent fields of the same row. Nothing is
- * scaled: a field that does not fit moves to a later row or is dropped.
+ * cells.
+ *
+ * Padding is the row's outer padding, not per-field padding: a rendered group is
+ * `2 * padding` cells around its fields, plus `stringWidth(separator) + 2` cells
+ * between adjacent fields (the separator glyph with one space either side). The
+ * right group therefore reserves its full rendered width, including its outer
+ * padding, and the primary group fits within what remains. Nothing is scaled: a
+ * field that does not fit moves to a later row or is dropped.
  */
 export function layoutPowerlineFields<T extends { key: string; width: number }>(
   fields: readonly T[],
@@ -67,10 +72,12 @@ export function layoutPowerlineFields<T extends { key: string; width: number }>(
   const rightFields = group(options.right)
   const secondaryFields = group(options.secondary)
 
-  const separatorWidth = stringWidth(options.separator)
-  const padding = options.padding * 2
+  const separatorCost = stringWidth(options.separator) + 2
+  const baseOverhead = options.padding * 2
+  // First field pays the group's outer padding; later fields pay the separator
+  // and its surrounding spaces.
   const cost = (count: number, field: T): number =>
-    visibleFieldWidth(field) + padding + (count > 0 ? separatorWidth : 0)
+    visibleFieldWidth(field) + (count === 0 ? baseOverhead : separatorCost)
 
   const right: T[] = []
   let rightWidth = 0

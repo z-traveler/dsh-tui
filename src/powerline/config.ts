@@ -1,4 +1,6 @@
+import { isValidThemeColor } from '../customTheme.js'
 import { stringWidth } from '../ink/stringWidth.js'
+import { isThemeColorKey } from '../theme.js'
 
 /** Glyph set for HUD field labels; `none` keeps the labels text-only. */
 export type PowerlineIcons = 'nerd' | 'ascii' | 'none'
@@ -110,13 +112,33 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
   return Math.min(max, Math.max(min, Math.floor(value)))
 }
 
+// Control characters would corrupt the row: newlines break it, ESC injects
+// terminal sequences, and C1 controls render as invisible width.
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
+
+function hasControlChars(value: string): boolean {
+  return CONTROL_CHARS.test(value)
+}
+
 /**
- * A blank or over-wide glyph falls back instead of letting one configured value
- * consume the row budget.
+ * A blank, over-wide or control-bearing glyph falls back instead of letting one
+ * configured value consume the row budget or rewrite the line (newlines, ESC).
  */
 function normalizeGlyph(value: unknown, fallback: string, maxWidth: number): string {
-  if (typeof value !== 'string' || value.trim() === '') return fallback
-  return stringWidth(value) > maxWidth ? fallback : value
+  return isGlyph(value, maxWidth) ? value : fallback
+}
+
+function isGlyph(value: unknown, maxWidth: number): value is string {
+  if (typeof value !== 'string' || value.trim() === '' || hasControlChars(value)) return false
+  const width = stringWidth(value)
+  return width > 0 && width <= maxWidth
+}
+
+/** A color is a Theme key or one of the forms the renderer already accepts. */
+function isPowerlineColor(value: unknown): value is string {
+  if (typeof value !== 'string' || hasControlChars(value)) return false
+  const color = value.trim()
+  return color !== '' && (isThemeColorKey(color) || isValidThemeColor(color))
 }
 
 /** An explicit empty group stays empty; only a missing group gets the default. */
@@ -139,7 +161,9 @@ function normalizeColors(value: unknown): PowerlineColors {
   const colors = { ...DEFAULT_COLORS }
   for (const key of COLOR_KEYS) {
     const color = raw[key]
-    if (typeof color === 'string' && color.trim() !== '') colors[key] = color.trim()
+    // An invalid color falls back to the field's default instead of reaching
+    // the renderer, where an unknown value would silently paint nothing.
+    if (isPowerlineColor(color)) colors[key] = color.trim()
   }
   return colors
 }
@@ -160,9 +184,9 @@ function normalizeModelColors(value: unknown): PowerlineModelColor[] {
   for (const entry of value) {
     if (!isRecord(entry)) continue
     const pattern = typeof entry.pattern === 'string' ? entry.pattern.trim() : ''
-    const color = typeof entry.color === 'string' ? entry.color.trim() : ''
-    if (pattern === '' || color === '' || !isPattern(pattern)) continue
-    rules.push({ pattern, color })
+    const color = typeof entry.color === 'string' ? entry.color : ''
+    if (pattern === '' || !isPattern(pattern) || !isPowerlineColor(color)) continue
+    rules.push({ pattern, color: color.trim() })
   }
   return rules
 }
@@ -206,26 +230,27 @@ function isFiniteNumber(value: unknown): boolean {
 
 function isColorsInput(value: unknown): boolean {
   if (!isRecord(value)) return false
-  return COLOR_KEYS.every(key => value[key] === undefined || typeof value[key] === 'string')
+  return COLOR_KEYS.every(key => value[key] === undefined || isPowerlineColor(value[key]))
 }
 
 function isModelColorsInput(value: unknown): boolean {
   return Array.isArray(value) && value.every(entry => isRecord(entry)
     && typeof entry.pattern === 'string'
-    && typeof entry.color === 'string')
+    && isPowerlineColor(entry.color))
 }
 
 /**
- * `/settings` edits a partial object, so a known key with the wrong type is
- * rejected instead of silently defaulting: a typo should fail the save rather
- * than look accepted. Value ranges stay normalized, and unknown layout ids are
- * accepted because plugin field ids are not known in advance.
+ * `/settings` edits a partial object, so an invalid style value is rejected
+ * instead of silently defaulting: a typo should fail the save rather than look
+ * accepted. Value ranges stay normalized, malformed model patterns are skipped
+ * (they are a search filter, not a style), and unknown layout ids are accepted
+ * because plugin field ids are not known in advance.
  */
 function hasValidTypes(raw: Record<string, unknown>): boolean {
   return (raw.left === undefined || isStringArray(raw.left))
     && (raw.right === undefined || isStringArray(raw.right))
     && (raw.secondary === undefined || isStringArray(raw.secondary))
-    && (raw.separator === undefined || typeof raw.separator === 'string')
+    && (raw.separator === undefined || isGlyph(raw.separator, MAX_SEPARATOR_WIDTH))
     && (raw.icons === undefined || isOneOf(raw.icons, ICONS))
     && (raw.padding === undefined || isFiniteNumber(raw.padding))
     && (raw.secondaryOverflow === undefined || isOneOf(raw.secondaryOverflow, OVERFLOWS))
@@ -234,7 +259,7 @@ function hasValidTypes(raw: Record<string, unknown>): boolean {
     && (raw.warnPercent === undefined || isFiniteNumber(raw.warnPercent))
     && (raw.errorPercent === undefined || isFiniteNumber(raw.errorPercent))
     && (raw.maxRows === undefined || isFiniteNumber(raw.maxRows))
-    && (raw.marker === undefined || typeof raw.marker === 'string')
+    && (raw.marker === undefined || isGlyph(raw.marker, MAX_MARKER_WIDTH))
     && (raw.colors === undefined || isColorsInput(raw.colors))
     && (raw.modelColors === undefined || isModelColorsInput(raw.modelColors))
 }
