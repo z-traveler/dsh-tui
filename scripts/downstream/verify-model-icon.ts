@@ -3,7 +3,8 @@
  * node --import tsx/esm scripts/downstream/verify-model-icon.ts */
 import assert from 'node:assert/strict'
 import { normalizePowerlineOptions } from '../../src/powerline/config.js'
-import { selectModelIcon } from '../../src/powerline/modelIcon.js'
+import { formatModelIconPrefix, selectModelIcon } from '../../src/powerline/modelIcon.js'
+import { stringWidth } from '../../src/ink/stringWidth.js'
 
 let checks = 0
 function check(label: string, test: () => void) { test(); console.log(`PASS ${++checks}: ${label}`) }
@@ -67,6 +68,59 @@ check('a valid CJK glyph is returned as configured, without a trailing space', (
   assert.equal(icon, '界界界')
   assert.equal(selectModelIcon('deepseek-chat', rules([{ pattern: 'deepseek', icon: 'D' }])), 'D')
   assert.equal(selectModelIcon('deepseek-chat', options({ icons: 'ascii' })), 'model')
+})
+
+check('the raw selector stays unnormalized: the prefix formatter owns the slot', () => {
+  assert.equal(selectModelIcon('claude-sonnet', rules([{ pattern: 'claude', icon: '✳' }])), '✳')
+})
+
+check('the prefix is the glyph plus one gap, and the default fallback is unchanged', () => {
+  assert.equal(formatModelIconPrefix('deepseek-chat', options(undefined)), `${FALLBACK} `)
+  assert.equal(stringWidth(formatModelIconPrefix('deepseek-chat', options(undefined))), 2)
+})
+
+check('prefix modes bypass the slot: none is empty, ascii is the word plus one gap', () => {
+  const modelIcons = [{ pattern: 'deepseek', icon: '界' }]
+  assert.equal(formatModelIconPrefix('deepseek-chat', options({ icons: 'none', modelIcons })), '')
+  assert.equal(formatModelIconPrefix('deepseek-chat', options({ icons: 'ascii', modelIcons })), 'model ')
+  assert.equal(formatModelIconPrefix('deepseek-chat', options({ icons: 'ascii' })), 'model ')
+})
+
+check('a bare text-default emoji symbol gains VS16 so its width is font-independent', () => {
+  const claude = rules([{ pattern: 'claude', icon: '✳' }])
+  assert.equal(formatModelIconPrefix('claude-sonnet', claude), '✳\ufe0f ')
+  assert.equal(stringWidth(formatModelIconPrefix('claude-sonnet', claude)), 3)
+})
+
+check('explicit selectors, default-emoji and multi-codepoint glyphs are left alone', () => {
+  const prefix = (icon: string) => formatModelIconPrefix('m', rules([{ pattern: 'm', icon }]))
+  assert.equal(prefix('✳\ufe0f'), '✳\ufe0f ')
+  assert.equal(prefix('✳\ufe0e'), '✳\ufe0e ')
+  assert.equal(prefix('🐋'), '🐋 ')
+  assert.equal(prefix('界界'), '界界 ')
+})
+
+check('keycap ASCII bases are not converted into emoji sequences', () => {
+  assert.equal(formatModelIconPrefix('m', rules([{ pattern: 'm', icon: '1' }])), '1 ')
+  assert.equal(formatModelIconPrefix('m', rules([{ pattern: 'm', icon: '#' }])), '# ')
+})
+
+check('every configured icon and the fallback share one slot width plus one gap', () => {
+  const shared = rules([{ pattern: 'claude', icon: '✳' }, { pattern: 'gpt', icon: 'G' }])
+  for (const model of ['claude-sonnet', 'gpt-5', 'llama-4']) {
+    assert.equal(stringWidth(formatModelIconPrefix(model, shared)), 3)
+  }
+  assert.equal(formatModelIconPrefix('claude-sonnet', shared), '✳\ufe0f ')
+  assert.equal(formatModelIconPrefix('gpt-5', shared), 'G  ')
+  assert.equal(formatModelIconPrefix('llama-4', shared), `${FALLBACK}  `)
+})
+
+check('a configured wide glyph widens the slot for narrow and fallback glyphs', () => {
+  const wide = rules([{ pattern: 'gpt', icon: '界界' }])
+  assert.equal(formatModelIconPrefix('gpt-5', wide), '界界 ')
+  assert.equal(formatModelIconPrefix('llama-4', wide), `${FALLBACK}    `)
+  assert.equal(stringWidth(formatModelIconPrefix('gpt-5', wide)), 5)
+  assert.equal(stringWidth(formatModelIconPrefix('llama-4', wide)), 5)
 })
 
 console.log(`${checks} checks passed`)
