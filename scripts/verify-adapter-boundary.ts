@@ -147,7 +147,7 @@ const LAYER_RULES: readonly { readonly dir: string; readonly forbidden: readonly
   { dir: 'channel/', forbidden: ['dsh-adapter/', 'backends/', 'ink/'], allow: ['channel/sanitize.ts -> ink/stringWidth.ts'] },
 ]
 
-const UI_DIRS = ['screens/', 'components/', 'hooks/', 'ink/']
+const UI_DIRS = ['screens/', 'components/', 'hooks/', 'ink/', 'powerline/']
 /** Backend-neutral helpers every backend may import (D15). */
 const SHARED_BACKEND_DIR = 'backends/shared/'
 /** The only host directories a concrete backend may import from (B-3): the

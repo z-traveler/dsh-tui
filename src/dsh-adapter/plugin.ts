@@ -72,6 +72,8 @@ import { shouldOfferOnboarding } from '../onboardingPrefs.js'
 import { resolveSessionCwd } from '../utils/workspaceRoot.js'
 import { LAUNCH_PROMPT_SENT_ENV, beginRestartAttempt, blockedUpdateMessages, checkForTuiUpdate, describeHostStepReason, describeLauncherStepReason, deliverEngineSkipReport, idleReportMessages, installedTuiVersion, isBootDeadlockTarget, isStandaloneRuntime, isVersionNewer, logRestartEvent, resolveDshProfileName, resolveUpdatePlan, restartTui, updatePlanLayers, updatePlanState, updatePlanSuite, updateTuiAndRestart, writeHandoffNotice, writeLastRunRecord, type TuiRestartOptions, type UpdatePlan } from '../update.js'
 import { getLang, isLang, resolveStartupLang, setLang, t, writeLangPref } from '../i18n.js'
+import { statusBarOrderSetting } from './powerline-settings.js'
+import { parsePowerlineOptions } from '../powerline/config.js'
 import { applyBtwContextBudget, applyBtwContextTurns, applyCodeFrameStyle, applyCompanionSkin, applyImageBacking, applyMathImageBacking, applyMathImageScale, applyMathRendering, applyMermaidDiagrams, applyPageMargin, applySidePanelOpen, applySidePanelPanels, applySidePanelRatio, applySidePanelSplitEnabled, ALL_SIDE_PANELS, BTW_CONTEXT_BUDGET_MAX, BTW_CONTEXT_BUDGET_MIN, BTW_CONTEXT_TURNS_MAX, BTW_CONTEXT_TURNS_MIN, DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, isPageMarginMode, normalizeJobGroupFold, normalizePageMargin, normalizeScrollGutter, normalizeSidePanelPanels, normalizeSidePanelRatio, normalizePluginFieldsOrder, normalizeStatusBar, normalizeToolBackground, parsePageMarginSpec, parsePluginFieldsOrder, parseSidePanelPanels, resolveMathRendering, type CodeFrameStyle, type ImageBacking, type MathImageBacking, type MathImageScale, type MathRendering, type PageMarginSetting, type ScrollGutterMode, type StatusBarConfig, type ToolBackground } from '../tuiDisplayPrefs.js'
 import {
   draftComboConflicts,
@@ -2107,6 +2109,12 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         // which resolves cordis.yml `effort` → effort.json → adapter default).
         effortDefault: Schema.string(),
         statusBar: Schema.object({
+          style: Schema.union(['native', 'powerline']).default('native'),
+          powerline: Schema.any(),
+          workingCounters: Schema.boolean().default(false),
+          placement: Schema.union(['above', 'below']),
+          separator: Schema.union(['dot', 'powerline-thin']).default('dot'),
+          order: Schema.string().default(''),
           compact: Schema.boolean().default(DEFAULT_STATUS_BAR.compact),
           model: Schema.boolean().default(DEFAULT_STATUS_BAR.model),
           thinking: Schema.boolean().default(DEFAULT_STATUS_BAR.thinking),
@@ -2343,7 +2351,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       applyMathImageScale(value.mathImageScale ?? config.mathImageScale ?? 'auto')
       applyMathImageBacking(value.mathImageBacking ?? config.mathImageBacking ?? 'transparent')
       applyImageBacking(value.imageBacking ?? config.imageBacking ?? 'transparent')
-      channel.setStatusBar(normalizeStatusBar(value.statusBar ?? config.statusBar))
+      const statusBar = value.statusBar ?? config.statusBar
+      channel.setStatusBar({ ...normalizeStatusBar(statusBar), powerline: statusBar?.powerline })
       // Side panel: no channel member — the layout owns module-level stores
       // (they sit above the channel's version bump), so /settings writes them
       // directly and useSidePanel's own subscriptions re-lay out at once. An
@@ -2674,6 +2683,21 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
           },
         },
         ...shortcutFields,
+        { ...settingField('statusBar.style') },
+        { ...settingField('statusBar.workingCounters') },
+        {
+          ...settingField('statusBar.powerline'),
+          parse(text: string): TuiSettingsFieldWrite | undefined {
+            if (text.trim() === '') return { kind: 'clear' }
+            if (parsePowerlineOptions(text) === undefined) return undefined
+            const value: unknown = JSON.parse(text)
+            return { kind: 'set', value }
+          },
+          format(value: unknown): string { return value === undefined ? '' : JSON.stringify(value) },
+        },
+        { ...settingField('statusBar.placement') },
+        { ...settingField('statusBar.separator') },
+        { ...settingField('statusBar.order'), ...statusBarOrderSetting },
         {
           ...settingField('statusBar.compact'),
         },

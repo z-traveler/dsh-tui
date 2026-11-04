@@ -1251,7 +1251,7 @@ export interface ChannelSessionRef {
 }
 
 /** Subscription usage windows (`five_hour`, `seven_day`, …): utilization
- *  0–1 and the reset time (epoch seconds) when known. */
+ *  0–1 and the reset time (epoch milliseconds) when known. */
 export interface ChannelRateLimit {
   readonly windows: readonly { readonly name: string; readonly utilization: number; readonly resetsAt?: number }[]
 }

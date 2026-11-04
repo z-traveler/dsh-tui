@@ -78,6 +78,8 @@ import { TimelineRail } from '../components/TimelineRail.js'
 import { ScrollbarGutter } from '../components/ScrollbarGutter.js'
 import type { TimelineSnapshot } from '../ink/timeline-rail.js'
 import { normalizeScrollGutter } from '../tuiDisplayPrefs.js'
+import { HudPlacement, powerlineHud } from '../components/HudPlacement.js'
+import { PowerlineWorking } from '../powerline/Working.js'
 import { OverlayAbove } from '../components/OverlayAbove.js'
 import { TooltipLayer } from '../components/Tooltip.js'
 import { PromptInput, composerImageRefsForText, type PromptController } from '../components/PromptInput.js'
@@ -7305,7 +7307,14 @@ export function Chat({
             onClick={() => handle?.scrollToBottom()}
           />
         )}
-        {channel.working &&
+        {channel.working && powerlineHud(channel) ? (
+          <PowerlineWorking channel={channel}
+            line={activitySlot && workingActivity?.phase !== 'idle' ? workingActivity?.line : undefined}
+            suffix={compactionBadge}
+            uploadTokens={lastUploadTokens}
+            elapsed={() => (pauseStartTimeRef.current ?? Date.now()) - loadingStartTimeRef.current - totalPausedMsRef.current}
+          />
+        ) : channel.working &&
           (activitySlot &&
           workingActivity !== undefined &&
           workingActivity.line !== '' &&
@@ -7386,7 +7395,7 @@ export function Chat({
             onDismiss={() => setBalance(null)}
           />
         )}
-        {statusEntries.length > 0 && (
+        {statusEntries.length > 0 && !powerlineHud(channel) && (
           // Plugin status contributions (tuiStatus seam): one joined line,
           // truncated by the Text wrap contract — the host owns the layout,
           // plugins own only their text.
@@ -7416,7 +7425,7 @@ export function Chat({
           </PluginStatusViewBoundary>
         ))}
         {/* 输入簇：可替换输入行链 + 状态行 + 瞬态浮层。浮层锚点收窄到本簇
-            顶边（= 输入行顶边），picker 紧贴输入框向上展开，盖住其上
+            顶边（HUD 在上方时为 HUD 顶边），picker 向上展开，盖住其上
             todo/spinner/转录尾部行（用户接受的取舍），自身零布局高度、
             不推动帧布局。 */}
         <Box flexDirection="column" flexShrink={0}>
@@ -7480,6 +7489,8 @@ export function Chat({
         ) : questionPanelNode !== null ? (
           questionPanelNode
         ) : null}
+        <HudPlacement placement={channel.minimalUi ? 'below' : channel.statusBar?.placement}
+          style={channel.minimalUi ? 'native' : channel.statusBar?.style} powerline={channel.statusBar?.powerline} suspended={promptReplacementOpen} statusText={statusEntries.map(entry => entry.text).join(' · ')}>
         <PromptInput
           key="prompt-input"
           channel={channel}
@@ -7564,8 +7575,9 @@ export function Chat({
                 }
           }
         />
-        {/* 瞬态面板浮层：absolute + bottom:'100%' 钉在输入簇 Box 顶边（=
-            输入行顶边），紧贴输入框向上覆盖其上 todo/spinner/转录尾部行，
+        </HudPlacement>
+        {/* 瞬态面板浮层：absolute + bottom:'100%' 钉在输入簇 Box 顶边；
+            HUD 在上方时浮层位于 HUD 上方，否则紧贴输入行，覆盖 todo/spinner/转录尾部行，
             自身零布局高度。in-flow 挂载会让帧高随面板开关涨落，把帧顶行滚进
             scrollback 并在关闭重绘时二次写入（每切一次 /model 多一份启动画
             的根因）。浮层盖住 todo 是刻意取舍（贴输入框优先）；maxHeight
