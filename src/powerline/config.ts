@@ -34,6 +34,12 @@ export interface PowerlineModelColor {
   color: string
 }
 
+/** A model icon rule; the first matching pattern wins. */
+export interface PowerlineModelIcon {
+  pattern: string
+  icon: string
+}
+
 /** Fully resolved HUD options: every field has a value the renderer can use. */
 export interface PowerlineOptions {
   left: string[]
@@ -51,6 +57,7 @@ export interface PowerlineOptions {
   marker: string
   colors: PowerlineColors
   modelColors: PowerlineModelColor[]
+  modelIcons: PowerlineModelIcon[]
 }
 
 const ICONS = ['nerd', 'ascii', 'none'] as const
@@ -66,6 +73,7 @@ const MAX_PADDING = 8
 const MAX_ROWS = 32
 const MAX_SEPARATOR_WIDTH = 8
 const MAX_MARKER_WIDTH = 8
+const MAX_MODEL_ICON_WIDTH = 8
 
 const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'] as const
 const DEFAULT_RIGHT = ['agent'] as const
@@ -191,6 +199,18 @@ function normalizeModelColors(value: unknown): PowerlineModelColor[] {
   return rules
 }
 
+function normalizeModelIcons(value: unknown): PowerlineModelIcon[] {
+  if (!Array.isArray(value)) return []
+  const rules: PowerlineModelIcon[] = []
+  for (const entry of value) {
+    if (!isRecord(entry)) continue
+    const pattern = typeof entry.pattern === 'string' ? entry.pattern.trim() : ''
+    if (pattern === '' || !isPattern(pattern) || !isGlyph(entry.icon, MAX_MODEL_ICON_WIDTH)) continue
+    rules.push({ pattern, icon: entry.icon })
+  }
+  return rules
+}
+
 /**
  * Resolve untrusted config into usable options. Every missing, mistyped or
  * out-of-range value falls back to its default, so rendering never depends on
@@ -216,6 +236,7 @@ export function normalizePowerlineOptions(value: unknown): PowerlineOptions {
     marker: normalizeGlyph(raw.marker, DEFAULT_MARKER, MAX_MARKER_WIDTH),
     colors: normalizeColors(raw.colors),
     modelColors: normalizeModelColors(raw.modelColors),
+    modelIcons: normalizeModelIcons(raw.modelIcons),
   }
 }
 
@@ -236,6 +257,12 @@ function isModelColorsInput(value: unknown): boolean {
   return Array.isArray(value) && value.every(entry => isRecord(entry)
     && typeof entry.pattern === 'string'
     && isPowerlineColor(entry.color))
+}
+
+function isModelIconsInput(value: unknown): boolean {
+  return Array.isArray(value) && value.every(entry => isRecord(entry)
+    && typeof entry.pattern === 'string'
+    && isGlyph(entry.icon, MAX_MODEL_ICON_WIDTH))
 }
 
 /**
@@ -260,6 +287,7 @@ function hasValidTypes(raw: Record<string, unknown>): boolean {
     && (raw.marker === undefined || isGlyph(raw.marker, MAX_MARKER_WIDTH))
     && (raw.colors === undefined || isColorsInput(raw.colors))
     && (raw.modelColors === undefined || isModelColorsInput(raw.modelColors))
+    && (raw.modelIcons === undefined || isModelIconsInput(raw.modelIcons))
 }
 
 /**

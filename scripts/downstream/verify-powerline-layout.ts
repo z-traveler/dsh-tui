@@ -42,6 +42,7 @@ const DEFAULTS = {
     { pattern: 'gpt', color: '#f5f5f5' },
     { pattern: 'claude', color: '#fac03d' },
   ],
+  modelIcons: [],
 }
 
 check('missing, null and non-record input resolve to the documented defaults', () => {
@@ -148,6 +149,29 @@ check('model color rules replace the defaults and malformed entries are skipped'
   }).modelColors, [{ pattern: 'deepseek', color: '#6e9bc5' }])
 })
 
+check('model icon rules replace the defaults and malformed entries are skipped', () => {
+  assert.deepEqual(normalizePowerlineOptions({ modelIcons: [] }).modelIcons, [])
+  assert.deepEqual(normalizePowerlineOptions({
+    modelIcons: [
+      { pattern: '[', icon: 'X' },
+      { pattern: ' deepseek ', icon: '\uec19' },
+      { pattern: 'gpt' },
+      { icon: 'G' },
+      { pattern: 'claude', icon: '' },
+      { pattern: 'claude', icon: '   ' },
+      { pattern: 'claude', icon: '\u001b[32m' },
+      { pattern: 'claude', icon: 'a\nb' },
+      { pattern: 'claude', icon: 'x'.repeat(9) },
+      { pattern: 'claude', icon: '界界界界界' },
+      { pattern: 'qwen', icon: '界界界' },
+      'claude',
+    ],
+  }).modelIcons, [{ pattern: 'deepseek', icon: '\uec19' }, { pattern: 'qwen', icon: '界界界' }])
+  assert.deepEqual(normalizePowerlineOptions({
+    modelIcons: [{ pattern: 'b', icon: 'B' }, { pattern: 'a', icon: 'A' }],
+  }).modelIcons, [{ pattern: 'b', icon: 'B' }, { pattern: 'a', icon: 'A' }])
+})
+
 check('parsePowerlineOptions resolves valid JSON and rejects malformed input', () => {
   assert.deepEqual(parsePowerlineOptions('{"left":["model"],"padding":2}'), normalizePowerlineOptions({ left: ['model'], padding: 2 }))
   assert.deepEqual(parsePowerlineOptions('{}'), DEFAULTS)
@@ -158,11 +182,21 @@ check('parsePowerlineOptions resolves valid JSON and rejects malformed input', (
     '{"path":"middle"}', '{"context":"tokens"}',
     '{"colors":{"model":"not-a-color"}}', '{"colors":{"model":"#fff\\n"}}',
     '{"modelColors":[{"pattern":"gpt","color":"not-a-color"}]}',
+    '{"modelIcons":"x"}', '{"modelIcons":[3]}', '{"modelIcons":[{"icon":"G"}]}',
+    '{"modelIcons":[{"pattern":"gpt"}]}', '{"modelIcons":[{"pattern":"gpt","icon":""}]}',
+    '{"modelIcons":[{"pattern":"gpt","icon":"  "}]}',
+    '{"modelIcons":[{"pattern":"gpt","icon":"G\\n"}]}',
+    '{"modelIcons":[{"pattern":"gpt","icon":"xxxxxxxxxxxxxxxxxxxx"}]}',
     '{"marker":""}', '{"marker":"🐋\\n"}', '{"separator":"\\u001b[31m"}',
     '{"separator":"xxxxxxxxxxxxxxxxxxxx"}',
   ]) {
     assert.equal(parsePowerlineOptions(text), undefined, text)
   }
+  // An ESC glyph only reaches the parser as a real control character in JSON.
+  assert.equal(
+    parsePowerlineOptions(JSON.stringify({ modelIcons: [{ pattern: 'gpt', icon: '\u001b[31m' }] })),
+    undefined,
+  )
 })
 
 check('parsePowerlineOptions keeps partial colors and skips unparsable patterns', () => {
@@ -174,6 +208,12 @@ check('parsePowerlineOptions keeps partial colors and skips unparsable patterns'
   })
   assert.deepEqual(parsePowerlineOptions('{"modelColors":[{"pattern":"[","color":"#ff0000"}]}'), {
     ...DEFAULTS, modelColors: [],
+  })
+  assert.deepEqual(parsePowerlineOptions('{"modelIcons":[{"pattern":"[","icon":"X"}]}'), {
+    ...DEFAULTS, modelIcons: [],
+  })
+  assert.deepEqual(parsePowerlineOptions('{"modelIcons":[{"pattern":"deepseek","icon":"D"}]}'), {
+    ...DEFAULTS, modelIcons: [{ pattern: 'deepseek', icon: 'D' }],
   })
 })
 
