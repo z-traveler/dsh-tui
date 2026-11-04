@@ -82,6 +82,9 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       assert.ok(frame[at - 1]!.includes('🐋'), frame.join('\n'))
       assert.ok(!frame[at]!.includes('⌸') && !frame[at]!.includes('⛶'))
     })
+    check(`one blank row separates input from its overflow (${fullscreen},${columns})`, () => {
+      assert.equal(lines()[draftRow() + 1]?.trim(), '', lines().join('\n'))
+    })
     check(`no progress gauge or permanent idle hint (${fullscreen},${columns})`, () => {
       const at = draftRow()
       assert.ok(!lines().slice(at - 2, at + 3).join('\n').includes('▕'))
@@ -94,7 +97,7 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     if (columns === 60) check(`whole fields overflow beneath the editor (${fullscreen})`, () => {
       assert.ok(!lines()[draftRow() - 1]!.includes('project'))
       assert.ok(lines()[draftRow() - 1]!.includes('$0.1250'))
-      assert.ok(lines()[draftRow() + 1]!.includes('project'))
+      assert.ok(lines()[draftRow() + 2]!.includes('project'))
     })
     receive!([{ type: 'session.title', title: '验收会话', source: 'user' }], { replay: false })
     channel.setPromptSessionLabel(true)
@@ -102,28 +105,29 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     check(`session chip shares the top edge without an extra row (${fullscreen},${columns})`, () => {
       const header = lines()[draftRow() - 1]!
       assert.ok(header.includes('╭─') && header.includes('deepseek-flash:high') && header.includes('验收会话'))
-      assert.ok(lines().slice(draftRow() - 1, draftRow() + 2).join('\n').includes('25.0%/100k'))
+      assert.ok(lines().slice(draftRow() - 1, draftRow() + 3).join('\n').includes('25.0%/100k'))
     })
     if (columns === 60) {
       receive!([{ type: 'session.title', title: 'ABCDEFGHIJKLMNOPQRSTUVWXYZab', source: 'user' }], { replay: false })
-      assert.ok(await settled(() => lines()[draftRow() + 1]?.includes('$0.1250') === true && lines()[draftRow() - 1]?.includes('ABCDEFGHIJKLMNOPQRSTUVWXYZab') === true))
+      assert.ok(await settled(() => lines()[draftRow() + 2]?.includes('$0.1250') === true && lines()[draftRow() - 1]?.includes('ABCDEFGHIJKLMNOPQRSTUVWXYZab') === true))
       assert.ok(!lines().slice(draftRow() + 1).some(line => line.includes('project')))
       channel.setStatusBar({ powerline: { icons: 'none', secondaryOverflow: 'wrap' } })
-      assert.ok(await settled(() => lines()[draftRow() + 2]?.includes('project') === true))
+      assert.ok(await settled(() => lines()[draftRow() + 3]?.includes('project') === true))
       check(`wrap continues whole fields onto another overflow row (${fullscreen})`, () => {
-        assert.ok(lines()[draftRow() + 1]!.includes('25.0%/100k') && lines()[draftRow() + 1]!.includes('$0.1250'))
-        assert.ok(lines()[draftRow() + 2]!.includes('project'))
+        assert.ok(lines()[draftRow() + 2]!.includes('25.0%/100k') && lines()[draftRow() + 2]!.includes('$0.1250'))
+        assert.ok(lines()[draftRow() + 3]!.includes('project'))
       })
       channel.setStatusBar({ powerline: { icons: 'none' } })
       receive!([{ type: 'session.title', title: '验收会话', source: 'user' }], { replay: false })
       assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('验收会话') === true))
     }
     channel.setStatusBar({ placement: 'below' })
-    assert.ok(await settled(() => lines()[draftRow() + 1]?.includes('deepseek-flash:high') === true))
+    assert.ok(await settled(() => lines()[draftRow() + 2]?.includes('deepseek-flash:high') === true))
     check(`explicit below placement has one frame and a plain HUD (${fullscreen},${columns})`, () => {
       assert.ok(lines()[draftRow() - 1]!.includes('验收会话'))
-      assert.ok(!lines()[draftRow() + 1]!.includes('╭') && !lines()[draftRow() + 1]!.includes('╮'))
-      assert.ok(lines()[draftRow() + 1]!.includes('$0.1250'))
+      assert.equal(lines()[draftRow() + 1]!.trim(), '')
+      assert.ok(!lines()[draftRow() + 2]!.includes('╭') && !lines()[draftRow() + 2]!.includes('╮'))
+      assert.ok(lines()[draftRow() + 2]!.includes('$0.1250'))
     })
     channel.setPromptSessionLabel(false)
     channel.setStatusBar({ placement: 'above' })
@@ -144,7 +148,17 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       const header = lines()[draftRow() - 1]!
       assert.ok(header.startsWith('╭─  dir project'))
       assert.ok(header.lastIndexOf('ctx 25.0%/100k') > header.indexOf('dir project'))
-      if (columns === 60) assert.ok(lines()[draftRow() + 1]!.includes('model deepseek-flash:high'))
+      if (columns === 60) assert.ok(lines()[draftRow() + 2]!.includes('model deepseek-flash:high'))
+    })
+    channel.setStatusBar({ powerline: { left: ['model'], modelIcons: [{ pattern: '^deepseek-flash$', icon: '◆' }] } })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('◆ deepseek-flash:high') === true))
+    channel.setStatusBar({ powerline: { left: ['model'], modelIcons: [{ pattern: '^gpt', icon: 'G' }] } })
+    receive!([{ type: 'model.changed', model: 'gpt-5', source: 'user' }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('G gpt-5:high') === true))
+    receive!([{ type: 'model.changed', model: 'deepseek-flash', source: 'user' }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('\uec19 deepseek-flash:high') === true))
+    check(`model icon rules render and unmatched models retain the fallback (${fullscreen},${columns})`, () => {
+      assert.ok(!lines()[draftRow() - 1]!.includes('◆'))
     })
     channel.setStatusBar({ powerline: { icons: 'none' } })
     assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('🐋') === true))
@@ -210,12 +224,13 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     receive!([{ type: 'turn.start', turn: 1, origin: 'user', time: Date.now() }], { replay: false })
     assert.ok(await settled(() => {
       const frame = lines(), at = frame.findIndex(line => /[0-9]s.*interrupt/i.test(line))
-      return at > 0 && frame[at - 1]!.trim() === '' && frame[at + 1]!.includes('╭─')
+      return at > 0 && frame[at - 1]?.trim() === '' && frame[at + 1]?.trim() === '' && frame[at + 2]?.includes('╭─') === true
     }), lines().join('\n'))
     check(`working row is compact, separated above HUD, with no default counters (${fullscreen},${columns})`, () => {
       const frame = lines(), workAt = frame.findIndex(line => /[0-9]s.*interrupt/i.test(line))
       assert.equal(frame[workAt - 1]!.trim(), '')
-      assert.ok(frame[workAt + 1]!.includes('╭─'), frame.join('\n'))
+      assert.equal(frame[workAt + 1]!.trim(), '')
+      assert.ok(frame[workAt + 2]!.includes('╭─'), frame.join('\n'))
       assert.ok(!frame[workAt]!.includes('↑') && !frame[workAt]!.includes('↓'))
     })
     channel.setStatusBar({ workingCounters: true })
@@ -226,6 +241,37 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     receive!([{ type: 'turn.end', turn: 1, reason: { kind: 'completed' }, time: Date.now() }], { replay: false })
     assert.ok(await settled(() => !lines().some(line => /[0-9]s.*interrupt/i.test(line))))
     check(`working row disappears when idle (${fullscreen},${columns})`, () => assert.ok(!channel.working))
+    channel.setStatusBar({ cost: false, powerline: { left: ['quota'], icons: 'none' } })
+    const reset = Date.now() + 2 * 60 * 60 * 1000
+    receive!([{ type: 'rate-limit', info: { windows: [
+      { name: 'five_hour', utilization: .25, resetsAt: reset },
+      { name: 'seven_day', utilization: .4, resetsAt: reset + 70 * 60 * 60 * 1000 },
+    ] } }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('5h 75% left reset 2h') === true && lines()[draftRow() - 1]?.includes('7d 60% left reset 72h') === true), lines().join('\n'))
+    check(`subscription windows show remaining allowance and reset times without a cost field (${fullscreen},${columns})`, () => {
+      assert.ok(!lines()[draftRow() - 1]!.includes('$'))
+    })
+    if (fullscreen) {
+      const row = draftRow() - 1, col = lines()[row]!.indexOf('5h')
+      const before = draftRow()
+      input.write(`\u001b[<35;${col + 1};${row + 1}M`)
+      assert.ok(await settled(() => lines().some(line => line.includes('75% remaining (25% used)'))))
+      check(`quota details expose the absolute reset date without moving input (${columns})`, () => {
+        assert.ok(lines().join('\n').includes(String(new Date(reset).getFullYear())))
+        assert.ok(lines().some(line => line.includes('resets ')))
+        assert.equal(draftRow(), before)
+      })
+      input.write('\u001b[<35;1;1M')
+      assert.ok(await settled(() => !lines().some(line => line.includes('75% remaining (25% used)'))))
+    }
+    receive!([{ type: 'rate-limit', info: { windows: [{ name: 'five_hour', utilization: .625, resetsAt: Date.now() - 1000 }] } }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('5h 37% left reset due') === true))
+    check(`a refreshed snapshot replaces quota; an expired reset never invents replenishment (${fullscreen},${columns})`, () => {
+      assert.ok(!lines()[draftRow() - 1]!.includes('75%') && !lines()[draftRow() - 1]!.includes('100%'))
+    })
+    receive!([{ type: 'rate-limit', info: { windows: [] } }], { replay: false })
+    assert.ok(await settled(() => !lines().some(line => line.includes('37% left'))))
+    check(`missing subscription data has no placeholder (${fullscreen},${columns})`, () => assert.ok(!lines()[draftRow() - 1]!.includes('reset')))
   } finally { await instance.unmount(); channel.releaseContributions(); terminal.dispose(); input.destroy() }
 }
 console.log(`Powerline input: ${checks} checks passed`)

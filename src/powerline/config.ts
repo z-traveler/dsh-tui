@@ -26,6 +26,7 @@ export interface PowerlineColors {
   thinking: string
   plugin: string
   agent: string
+  quota: string
 }
 
 /** A model family color rule; the first matching pattern wins. */
@@ -66,7 +67,7 @@ const CONTEXT_MODES = ['full', 'percent'] as const
 const OVERFLOWS = ['drop', 'wrap'] as const
 const COLOR_KEYS = [
   'marker', 'model', 'path', 'gitClean', 'gitDirty', 'context', 'warning',
-  'error', 'separator', 'border', 'cost', 'thinking', 'plugin', 'agent',
+  'error', 'separator', 'border', 'cost', 'thinking', 'plugin', 'agent', 'quota',
 ] as const satisfies readonly (keyof PowerlineColors)[]
 
 const MAX_PADDING = 8
@@ -75,7 +76,7 @@ const MAX_SEPARATOR_WIDTH = 8
 const MAX_MARKER_WIDTH = 8
 const MAX_MODEL_ICON_WIDTH = 8
 
-const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'] as const
+const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'quota', 'shell', 'cwd', 'git', 'plugins'] as const
 const DEFAULT_RIGHT = ['agent'] as const
 const DEFAULT_SEPARATOR = '\ue0b1'
 const DEFAULT_MARKER = '🐋'
@@ -99,6 +100,7 @@ const DEFAULT_COLORS: PowerlineColors = {
   thinking: 'subtle',
   plugin: 'text',
   agent: 'text',
+  quota: 'text',
 }
 
 const DEFAULT_MODEL_COLORS: readonly PowerlineModelColor[] = [

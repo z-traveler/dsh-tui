@@ -27,9 +27,9 @@ export function HudPlacement({ placement, style, powerline, suspended = false, s
   if (style === 'powerline' && columns >= 10 && React.isValidElement<{ channel: ChannelUi; render?: (view: StatusLinePresentation) => ReactNode }>(status)) {
     const fused = placement !== 'below' && !suspended
     const header = (label?: InputBorderLabel) => React.cloneElement(status, { key: 'hud-header',
-      render: view => <PowerlineStatus {...view} channel={status.props.channel} surface={fused ? 'header' : 'row'} label={label} statusText={statusText} /> })
+      render: view => <PowerlineStatus {...view} channel={status.props.channel} surface={fused ? 'header' : 'row'} gapBefore={!fused && !suspended} label={label} statusText={statusText} /> })
     const overflow = React.cloneElement(status, { key: 'hud-overflow',
-      render: view => <PowerlineStatus {...view} channel={status.props.channel} surface="overflow" reserveLabel={fused} statusText={statusText} /> })
+      render: view => <PowerlineStatus {...view} channel={status.props.channel} surface="overflow" gapBefore={fused} reserveLabel={fused} statusText={statusText} /> })
     if (!suspended) surface = { header: fused ? header : null, options: normalizePowerlineOptions(powerline) }
     content = [prompt, fused ? null : header(), overflow]
   }

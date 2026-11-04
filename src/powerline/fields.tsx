@@ -5,6 +5,8 @@ import { stringWidth } from '../ink/stringWidth.js'
 import { formatTokens } from '../terminal-utils/format.js'
 import type { ChannelUi } from '../adapter/channel/ui-policy.js'
 import type { PowerlineOptions } from './config.js'
+import { formatPowerlineQuota } from './quota.js'
+import { selectModelIcon } from './modelIcon.js'
 import type { PowerlineGitStatus } from './git.js'
 
 export interface PowerlineField {
@@ -45,7 +47,8 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
   add('marker', options.marker, <Text color={colors.marker}>{options.marker}</Text>)
   if (flags.model !== false) {
     const name = channel.modelDisplay ?? channel.model
-    const prefix = icon('\uec19', 'model')
+    const glyph = selectModelIcon(channel.model, options)
+    const prefix = glyph === '' ? '' : `${glyph} `
     const suffix = flags.thinking !== false && channel.reasoningEffort && channel.reasoningEffort !== 'off' ? `:${channel.reasoningEffort}` : ''
     const color = options.modelColors.find(rule => new RegExp(rule.pattern, 'i').test(name))?.color ?? colors.model
     add('model', `${prefix}${name}${suffix}`, <><Text color={color}>{prefix}{name}</Text>{thinking(suffix, channel.reasoningEffort, colors.thinking)}</>, `${name}${suffix}`, modelClick)
@@ -66,6 +69,8 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
     const text = nodeText(cost)
     add('cost', text, <Text color={colors.cost}>{text}</Text>, text)
   }
+  const quota = formatPowerlineQuota(channel.rateLimit, options.icons)
+  if (quota !== undefined) add('quota', quota.text, <Text color={colors.quota}>{quota.text}</Text>, quota.detail)
   if (flags.cwd !== false) {
     const raw = channel.displayCwd ?? channel.cwd
     const path = options.path === 'basename' ? raw.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || raw

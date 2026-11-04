@@ -448,8 +448,8 @@ export const SETTING_DEFINITIONS = {
   'statusBar.powerline': {
     label: 'Powerline options',
     descriptions: { zh: 'Powerline 外观选项' },
-    hint: 'JSON overrides: left/right field lists, separator, icons (nerd/ascii/none), padding, secondaryOverflow (drop/wrap), path, context, warning thresholds, marker, colors and modelColors. Empty restores the preset.',
-    hintDescriptions: { zh: 'JSON 覆盖：left/right 字段列表、separator 分隔符、icons（nerd/ascii/none）、padding、secondaryOverflow（drop/wrap）、path、context、警告阈值、marker、colors 与 modelColors。留空恢复预设。' },
+    hint: 'JSON overrides: left/right field lists, separator, icons (nerd/ascii/none), padding, secondaryOverflow (drop/wrap), path, context, warning thresholds, marker, colors, modelColors and modelIcons (first-match model-id rules in Nerd mode). The quota field shows reported subscription allowance/reset times. Empty restores the preset.',
+    hintDescriptions: { zh: 'JSON 覆盖：left/right 字段列表、separator 分隔符、icons（nerd/ascii/none）、padding、secondaryOverflow（drop/wrap）、path、context、警告阈值、marker、colors、modelColors 和 modelIcons（Nerd 模式下按模型 ID 首个匹配）。quota 字段显示后端上报的订阅剩余与重置时间。留空恢复预设。' },
     kind: 'text',
     group: 'status-bar',
   },

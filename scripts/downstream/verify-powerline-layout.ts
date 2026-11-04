@@ -9,7 +9,7 @@ let checks = 0
 function check(label: string, test: () => void) { test(); console.log(`PASS ${++checks}: ${label}`) }
 
 const DEFAULTS = {
-  left: ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'],
+  left: ['marker', 'model', 'context', 'cost', 'quota', 'shell', 'cwd', 'git', 'plugins'],
   right: ['agent'],
   separator: '\ue0b1',
   icons: 'nerd',
@@ -36,6 +36,7 @@ const DEFAULTS = {
     thinking: 'subtle',
     plugin: 'text',
     agent: 'text',
+    quota: 'text',
   },
   modelColors: [
     { pattern: 'deepseek', color: '#6e9bc5' },

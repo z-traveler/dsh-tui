@@ -6,8 +6,8 @@
 极简界面始终使用原生布局。切换风格不清空草稿或重置光标。
 
 Powerline 将 HUD 融入输入框顶边，最后一行输入与圆角底边共用一行。
-主行放不下的完整字段移到输入框下方，默认第二行遇到首个放不下的字段就停止。
-工作时在 HUD 上方显示一行紧凑阶段、耗时和中断提示，其前留一空行；空闲时一起撤下。
+主行放不下的完整字段移到输入框下方，之间留一空行；默认首个溢出行遇到放不下的字段就停止。
+工作时在 HUD 上方显示一行紧凑阶段、耗时和中断提示，上下各留一空行；空闲时工作行及其两侧留白一起撤下。
 详情悬停按需浮现，不预留空白提示行。消息卡片和侧栏不变。
 
 - **HUD 位置**：未设置时，原生在框下，Powerline 融入顶边；明确选择 `below` 时，Powerline 状态行位于框下。
@@ -17,7 +17,7 @@ Powerline 将 HUD 融入输入框顶边，最后一行输入与圆角底边共�
 
 ```json
 {
-  "left": ["marker", "model", "context", "cost", "cwd", "git", "plugins"],
+  "left": ["marker", "model", "context", "cost", "quota", "cwd", "git", "plugins"],
   "right": ["agent"],
   "icons": "ascii",
   "separator": "|",
@@ -37,8 +37,19 @@ Powerline 将 HUD 融入输入框顶边，最后一行输入与圆角底边共�
 `padding` 是每组两侧的 HUD 留白（0–8），不是每个字段的留白。无法完整放入一行的字段不强行缩小。
 `marker` 默认 `🐋`。`warnPercent/errorPercent` 默认 70/90，严格超过阈值才警告。
 `colors` 支持主题色名及宿主已有颜色格式，键为
-`marker/model/path/gitClean/gitDirty/context/warning/error/separator/border/cost/thinking/plugin/agent`。
+`marker/model/path/gitClean/gitDirty/context/warning/error/separator/border/cost/thinking/plugin/agent/quota`。
 `modelColors` 是按顺序匹配的 `[{"pattern":"deepseek","color":"#6e9bc5"}]`；提供该列表会替换预设规则。
+模型图标通过 `modelIcons` 按模型 **ID**（不是显示别名）做不区分大小写的正则匹配，首个匹配生效；未匹配时使用通用 ``。
+Nerd 模式下可配置任意安全的 1–8 显示单元图标；ASCII 模式统一显示 `model`，none 模式不显示图标：
+
+```json
+{"icons":"nerd","modelIcons":[{"pattern":"^deepseek","icon":"◆"},{"pattern":"^gpt","icon":"◉"},{"pattern":"^claude","icon":"✳"}]}
+```
+
+`quota` 默认在费用后显示宿主上报的订阅窗口，例如 `5小时 余75% ↻2h`。它是**剩余比例，不是余额**，不依赖费用显示开关。
+悬停可看已用比例和完整本地重置日期；相对倒计时每分钟更新。截止后显示待后端更新，不自行补满额度。
+无窗口数据时隐藏；没有新增登录、额度请求或网络轮询。真实隔离应用没有用量/窗口数据时不会造数，离线演示另有明确标注的样例。
+
 高强度默认静态逐字彩虹；设置 `colors.thinking` 为其他颜色可统一覆盖。
 费用及上下文来源沿用宿主，没有新增币种换算或计费。Git 只读查询本地状态，失败不显示伪造的干净状态。
 
@@ -51,8 +62,9 @@ Choose **Input region style → powerline** under `/settings` → **Status bar**
 The factory default remains `native`; Minimal UI always uses native presentation.
 The style switch preserves the draft and cursor. Powerline fuses the HUD into the top edge and
 shares the bottom edge with the final editor row. Whole fields overflow below the editor;
-`drop` stops at the first non-fitting field on the second row, while `wrap` continues on bounded rows.
-A compact working row and its preceding blank row disappear together when idle.
+`drop` stops at the first non-fitting field on the first overflow row, while `wrap` continues on bounded rows.
+One blank row separates the editor from its overflow. The compact working row has one blank row on
+each side; all three disappear together when idle.
 Hover details float without reserving an empty footer row. Cards and sidebars are unchanged.
 
 The JSON above is a **partial override**, not a preset snapshot. Empty settings restore the preset.
@@ -65,6 +77,11 @@ and numeric bounds are listed above using their exact configuration names.
 Model and effort remain indivisible. Missing Shell/Agent data is not fabricated. Plugin slots,
 semantic tones, callbacks, details and lifetime remain host-owned; rich views stay separate.
 Model colors use first-match regex rules; supplying `modelColors` replaces the defaults.
+`modelIcons` uses first-match, case-insensitive regex rules on the raw model ID in Nerd mode (see the JSON above).
+Unmatched models use ``; ASCII mode uses `model`, and none mode hides icons. No brand icons are guessed for unconfigured models.
+`quota` shows backend-reported **remaining percentages** and reset deadlines independently of cost.
+Relative deadlines update every minute; hover shows the full local date/time and reported usage.
+Expiry says an update is due, never fabricates replenishment. Absent data stays hidden; no login or network polling is added.
 The strongest effort uses static rainbow text unless `colors.thinking` overrides it.
 Costs and usage retain host accounting; local Git queries are cached, read-only and never report
 an unavailable repository as clean. **Working-line token counters** are off by default.

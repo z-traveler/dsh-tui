@@ -33,7 +33,7 @@ function Field({ field }: { field: PowerlineField }): React.ReactNode {
   return field.detail ? <TooltipTarget content={field.detail}>{body}</TooltipTarget> : body
 }
 
-export function PowerlineStatus({ channel, fields: native, pluginFields, used, capacity, surface, detail, label, supplemental, reserveLabel = surface !== 'row', statusText = '' }: {
+export function PowerlineStatus({ channel, fields: native, pluginFields, used, capacity, surface, detail, label, supplemental, gapBefore = false, reserveLabel = surface !== 'row', statusText = '' }: {
   channel: ChannelUi
   fields: readonly HostHudField[]
   pluginFields: readonly TuiStatusFieldEntry[]
@@ -42,6 +42,7 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   surface?: 'header' | 'overflow' | 'row'
   label?: InputBorderLabel
   reserveLabel?: boolean
+  gapBefore?: boolean
   supplemental?: React.ReactNode
   detail: (id: string) => React.ReactNode
   statusText?: string
@@ -49,6 +50,13 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   const { columns } = useTerminalSize()
   const options = normalizePowerlineOptions(channel.statusBar.powerline)
   const git = useGit(channel.cwd, channel.statusBar.gitBranch === true)
+  const [, refreshClock] = React.useReducer((value: number) => value + 1, 0)
+  const hasReset = [...options.left, ...options.right].includes('quota') && channel.rateLimit?.windows.some(window => window.resetsAt !== undefined) === true
+  React.useEffect(() => {
+    if (!hasReset) return
+    const timer = setInterval(refreshClock, 60_000)
+    return () => clearInterval(timer)
+  }, [hasReset])
   const cost = native.find(field => field.key === 'cost')?.node
   const fields = buildPowerlineFields(channel, options, used, capacity, git, cost,
     native.find(field => field.key === 'model')?.onClick, native.find(field => field.key === 'effort')?.onClick)
@@ -97,13 +105,13 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
     <Text>{' '.repeat(options.padding)}</Text>
   </>
   const signals = native.filter(field => ['mode', 'jobs', 'goal', 'starting', 'ideSelection'].includes(field.key))
-  if (surface === 'overflow') return <Box flexDirection="column" width="100%" flexShrink={0}>
+  if (surface === 'overflow') return <Box flexDirection="column" width="100%" flexShrink={0} marginTop={gapBefore ? 1 : 0}>
     {layout.secondary.map((items, index) => <Box key={index} flexDirection="row" height={1} overflow="hidden">{row(items)}</Box>)}
     {signals.length > 0 && <Box flexDirection="row" overflow="hidden">{signals.map(field => <Box key={field.key} marginRight={1} onClick={field.onClick}>{field.node}</Box>)}</Box>}
     {supplemental}
   </Box>
   const gap = Math.max(0, width - rowWidth(layout.left) - rowWidth(layout.right))
-  return <Box flexDirection="row" width={columns} height={1} flexShrink={0} overflow="hidden">
+  return <Box flexDirection="row" width={columns} height={1} flexShrink={0} overflow="hidden" marginTop={gapBefore ? 1 : 0}>
     <Text color={options.colors.border}>{edged ? '╭─' : '  '}</Text>
     {row(layout.left)}
     <Text color={options.colors.border}>{(layout.right.length > 0 || !edged ? ' ' : '─').repeat(gap)}</Text>
