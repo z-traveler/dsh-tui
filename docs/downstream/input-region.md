@@ -12,7 +12,7 @@ Powerline 将 HUD 融入输入框顶边，最后一行输入与圆角底边共�
 
 - **HUD 位置**：未设置时，原生在框下，Powerline 融入顶边；明确选择 `below` 时，Powerline 状态行位于框下。
 - **Powerline 外观选项**：填写部分 JSON 覆盖，未填写的值继续跟随预设；留空恢复预设。非法已知样式在设置页拒绝保存；手改文件的非法值安全回落。
-- 原生的 **HUD 字段顺序 / HUD 分隔符 / 紧凑布局 / 上下文进度条**不控制 Powerline；改用下列选项。原有字段显示开关、插件名单、危险权限提示仍有效。
+- 原生的 **HUD 字段顺序 / HUD 分隔符 / 紧凑状态栏 / 上下文进度条**不控制 Powerline；改用下列选项。原有字段显示开关、插件名单、危险权限提示仍有效。
 - **工作状态行 Token 计数**：默认关闭，仅影响 Powerline；开启显示原有宿主输入计数和输出估算。
 
 ```json
@@ -49,6 +49,7 @@ Nerd 模式下可配置任意安全的 1–8 显示单元图标；ASCII 模式�
 `quota` 默认在费用后显示宿主上报的订阅窗口，例如 `5小时 余75% ↻2h`。它是**剩余比例，不是余额**，不依赖费用显示开关。
 悬停可看已用比例和完整本地重置日期；相对倒计时每分钟更新。截止后显示待后端更新，不自行补满额度。
 无窗口数据时隐藏；没有新增登录、额度请求或网络轮询。真实隔离应用没有用量/窗口数据时不会造数，离线演示另有明确标注的样例。
+本轮核对的是 Codex 的毫秒截止时间约定和离线样例；没有验证真实账号或其他后端的重置时间单位；非 Codex 后端若上报秒级值，会出现待更新/1970 年日期。
 
 高强度默认静态逐字彩虹；设置 `colors.thinking` 为其他颜色可统一覆盖。
 费用及上下文来源沿用宿主，没有新增币种换算或计费。Git 只读查询本地状态，失败不显示伪造的干净状态。
@@ -82,6 +83,7 @@ Unmatched models use ``; ASCII mode uses `model`, and none mode hides icons. 
 `quota` shows backend-reported **remaining percentages** and reset deadlines independently of cost.
 Relative deadlines update every minute; hover shows the full local date/time and reported usage.
 Expiry says an update is due, never fabricates replenishment. Absent data stays hidden; no login or network polling is added.
+This round checked Codex's millisecond deadline contract and fixtures, not live accounts or other backends' deadline units. A non-Codex backend supplying seconds would display due/1970 dates.
 The strongest effort uses static rainbow text unless `colors.thinking` overrides it.
 Costs and usage retain host accounting; local Git queries are cached, read-only and never report
 an unavailable repository as clean. **Working-line token counters** are off by default.
