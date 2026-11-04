@@ -1,3 +1,4 @@
+import { normalizeHudLayout } from './hudLayout.js'
 import type { ToolBackground, ScrollGutterMode, PageMarginSetting, PageMarginMode, PageMarginSpec, StatusBarConfig, JobGroupFoldMode } from './adapter/ports/channel-display.js'
 export type { ToolBackground, ScrollGutterMode, PageMarginSetting, PageMarginMode, PageMarginSpec, StatusBarConfig, JobGroupFoldMode } from './adapter/ports/channel-display.js'
 
@@ -54,12 +55,12 @@ const TOOL_BACKGROUNDS = new Set<ToolBackground>(['none', 'subtle', 'strong'])
 const JOB_GROUP_FOLDS = new Set<JobGroupFoldMode>(['auto', 'always', 'never'])
 const SCROLL_GUTTERS = new Set<ScrollGutterMode>(['timeline', 'scrollbar', 'hidden'])
 
-/** Every status-bar member but the ordered list; `normalizeStatusBar` copies
+/** Boolean members of the upstream defaults; `normalizeStatusBar` copies
  *  these only when the value is a boolean. Derived from the defaults on
  *  purpose: a boolean member added to `StatusBarConfig`/`DEFAULT_STATUS_BAR`
  *  must not have to be repeated here, or `normalizeStatusBar` would silently
  *  drop its configured value. */
-type BooleanStatusBarKey = Exclude<keyof StatusBarConfig, 'pluginFieldsOrder'>
+type BooleanStatusBarKey = Exclude<keyof StatusBarConfig, 'pluginFieldsOrder' | 'placement' | 'separator' | 'order' | 'style' | 'powerline' | 'workingCounters'>
 const STATUS_BAR_BOOLEAN_KEYS: readonly BooleanStatusBarKey[] = (
   Object.keys(DEFAULT_STATUS_BAR) as (keyof StatusBarConfig)[]
 ).filter((key): key is BooleanStatusBarKey => key !== 'pluginFieldsOrder')
@@ -198,10 +199,10 @@ export function normalizeStatusBar(value: unknown): StatusBarConfig {
   for (const key of STATUS_BAR_BOOLEAN_KEYS) {
     if (typeof input[key] === 'boolean') normalized[key] = input[key]
   }
-  // The one non-boolean member: a hand-written invalid list stays verbatim so
+  // A hand-written invalid plugin list stays verbatim so
   // the settings screen can show it, and the renderer reads it as `all`.
   normalized.pluginFieldsOrder = normalizePluginFieldsOrder(input.pluginFieldsOrder ?? DEFAULT_STATUS_BAR.pluginFieldsOrder)
-  return normalized
+  return { ...normalized, ...normalizeHudLayout(input) }
 }
 
 function formatTokenCount(value: number): string {
