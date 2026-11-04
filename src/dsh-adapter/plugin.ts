@@ -68,6 +68,7 @@ import { shouldOfferOnboarding } from '../onboardingPrefs.js'
 import { resolveSessionCwd } from '../utils/workspaceRoot.js'
 import { LAUNCH_PROMPT_SENT_ENV, beginRestartAttempt, checkForTuiUpdate, installedTuiVersion, isBootDeadlockTarget, isStandaloneRuntime, isVersionNewer, logRestartEvent, resolveDshProfileName, resolveTuiUpdateTarget, restartTui, updateTuiAndRestart, writeHandoffNotice, writeLastRunRecord, type TuiRestartOptions } from '../update.js'
 import { getLang, isLang, resolveStartupLang, setLang, t, writeLangPref } from '../i18n.js'
+import { parseStatusBarOrder } from '../hudLayout.js'
 import { applyBtwContextBudget, applyBtwContextTurns, applyCodeFrameStyle, applyCompanionSkin, applyImageBacking, applyMathImageBacking, applyMathImageScale, applyMathRendering, applyMermaidDiagrams, applyPageMargin, applySidePanelOpen, applySidePanelPanels, applySidePanelRatio, applySidePanelSplitEnabled, ALL_SIDE_PANELS, BTW_CONTEXT_BUDGET_MAX, BTW_CONTEXT_BUDGET_MIN, BTW_CONTEXT_TURNS_MAX, BTW_CONTEXT_TURNS_MIN, DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, isPageMarginMode, normalizeJobGroupFold, normalizePageMargin, normalizeScrollGutter, normalizeSidePanelPanels, normalizeSidePanelRatio, normalizePluginFieldsOrder, normalizeStatusBar, normalizeToolBackground, parsePageMarginSpec, parsePluginFieldsOrder, parseSidePanelPanels, resolveMathRendering, type CodeFrameStyle, type ImageBacking, type MathImageBacking, type MathImageScale, type MathRendering, type PageMarginSetting, type ScrollGutterMode, type StatusBarConfig, type ToolBackground } from '../tuiDisplayPrefs.js'
 import {
   draftComboConflicts,
@@ -1405,6 +1406,9 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         // which resolves cordis.yml `effort` → effort.json → adapter default).
         effortDefault: Schema.string(),
         statusBar: Schema.object({
+          placement: Schema.union(['above', 'below']).default('below'),
+          separator: Schema.union(['dot', 'powerline-thin']).default('dot'),
+          order: Schema.string().default(''),
           compact: Schema.boolean().default(DEFAULT_STATUS_BAR.compact),
           model: Schema.boolean().default(DEFAULT_STATUS_BAR.model),
           thinking: Schema.boolean().default(DEFAULT_STATUS_BAR.thinking),
@@ -1960,6 +1964,15 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
           },
         },
         ...shortcutFields,
+        { ...settingField('statusBar.placement') },
+        { ...settingField('statusBar.separator') },
+        {
+          ...settingField('statusBar.order'),
+          parse(text: string): TuiSettingsFieldWrite | undefined {
+            const order = parseStatusBarOrder(text)
+            return order === undefined ? undefined : { kind: 'set', value: order.join(',') }
+          },
+        },
         {
           ...settingField('statusBar.compact'),
         },

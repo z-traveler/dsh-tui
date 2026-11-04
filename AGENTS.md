@@ -90,3 +90,17 @@ pnpm smoke                      # 通用无头屏幕组装冒烟
 ## 编辑本文件
 
 `CLAUDE.md` 是指向 `AGENTS.md` 的符号链接；编辑真身。每条规则保持自包含，细节链接到权威文档；表达在清晰存活时优先精简。
+
+## 私有下游
+
+- 遵循工作区 `../AGENTS.md` 的补丁、分支与 rebase 规则。
+- 下游逻辑集中在独立模块，上游文件仅加必要接入与配置声明；不复制 `Chat`、状态栏或 Channel 投影。
+- 日常验证采用改动面的定向测试与必要编译，取代上文及贡献指南的逐次全量要求；发布前仍跑全量门禁。
+- 下游长期说明放 `docs/downstream/`，功能规格与验收记录放 `.scratch/<功能>/`；不反复改写上游手册。
+- 发布、安装和回退按 [发布流程](docs/downstream/release.md)；启用继承的 Actions 前检查外部写入和发布目标。
+
+## Agent skills
+
+- **Issue tracker**：规格与工单放 `.scratch/`；读写前按 [issue-tracker.md](docs/agents/issue-tracker.md) 操作本地 Markdown。
+- **Triage labels**：分诊时使用 [triage-labels.md](docs/agents/triage-labels.md) 的默认词表。
+- **Domain docs**：探索术语或设计边界时按 [domain.md](docs/agents/domain.md) 读取单一上下文的术语表与 ADR。

@@ -1,4 +1,5 @@
 import React from 'react'
+import { hudSeparator, orderHudFields } from '../hudLayout.js'
 import { Box, Text, useTerminalSize, useTheme } from '../ui.js'
 import type { Color } from '../ink/styles.js'
 import { formatTokens } from '../terminal-utils/format.js'
@@ -167,8 +168,10 @@ type FieldPart = {
 function FieldLine({
   parts,
   hoverProps,
+  separator,
 }: {
   parts: readonly FieldPart[]
+  separator?: StatusBarConfig['separator']
   hoverProps: (id: HoverTarget) => {
     onMouseEnter: () => void
     onMouseLeave: () => void
@@ -181,7 +184,7 @@ function FieldLine({
     <>
       {visible.map((part, index) => (
         <React.Fragment key={part.key}>
-          {index > 0 ? <Text dimColor wrap="truncate"> · </Text> : null}
+          {index > 0 ? <Text dimColor wrap="truncate">{hudSeparator(separator)}</Text> : null}
           <Box
             flexShrink={part.flexShrink ?? 1}
             {...(part.id === undefined ? {} : hoverProps(part.id))}
@@ -716,6 +719,7 @@ const selectionBadge = formatSelectionBadge(channel.selection)
     ...leftFields,
     ...(ctxNode !== undefined ? [{ key: 'context', id: 'ctx' as const, node: ctxNode }] : []),
   ]
+  const orderedFields = orderHudFields([...fullLeftFields, ...rightFields], statusBar.order)
   const hasStatusFields = compactFields.length > 0 || ctxNode !== undefined
   // The supplemental row is PERMANENTLY mounted (height pinned to 1)
   // whenever the footer carries hoverable chrome — mounting it from nothing
@@ -762,10 +766,14 @@ const selectionBadge = formatSelectionBadge(channel.selection)
           />
         ) : null}
         {/* Row 2: optional status fields — every field is independently gated. */}
-        {hasStatusFields ? statusBar.compact ? (
+        {hasStatusFields ? orderedFields !== undefined ? (
+          <Box flexDirection="row" overflow="hidden">
+            <FieldLine parts={orderedFields} hoverProps={hoverProps} separator={statusBar.separator} />
+          </Box>
+        ) : statusBar.compact ? (
           <Box flexDirection="row" justifyContent="space-between" gap={2}>
             <Box flexGrow={1} flexShrink={1} flexDirection="row" overflow="hidden">
-              <FieldLine parts={compactFields} hoverProps={hoverProps} />
+              <FieldLine parts={compactFields} hoverProps={hoverProps} separator={statusBar.separator} />
             </Box>
             {ctxNode !== undefined ? (
               <Box flexShrink={0} {...hoverProps('ctx')}>
@@ -776,7 +784,7 @@ const selectionBadge = formatSelectionBadge(channel.selection)
         ) : (
           <Box flexDirection="row" justifyContent="space-between" gap={2}>
             <Box flexGrow={1} flexShrink={1} flexDirection="row" overflow="hidden">
-              <FieldLine parts={fullLeftFields} hoverProps={hoverProps} />
+              <FieldLine parts={fullLeftFields} hoverProps={hoverProps} separator={statusBar.separator} />
             </Box>
             <Box
               justifyContent="flex-end"
@@ -784,7 +792,7 @@ const selectionBadge = formatSelectionBadge(channel.selection)
               flexDirection="row"
               overflow="hidden"
             >
-              <FieldLine parts={rightFields} hoverProps={hoverProps} />
+              <FieldLine parts={rightFields} hoverProps={hoverProps} separator={statusBar.separator} />
             </Box>
           </Box>
         ) : null}

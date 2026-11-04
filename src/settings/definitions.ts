@@ -409,6 +409,26 @@ export const SETTING_DEFINITIONS = {
     kind: 'boolean',
     group: 'status-bar',
   },
+  'statusBar.order': {
+    label: 'HUD field order',
+    descriptions: { zh: 'HUD 字段顺序' },
+    hint: 'Comma-separated field ids, e.g. model,thinking,contextUsage,cost,cwd,gitBranch. Empty keeps the native layout; a list uses one row and appends other visible fields. Visibility switches still apply. Other ids: tokens,cache,tps,mode,goal,sessionTitle,sessionId. Minimal UI ignores this setting.',
+    hintDescriptions: { zh: '逗号分隔字段 ID，例如 model,thinking,contextUsage,cost,cwd,gitBranch。留空保留原生布局；填写后使用单行排列，其余可见字段追加在后，显示开关仍生效。其他 ID：tokens,cache,tps,mode,goal,sessionTitle,sessionId。极简界面忽略此设置。' },
+    kind: 'text',
+    group: 'status-bar',
+  },
+  'statusBar.placement': {
+    label: 'HUD placement',
+    descriptions: { zh: 'HUD 位置' },
+    hint: 'Place the existing HUD above or below the input. Default: below. Applies immediately; Minimal UI keeps it below.',
+    hintDescriptions: { zh: '把原有 HUD 放在输入框上方或下方。默认下方，立即生效；极简界面保持下方。' },
+    kind: 'select',
+    options: [
+      { value: 'below', label: 'Below input', descriptions: { zh: '输入框下方' } },
+      { value: 'above', label: 'Above input', descriptions: { zh: '输入框上方' } },
+    ],
+    group: 'status-bar',
+  },
   'statusBar.pluginFields': {
     label: 'Show plugin fields',
     descriptions: { zh: '显示插件底栏字段' },
@@ -423,6 +443,18 @@ export const SETTING_DEFINITIONS = {
     hint: 'Three ";"-separated groups — left group tail; right group head; right group tail — with comma-separated keys inside: `a,b;c;d`. Empty shows nothing; "*" shows every field (default, fields registered later included). A listed key follows the group it sits in, overriding its plugin-declared slot.',
     hintDescriptions: { zh: '用 ";" 分成三组——左组末尾；右组开头；右组末尾——组内逗号分隔：`a,b;c;d`。留空则一个都不显示；"*" 表示全部（默认，含以后注册的字段）。被列出的字段以名单里的组为准，覆盖插件声明的槽位。' },
     kind: 'text',
+    group: 'status-bar',
+  },
+  'statusBar.separator': {
+    label: 'HUD separator',
+    descriptions: { zh: 'HUD 分隔符' },
+    hint: 'Dot keeps the native separator. Powerline thin requires a font with the U+E0B1 glyph; switch back to Dot if it renders incorrectly. Minimal UI keeps Dot.',
+    hintDescriptions: { zh: '圆点保留原生分隔符。Powerline 细线需要字体支持 U+E0B1 字形，显示异常时切回圆点；极简界面保持圆点。' },
+    kind: 'select',
+    options: [
+      { value: 'dot', label: 'Dot', descriptions: { zh: '圆点' } },
+      { value: 'powerline-thin', label: 'Powerline thin', descriptions: { zh: 'Powerline 细线' } },
+    ],
     group: 'status-bar',
   },
   'statusBar.sessionId': {
