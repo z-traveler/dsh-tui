@@ -419,8 +419,10 @@ const init = { type: 'system', subtype: 'init', session_id: 's', cwd: '/fixture/
     check('channel: /model lists one provider (the backend)', models.length === 3 && models.every(model => model.provider === 'claude'))
     check('channel: switching by bare id works', await channel.switchModel('claude', 'opus') === true)
     check('channel: the effort readout follows', await channel.setEffort('high') === true && await settled(() => channel.reasoningEffort === 'high') && channel.effortLevels?.join() === 'low,medium,high,max')
-    query.emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.42 }, seven_day: { utilization: 0.87 } } } })
+    query.emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.42, resetsAt: 1790949900 }, seven_day: { utilization: 0.87, resetsAt: 1791205200 } } } })
     check('channel: subscription usage is kept', await settled(() => channel.rateLimit?.windows.length === 2))
+    check('channel: subscription reset seconds are normalised to epoch milliseconds',
+      await settled(() => channel.rateLimit?.windows[0]?.resetsAt === 1790949900000 && channel.rateLimit?.windows[1]?.resetsAt === 1791205200000), channel.rateLimit)
     query.emit({ type: 'system', subtype: 'status', status: 'requesting' })
     query.emit({ type: 'result', subtype: 'success', is_error: false, result: 'done', total_cost_usd: 0.01, modelUsage: { x: { contextWindow: 200000 } } })
     check('channel: /context is the backend\'s report', await settled(() => channel.loadedContext?.sections[0]?.name === 'Core instructions') && channel.loadedContext?.files[0]?.displayPath === './CLAUDE.md' && channel.loadedContext.tools.some(tool => tool.name === 'docs › search'))

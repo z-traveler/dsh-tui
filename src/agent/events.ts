@@ -194,7 +194,7 @@ export interface CommandInfo {
   readonly argumentHint?: string
 }
 
-/** Subscription / rate-limit utilisation windows. */
+/** Subscription / rate-limit utilisation windows; resetsAt is epoch milliseconds. */
 export interface RateLimitView {
   readonly windows: readonly { readonly name: string; readonly utilization: number; readonly resetsAt?: number }[]
 }

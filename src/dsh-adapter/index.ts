@@ -394,6 +394,12 @@ export const Config: Schema<Config, RuntimeConfig<Config>> = editableConfig<Conf
   // (`describe().value.recapOnOpen !== false`, see channel.ts).
   recapOnOpen: Schema.boolean(),
   statusBar: Schema.object({
+    style: Schema.union(['native', 'powerline']).default('native'),
+    powerline: Schema.any(),
+    workingCounters: Schema.boolean().default(false),
+    placement: Schema.union(['above', 'below']),
+    separator: Schema.union(['dot', 'powerline-thin']).default('dot'),
+    order: Schema.string().default(''),
     compact: Schema.boolean().default(DEFAULT_STATUS_BAR.compact),
     model: Schema.boolean().default(DEFAULT_STATUS_BAR.model),
     thinking: Schema.boolean().default(DEFAULT_STATUS_BAR.thinking),
