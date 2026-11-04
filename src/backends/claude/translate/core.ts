@@ -313,7 +313,8 @@ export function createClaudeTranslator(options: ClaudeTranslatorOptions) {
         const info = rec(message.rate_limit_info)
         const windows = Object.entries(rec(info?.unifiedWindows) ?? {}).flatMap(([name, value]) => {
           const utilization = num(rec(value)?.utilization)
-          return utilization === undefined ? [] : [{ name, utilization, ...(num(rec(value)?.resetsAt) === undefined ? {} : { resetsAt: num(rec(value)?.resetsAt) }) }]
+          const resetsAt = num(rec(value)?.resetsAt)
+          return utilization === undefined ? [] : [{ name, utilization, ...(resetsAt === undefined ? {} : { resetsAt: resetsAt * 1000 }) }]
         })
         return [{ type: 'rate-limit', info: { windows } }, ...rateLimitNotice(info)]
       }
