@@ -29,10 +29,13 @@ check('native is the production default; Powerline has no forced below placement
 })
 await settings.mutate('dsh-tui', [{ op: 'set', path: ['statusBar', 'style'], value: 'powerline' },
   { op: 'set', path: ['statusBar', 'powerline'], value: { icons: 'ascii', padding: 0, right: ['cwd'] } }])
-check('production settings retain the style and option object', () => {
-  const value = configValues(scope.get()).statusBar!
-  assert.equal(value.style, 'powerline')
-  assert.deepEqual(value.powerline, { icons: 'ascii', padding: 0, right: ['cwd'] })
+const reloaded = createTuiSettingsService({ ns: 'dsh-tui', file, profile: 'fixture', keys: ['statusBar'] }).register('dsh-tui', Config)
+check('production settings retain the style and partial options after reload', () => {
+  for (const current of [scope, reloaded]) {
+    const value = configValues(current.get()).statusBar!
+    assert.equal(value.style, 'powerline')
+    assert.deepEqual(value.powerline, { icons: 'ascii', padding: 0, right: ['cwd'] })
+  }
 })
 const { TuiStatusStore } = await import('../../src/dsh-adapter/status.js')
 class Input extends PassThrough { isTTY = true; setRawMode() { return this }; ref() { return this }; unref() { return this } }
@@ -101,6 +104,20 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       assert.ok(header.includes('╭─') && header.includes('deepseek-flash:high') && header.includes('验收会话'))
       assert.ok(lines().slice(draftRow() - 1, draftRow() + 2).join('\n').includes('25.0%/100k'))
     })
+    if (columns === 60) {
+      receive!([{ type: 'session.title', title: 'ABCDEFGHIJKLMNOPQRSTUVWXYZab', source: 'user' }], { replay: false })
+      assert.ok(await settled(() => lines()[draftRow() + 1]?.includes('$0.1250') === true && lines()[draftRow() - 1]?.includes('ABCDEFGHIJKLMNOPQRSTUVWXYZab') === true))
+      assert.ok(!lines().slice(draftRow() + 1).some(line => line.includes('project')))
+      channel.setStatusBar({ powerline: { icons: 'none', secondaryOverflow: 'wrap' } })
+      assert.ok(await settled(() => lines()[draftRow() + 2]?.includes('project') === true))
+      check(`wrap continues whole fields onto another overflow row (${fullscreen})`, () => {
+        assert.ok(lines()[draftRow() + 1]!.includes('25.0%/100k') && lines()[draftRow() + 1]!.includes('$0.1250'))
+        assert.ok(lines()[draftRow() + 2]!.includes('project'))
+      })
+      channel.setStatusBar({ powerline: { icons: 'none' } })
+      receive!([{ type: 'session.title', title: '验收会话', source: 'user' }], { replay: false })
+      assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('验收会话') === true))
+    }
     channel.setStatusBar({ placement: 'below' })
     assert.ok(await settled(() => lines()[draftRow() + 1]?.includes('deepseek-flash:high') === true))
     check(`explicit below placement has one frame and a plain HUD (${fullscreen},${columns})`, () => {
@@ -202,7 +219,10 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       assert.ok(!frame[workAt]!.includes('↑') && !frame[workAt]!.includes('↓'))
     })
     channel.setStatusBar({ workingCounters: true })
-    assert.ok(await settled(() => lines().some(line => /[0-9]s.*↑.*↓.*interrupt/i.test(line))))
+    assert.ok(await settled(() => lines().some(line => /[0-9]s.*↓.*interrupt/i.test(line))))
+    check(`opt-in counters do not invent an unknown upload count (${fullscreen},${columns})`, () => {
+      assert.ok(!lines().find(line => /[0-9]s.*↓.*interrupt/i.test(line))!.includes('↑ 0'))
+    })
     receive!([{ type: 'turn.end', turn: 1, reason: { kind: 'completed' }, time: Date.now() }], { replay: false })
     assert.ok(await settled(() => !lines().some(line => /[0-9]s.*interrupt/i.test(line))))
     check(`working row disappears when idle (${fullscreen},${columns})`, () => assert.ok(!channel.working))

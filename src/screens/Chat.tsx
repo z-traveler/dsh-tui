@@ -7242,7 +7242,7 @@ export function Chat({
           <PowerlineWorking channel={channel}
             line={activitySlot && workingActivity?.phase !== 'idle' ? workingActivity?.line : undefined}
             suffix={compactionBadge}
-            counters={channel.statusBar.workingCounters ? `↑ ${formatTokens(lastUploadTokens)} · ↓ ${formatTokens(Math.round(channel.responseChars / 4))}` : undefined}
+            uploadTokens={lastUploadTokens}
             elapsed={() => (pauseStartTimeRef.current ?? Date.now()) - loadingStartTimeRef.current - totalPausedMsRef.current}
           />
         ) : channel.working &&
