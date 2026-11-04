@@ -76,7 +76,7 @@ const MAX_SEPARATOR_WIDTH = 8
 const MAX_MARKER_WIDTH = 8
 const MAX_MODEL_ICON_WIDTH = 8
 
-const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'quota', 'shell', 'cwd', 'git', 'plugins'] as const
+const DEFAULT_LEFT = ['marker', 'model', 'context', 'cost', 'shell', 'cwd', 'git', 'plugins'] as const
 const DEFAULT_RIGHT = ['agent'] as const
 const DEFAULT_SEPARATOR = '\ue0b1'
 const DEFAULT_MARKER = '🐋'
@@ -100,7 +100,7 @@ const DEFAULT_COLORS: PowerlineColors = {
   thinking: 'subtle',
   plugin: 'text',
   agent: 'text',
-  quota: 'text',
+  quota: 'success',
 }
 
 const DEFAULT_MODEL_COLORS: readonly PowerlineModelColor[] = [

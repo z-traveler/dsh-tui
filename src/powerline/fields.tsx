@@ -6,7 +6,7 @@ import { formatTokens } from '../terminal-utils/format.js'
 import type { ChannelUi } from '../adapter/channel/ui-policy.js'
 import type { PowerlineOptions } from './config.js'
 import { formatPowerlineQuota } from './quota.js'
-import { selectModelIcon } from './modelIcon.js'
+import { formatModelIconPrefix } from './modelIcon.js'
 import type { PowerlineGitStatus } from './git.js'
 
 export interface PowerlineField {
@@ -15,6 +15,7 @@ export interface PowerlineField {
   width: number
   node: React.ReactNode
   detail?: string
+  extraDetail?: string
   onClick?: () => void
   plugin?: boolean
 }
@@ -39,24 +40,32 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
   git: PowerlineGitStatus | undefined, cost: React.ReactNode, modelClick?: () => void, effortClick?: () => void): PowerlineField[] {
   const fields: PowerlineField[] = []
   const icon = (nerd: string, ascii: string) => options.icons === 'none' ? '' : `${options.icons === 'ascii' ? ascii : nerd} `
-  const add = (key: string, text: string, node: React.ReactNode, detail?: string, onClick?: () => void) => {
-    if (text !== '') fields.push({ key, text, width: stringWidth(text), node, detail, onClick })
+  const add = (key: string, text: string, node: React.ReactNode, detail?: string, onClick?: () => void, extraDetail?: string) => {
+    if (text !== '') fields.push({ key, text, width: stringWidth(text), node, detail, onClick, extraDetail })
   }
   const flags = channel.statusBar ?? {}
   const colors = options.colors
   add('marker', options.marker, <Text color={colors.marker}>{options.marker}</Text>)
   if (flags.model !== false) {
     const name = channel.modelDisplay ?? channel.model
-    const glyph = selectModelIcon(channel.model, options)
-    const prefix = glyph === '' ? '' : `${glyph} `
+    const prefix = formatModelIconPrefix(channel.model, options)
+    const quota = formatPowerlineQuota(channel.rateLimit, channel.sessionRef.backendId)
     const suffix = flags.thinking !== false && channel.reasoningEffort && channel.reasoningEffort !== 'off' ? `:${channel.reasoningEffort}` : ''
     const color = options.modelColors.find(rule => new RegExp(rule.pattern, 'i').test(name))?.color ?? colors.model
-    add('model', `${prefix}${name}${suffix}`, <><Text color={color}>{prefix}{name}</Text>{thinking(suffix, channel.reasoningEffort, colors.thinking)}</>, `${name}${suffix}`, modelClick)
-    // The model remains one width-budgeted field; its two click regions can
-    // retain the existing model and reasoning controls independently.
-    if (suffix !== '' && effortClick !== undefined) {
-      fields[fields.length - 1]!.node = <Box flexDirection="row"><Text color={color}>{prefix}{name}</Text><Box onClick={event => { event.stopImmediatePropagation(); effortClick() }}>{thinking(suffix, channel.reasoningEffort, colors.thinking)}</Box></Box>
-    }
+    const effort = thinking(suffix, channel.reasoningEffort, colors.thinking)
+    const node = <Box flexDirection="row">
+      <Text color={color}>{prefix}{name}</Text>
+      {suffix !== '' && effortClick !== undefined
+        ? <Box onClick={event => { event.stopImmediatePropagation(); effortClick() }}>{effort}</Box> : effort}
+      {quota !== undefined && <Box flexDirection="row" onClick={event => event.stopImmediatePropagation()}>
+        {quota.parts.map((part, index) => <React.Fragment key={index}>
+          <Text color={part.tone === 'success' ? colors.quota : colors[part.tone]}>{` ${part.text}`}</Text>
+          {part.reset !== undefined && <Text dimColor>{` (${part.reset})`}</Text>}
+        </React.Fragment>)}
+      </Box>}
+    </Box>
+    // Name, effort and applicable subscription windows share one width budget.
+    add('model', `${prefix}${name}${suffix}${quota === undefined ? '' : ` ${quota.text}`}`, node, `${name}${suffix}`, modelClick, quota?.detail)
   }
   if (flags.contextUsage !== false && used !== undefined && capacity !== undefined && capacity > 0) {
     const percent = 100 * used / capacity
@@ -69,8 +78,6 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
     const text = nodeText(cost)
     add('cost', text, <Text color={colors.cost}>{text}</Text>, text)
   }
-  const quota = formatPowerlineQuota(channel.rateLimit, options.icons)
-  if (quota !== undefined) add('quota', quota.text, <Text color={colors.quota}>{quota.text}</Text>, quota.detail)
   if (flags.cwd !== false) {
     const raw = channel.displayCwd ?? channel.cwd
     const path = options.path === 'basename' ? raw.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || raw

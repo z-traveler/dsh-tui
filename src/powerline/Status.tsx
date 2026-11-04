@@ -11,6 +11,7 @@ import { TooltipTarget } from '../components/Tooltip.js'
 import { normalizePowerlineOptions } from './config.js'
 import { layoutPowerlineFields } from './layout.js'
 import { buildPowerlineFields, nodeText, type PowerlineField } from './fields.js'
+import { formatPowerlineQuota } from './quota.js'
 import { readPowerlineGit, type PowerlineGitStatus } from './git.js'
 
 type HostHudField = StatusLinePresentation['fields'][number]
@@ -30,7 +31,8 @@ function useGit(cwd: string, enabled: boolean): PowerlineGitStatus | undefined {
 
 function Field({ field }: { field: PowerlineField }): React.ReactNode {
   const body = <Box flexDirection="row" flexShrink={0} onClick={field.onClick}>{field.node}</Box>
-  return field.detail ? <TooltipTarget content={field.detail}>{body}</TooltipTarget> : body
+  const detail = [field.detail, field.extraDetail].filter(Boolean).join('\n')
+  return detail ? <TooltipTarget content={detail}>{body}</TooltipTarget> : body
 }
 
 export function PowerlineStatus({ channel, fields: native, pluginFields, used, capacity, surface, detail, label, supplemental, gapBefore = false, reserveLabel = surface !== 'row', statusText = '' }: {
@@ -51,7 +53,8 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   const options = normalizePowerlineOptions(channel.statusBar.powerline)
   const git = useGit(channel.cwd, channel.statusBar.gitBranch === true)
   const [, refreshClock] = React.useReducer((value: number) => value + 1, 0)
-  const hasReset = [...options.left, ...options.right].includes('quota') && channel.rateLimit?.windows.some(window => window.resetsAt !== undefined) === true
+  const hasReset = channel.statusBar.model !== false && [...options.left, ...options.right].includes('model')
+    && formatPowerlineQuota(channel.rateLimit, channel.sessionRef.backendId)?.parts.some(part => part.reset !== undefined) === true
   React.useEffect(() => {
     if (!hasReset) return
     const timer = setInterval(refreshClock, 60_000)

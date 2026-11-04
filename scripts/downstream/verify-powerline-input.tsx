@@ -42,7 +42,7 @@ class Input extends PassThrough { isTTY = true; setRawMode() { return this }; re
 for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
   let receive: Parameters<AgentSession['subscribe']>[0] | undefined
   const session: AgentSession = {
-    ref: { backendId: 'fixture', sessionId: 'powerline-fixture' }, cwd: '/fixture/project', status: 'idle', capabilities: { native: {} },
+    ref: { backendId: 'codex', sessionId: 'powerline-fixture' }, cwd: '/fixture/project', status: 'idle', capabilities: { native: {} },
     history: async () => [
       { type: 'session.ready', sessionId: 'powerline-fixture', cwd: '/fixture/project', model: 'deepseek-flash', effort: 'high', contextWindow: 100_000 },
       { type: 'context.usage', used: 25_000, max: 100_000 },
@@ -160,6 +160,23 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     check(`model icon rules render and unmatched models retain the fallback (${fullscreen},${columns})`, () => {
       assert.ok(!lines()[draftRow() - 1]!.includes('◆'))
     })
+    channel.setStatusBar({ powerline: { left: ['model'], modelIcons: [
+      { pattern: '^deepseek', icon: 'G' }, { pattern: '^gpt', icon: '界' }, { pattern: '^claude', icon: '✳' },
+    ] } })
+    for (const model of ['deepseek-flash', 'gpt-5', 'claude-sonnet-4-5']) {
+      receive!([{ type: 'model.changed', model, source: 'user' }], { replay: false })
+      assert.ok(await settled(() => {
+        const at = draftRow() - 1
+        return at >= 0 && lines()[at]?.includes(model) === true
+          && terminal.buffer.active.getLine(terminal.buffer.active.baseY + at)?.getCell(6)?.getChars() === model[0]
+      }), lines().join('\n'))
+      const row = terminal.buffer.active.getLine(terminal.buffer.active.baseY + draftRow() - 1)!
+      assert.equal(row.getCell(6)!.getChars(), model[0], lines().join('\n'))
+    }
+    check(`different-width icons keep model names at one cell column (${fullscreen},${columns})`, () => {
+      assert.ok(lines()[draftRow() - 1]!.includes('✳\ufe0f'))
+    })
+    receive!([{ type: 'model.changed', model: 'deepseek-flash', source: 'user' }], { replay: false })
     channel.setStatusBar({ powerline: { icons: 'none' } })
     assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('🐋') === true))
     input.write('\u001b[D')
@@ -241,37 +258,53 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     receive!([{ type: 'turn.end', turn: 1, reason: { kind: 'completed' }, time: Date.now() }], { replay: false })
     assert.ok(await settled(() => !lines().some(line => /[0-9]s.*interrupt/i.test(line))))
     check(`working row disappears when idle (${fullscreen},${columns})`, () => assert.ok(!channel.working))
-    channel.setStatusBar({ cost: false, powerline: { left: ['quota'], icons: 'none' } })
+    channel.setStatusBar({ cost: false, powerline: { left: ['model'], icons: 'none', colors: { quota: '#00ff00', warning: '#ffff00', error: '#ff0000' } } })
+    receive!([{ type: 'model.changed', model: 'gpt-5', source: 'user' }], { replay: false })
     const reset = Date.now() + 2 * 60 * 60 * 1000
     receive!([{ type: 'rate-limit', info: { windows: [
       { name: 'five_hour', utilization: .25, resetsAt: reset },
       { name: 'seven_day', utilization: .4, resetsAt: reset + 70 * 60 * 60 * 1000 },
     ] } }], { replay: false })
-    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('5h 75% left reset 2h') === true && lines()[draftRow() - 1]?.includes('7d 60% left reset 72h') === true), lines().join('\n'))
-    check(`subscription windows show remaining allowance and reset times without a cost field (${fullscreen},${columns})`, () => {
-      assert.ok(!lines()[draftRow() - 1]!.includes('$'))
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('gpt-5:high week:60% (3d)') === true), lines().join('\n'))
+    check(`weekly allowance follows the model without a separator or cost field (${fullscreen},${columns})`, () => {
+      const header = lines()[draftRow() - 1]!
+      assert.ok(!header.includes('$') && !header.includes('5h:') && !header.includes('reset') && !header.includes('left'))
+      const row = terminal.buffer.active.getLine(terminal.buffer.active.baseY + draftRow() - 1)!
+      assert.equal(row.getCell(header.indexOf('week:'))!.getFgColor(), 0x00ff00)
+      // The host dims via darkTheme.inactive, not the ANSI dim flag.
+      assert.equal(row.getCell(header.indexOf('(3d)'))!.getFgColor(), 0x8d95a6)
     })
+    const quotaColors: number[] = []
+    for (const [utilization, label] of [[.76, 'week:24%'], [.91, 'week:9%']] as const) {
+      receive!([{ type: 'rate-limit', info: { windows: [{ name: 'seven_day', utilization }] } }], { replay: false })
+      assert.ok(await settled(() => lines()[draftRow() - 1]?.includes(label) === true))
+      const header = lines()[draftRow() - 1]!, row = terminal.buffer.active.getLine(terminal.buffer.active.baseY + draftRow() - 1)!
+      quotaColors.push(row.getCell(header.indexOf(label))!.getFgColor())
+    }
+    check(`quota is yellow below 25 and red below 10 (${fullscreen},${columns})`, () => assert.deepEqual(quotaColors, [0xffff00, 0xff0000]))
+    receive!([{ type: 'rate-limit', info: { windows: [{ name: 'seven_day', utilization: .4, resetsAt: reset + 70 * 60 * 60 * 1000 }] } }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('week:60% (3d)') === true))
     if (fullscreen) {
-      const row = draftRow() - 1, col = lines()[row]!.indexOf('5h')
+      const row = draftRow() - 1, col = lines()[row]!.indexOf('week:')
       const before = draftRow()
       input.write(`\u001b[<35;${col + 1};${row + 1}M`)
-      assert.ok(await settled(() => lines().some(line => line.includes('75% remaining (25% used)'))))
+      assert.ok(await settled(() => lines().some(line => line.includes('60% remaining (40% used)'))))
       check(`quota details expose the absolute reset date without moving input (${columns})`, () => {
-        assert.ok(lines().join('\n').includes(String(new Date(reset).getFullYear())))
+        assert.ok(lines().join('\n').includes(String(new Date(reset + 70 * 60 * 60 * 1000).getFullYear())))
         assert.ok(lines().some(line => line.includes('resets ')))
         assert.equal(draftRow(), before)
       })
       input.write('\u001b[<35;1;1M')
-      assert.ok(await settled(() => !lines().some(line => line.includes('75% remaining (25% used)'))))
+      assert.ok(await settled(() => !lines().some(line => line.includes('60% remaining (40% used)'))))
     }
-    receive!([{ type: 'rate-limit', info: { windows: [{ name: 'five_hour', utilization: .625, resetsAt: Date.now() - 1000 }] } }], { replay: false })
-    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('5h 37% left reset due') === true))
+    receive!([{ type: 'rate-limit', info: { windows: [{ name: 'seven_day', utilization: .625, resetsAt: Date.now() - 1000 }] } }], { replay: false })
+    assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('week:38% (now)') === true))
     check(`a refreshed snapshot replaces quota; an expired reset never invents replenishment (${fullscreen},${columns})`, () => {
       assert.ok(!lines()[draftRow() - 1]!.includes('75%') && !lines()[draftRow() - 1]!.includes('100%'))
     })
     receive!([{ type: 'rate-limit', info: { windows: [] } }], { replay: false })
-    assert.ok(await settled(() => !lines().some(line => line.includes('37% left'))))
-    check(`missing subscription data has no placeholder (${fullscreen},${columns})`, () => assert.ok(!lines()[draftRow() - 1]!.includes('reset')))
+    assert.ok(await settled(() => !lines().some(line => line.includes('week:38%'))))
+    check(`missing subscription data has no placeholder (${fullscreen},${columns})`, () => assert.ok(!lines()[draftRow() - 1]!.includes('week:')))
   } finally { await instance.unmount(); channel.releaseContributions(); terminal.dispose(); input.destroy() }
 }
 console.log(`Powerline input: ${checks} checks passed`)

@@ -3,88 +3,82 @@
 ## 中文
 
 在 `/settings` → **底栏设置** → **输入区域风格**选择 `powerline`；出厂仍为 `native`。
-极简界面始终使用原生布局。切换风格不清空草稿或重置光标。
+极简界面保持原生。切换风格不清空草稿或重置光标。消息卡片和侧栏不变。
 
-Powerline 将 HUD 融入输入框顶边，最后一行输入与圆角底边共用一行。
-主行放不下的完整字段移到输入框下方，之间留一空行；默认首个溢出行遇到放不下的字段就停止。
-工作时在 HUD 上方显示一行紧凑阶段、耗时和中断提示，上下各留一空行；空闲时工作行及其两侧留白一起撤下。
-详情悬停按需浮现，不预留空白提示行。消息卡片和侧栏不变。
+HUD 融入顶边，最后一行输入与圆角底边共用一行。工作行上下各留一空行，空闲时三行一起撤下；
+输入框下方保留一空行，再放溢出字段。详情悬停按需浮现，不另占固定提示行。
+未设置 HUD 位置时，原生在框下、Powerline 融入顶边；明确选 `below` 则状态行位于框下。
 
-- **HUD 位置**：未设置时，原生在框下，Powerline 融入顶边；明确选择 `below` 时，Powerline 状态行位于框下。
-- **Powerline 外观选项**：填写部分 JSON 覆盖，未填写的值继续跟随预设；留空恢复预设。非法已知样式在设置页拒绝保存；手改文件的非法值安全回落。
-- 原生的 **HUD 字段顺序 / HUD 分隔符 / 紧凑状态栏 / 上下文进度条**不控制 Powerline；改用下列选项。原有字段显示开关、插件名单、危险权限提示仍有效。
-- **工作状态行 Token 计数**：默认关闭，仅影响 Powerline；开启显示原有宿主输入计数和输出估算。
+### 订阅窗口随模型显示
 
-```json
-{
-  "left": ["marker", "model", "context", "cost", "quota", "cwd", "git", "plugins"],
-  "right": ["agent"],
-  "icons": "ascii",
-  "separator": "|",
-  "padding": 1,
-  "secondaryOverflow": "drop",
-  "path": "basename",
-  "context": "full"
-}
+以下省略图标和其他字段；这是展示形式，不是账户余额或真实样例金额：
+
+```text
+DeepSeek: deepseek-flash:high
+Codex:   gpt-5:high week:80% (6d)
+Claude:  claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 ```
 
-`left/right` 同时决定显隐和顺序；可选附加字段为 `tokens/cache/tps/sessionTitle/sessionId`，
-仍须打开对应原生开关。模型与强度始终作为一个完整字段。没有真实数据的 Shell/Agent 不占位。
-`plugins` 表示插件左槽；插件右槽仍保留在右组。插件文字不参与指标推算，富视图保留独立区域。
+依据是会话后端及其上报数据，不靠模型名猜订阅身份。Codex 只显示周窗口；Claude 显示五小时、周窗口，缺失的窗口不占位；其他后端不显示这些订阅窗口。
+剩余百分比四舍五入后：低于 10 红、低于 25 黄、其余绿；括号内重置时间淡显。
+倒计时向上取整为 m/h/d，小于一分钟显示 `now`，每分钟刷新文字，不联网轮询，也不因到期自行补满额度。
+悬停模型段可看原有模型信息、窗口用量和完整本地重置日期。
 
-其他覆盖：`icons` 为 `nerd/ascii/none`；`path` 为 `basename/abbreviated/full`；
-`context` 为 `full/percent`；`secondaryOverflow` 为 `drop/wrap`，`maxRows` 限制溢出行数（1–32）。
-`padding` 是每组两侧的 HUD 留白（0–8），不是每个字段的留白。无法完整放入一行的字段不强行缩小。
-`marker` 默认 `🐋`。`warnPercent/errorPercent` 默认 70/90，严格超过阈值才警告。
-`colors` 支持主题色名及宿主已有颜色格式，键为
-`marker/model/path/gitClean/gitDirty/context/warning/error/separator/border/cost/thinking/plugin/agent/quota`。
-`modelColors` 是按顺序匹配的 `[{"pattern":"deepseek","color":"#6e9bc5"}]`；提供该列表会替换预设规则。
-模型图标通过 `modelIcons` 按模型 **ID**（不是显示别名）做不区分大小写的正则匹配，首个匹配生效；未匹配时使用通用 ``。
-Nerd 模式下可配置任意安全的 1–8 显示单元图标；ASCII 模式统一显示 `model`，none 模式不显示图标：
+订阅数据与名称/强度共用**一个不可拆分字段**，随模型段一起溢出或隐藏，不依赖费用开关。
+此前独立的 `quota` 字段不再使用；`left/right` 里应保留 `model`。没有上报数据时不造数。
+数据仍由宿主提供；没有新增登录、账户请求或费用/币种换算。原始秒时间戳在原生适配器转换为毫秒，不在 UI 猜测单位。
+
+### 模型图标
+
+默认是通用 ``，不内置猜测的品牌图标。离线演示也不预设 ◆/◉/✳ 映射。
+在 **Powerline 外观选项**的现有 JSON 中合入 `modelIcons`，例如以下仅示意语法的自定义项：
 
 ```json
-{"icons":"nerd","modelIcons":[{"pattern":"^deepseek","icon":"◆"},{"pattern":"^gpt","icon":"◉"},{"pattern":"^claude","icon":"✳"}]}
+{"icons":"nerd","modelIcons":[{"pattern":"^my-model$","icon":"M"}]}
 ```
 
-`quota` 默认在费用后显示宿主上报的订阅窗口，例如 `5小时 余75% ↻2h`。它是**剩余比例，不是余额**，不依赖费用显示开关。
-悬停可看已用比例和完整本地重置日期；相对倒计时每分钟更新。截止后显示待后端更新，不自行补满额度。
-无窗口数据时隐藏；没有新增登录、额度请求或网络轮询。真实隔离应用没有用量/窗口数据时不会造数，离线演示另有明确标注的样例。
-本轮核对的是 Codex 的毫秒截止时间约定和离线样例；没有验证真实账号或其他后端的重置时间单位；非 Codex 后端若上报秒级值，会出现待更新/1970 年日期。
+按模型 **ID** 而非显示别名做不区分大小写的正则匹配，首个匹配生效，未匹配仍用通用图标。
+Nerd 模式支持安全的 1–8 显示单元配置；所有规则和 fallback 共用最宽图标槽位，再加一格间隔，模型名称起始列一致。
+裸单符号 `✳` 等明确为 emoji 呈现（VS16），不让字体自行在一/两格之间选择；显式选择符保留。
+ASCII 模式统一为 `model`，none 模式隐藏图标。真实字体仍需人工确认；显式 VS15、ZWJ/复杂组合及东亚模糊宽度不承诺跨终端完全一致。
 
-高强度默认静态逐字彩虹；设置 `colors.thinking` 为其他颜色可统一覆盖。
-费用及上下文来源沿用宿主，没有新增币种换算或计费。Git 只读查询本地状态，失败不显示伪造的干净状态。
+### 布局和其他覆盖
 
-恢复原生只需选择 `native`，无需删除 Powerline 配置。隔离体验和验证记录见
-[本地交付指南](../../.scratch/hud/delivery.md)。
+外观选项保存**部分覆盖**；未填值继续跟随预设，留空恢复预设。非法已知样式拒绝保存；手改文件的非法项安全回落。
+原生 **HUD 字段顺序 / HUD 分隔符 / 紧凑状态栏 / 上下文进度条**不控制 Powerline。原有显隐、插件名单和危险权限提示保留。
+
+```json
+{"left":["marker","model","context","cost","cwd","git","plugins"],"right":["agent"],"icons":"ascii","separator":"|","padding":1,"secondaryOverflow":"drop","path":"basename","context":"full"}
+```
+
+先预留右组，再按左组顺序放入完整字段。默认 `drop` 在首个溢出行遇到不适合的字段就停止，`wrap` 继续换行（`maxRows` 1–32）；字段过宽不强行缩小。
+`padding` 为每组两侧 HUD 留白（0–8），不是每字段留白。路径为 `basename/abbreviated/full`，上下文为 `full/percent`；阈值默认严格超过 70/90 黄/红。
+`modelColors` 是首个匹配的颜色规则，提供列表会替换预设；高强度静态彩虹可由 `colors.thinking` 覆盖。
+`colors` 支持宿主颜色格式，键为 `marker/model/path/gitClean/gitDirty/context/warning/error/separator/border/cost/thinking/plugin/agent/quota`；`quota` 为健康剩余额度色，默认 success，低余额用 warning/error。
+可选字段 `tokens/cache/tps/sessionTitle/sessionId` 还须开启对应原生开关；缺失的 Shell/Agent 不占位。
+插件字段保留槽位、语义色、详情、点击和生命周期，富视图保留独立区域，不解析插件文字推算指标。
+工作行 Token 计数默认关闭。Git 缓存只读，失败不伪装成干净。
+
+恢复原生只需选择 `native`，无需删除覆盖。体验和证据见[交付指南](../../.scratch/hud/delivery.md)，实际参考见[来源记录](../../.scratch/hud/reference.md)。
 
 ## English
 
-Choose **Input region style → powerline** under `/settings` → **Status bar**.
-The factory default remains `native`; Minimal UI always uses native presentation.
-The style switch preserves the draft and cursor. Powerline fuses the HUD into the top edge and
-shares the bottom edge with the final editor row. Whole fields overflow below the editor;
-`drop` stops at the first non-fitting field on the first overflow row, while `wrap` continues on bounded rows.
-One blank row separates the editor from its overflow. The compact working row has one blank row on
-each side; all three disappear together when idle.
-Hover details float without reserving an empty footer row. Cards and sidebars are unchanged.
+Choose **Input region style → powerline** in `/settings` → **Status bar**. Native remains the factory default;
+Minimal UI stays native. Style switches preserve the draft/cursor. The HUD fuses with the top edge and the final
+input row shares the bottom edge. A working row has one blank row on each side; all three disappear when idle.
+One blank row separates the editor from overflow. Hover details float; cards/sidebars are unchanged.
 
-The JSON above is a **partial override**, not a preset snapshot. Empty settings restore the preset.
-`left/right` control visibility/order; the existing per-field switches still apply.
-Native `order/separator/compact/contextBar` do not control Powerline. Unset placement means native
-below / Powerline fused above; explicit `below` puts the styled row below the frame.
-`padding` applies around each HUD group, not each field. Optional fields, color keys, enum values
-and numeric bounds are listed above using their exact configuration names.
+Subscription windows are part of the **same indivisible model/effort field**, not a separate `quota` field:
+Codex shows `week:80% (6d)`; Claude shows `5h:80% (2h) week:24% (6d)`; other backends and missing windows show nothing.
+Backend identity/data select the windows, not guessed model brands. Rounded remaining below 10 is red, below 25 yellow,
+otherwise green; reset parentheses are muted. Reset counts ceil to m/h/d or `now` under a minute. Expiry never invents
+replenishment. Hover retains model details and adds exact reset dates. Cost visibility is independent. No login or
+network polling is added; native adapters normalize epoch seconds to milliseconds. No live account was exercised.
 
-Model and effort remain indivisible. Missing Shell/Agent data is not fabricated. Plugin slots,
-semantic tones, callbacks, details and lifetime remain host-owned; rich views stay separate.
-Model colors use first-match regex rules; supplying `modelColors` replaces the defaults.
-`modelIcons` uses first-match, case-insensitive regex rules on the raw model ID in Nerd mode (see the JSON above).
-Unmatched models use ``; ASCII mode uses `model`, and none mode hides icons. No brand icons are guessed for unconfigured models.
-`quota` shows backend-reported **remaining percentages** and reset deadlines independently of cost.
-Relative deadlines update every minute; hover shows the full local date/time and reported usage.
-Expiry says an update is due, never fabricates replenishment. Absent data stays hidden; no login or network polling is added.
-This round checked Codex's millisecond deadline contract and fixtures, not live accounts or other backends' deadline units. A non-Codex backend supplying seconds would display due/1970 dates.
-The strongest effort uses static rainbow text unless `colors.thinking` overrides it.
-Costs and usage retain host accounting; local Git queries are cached, read-only and never report
-an unavailable repository as clean. **Working-line token counters** are off by default.
-Choose `native` to recover the original presentation without deleting overrides.
+`modelIcons` uses first-match case-insensitive regexes on raw model IDs in Nerd mode. Unconfigured models use ``;
+there are no invented default brand mappings. All configured icons and the fallback share the widest display-cell slot
+plus one gap. Bare text-default emoji symbols such as `✳` get explicit VS16; explicit selectors are preserved.
+ASCII mode uses `model`, none hides icons. Real fonts, VS15/ZWJ/complex clusters and ambiguous CJK widths still need
+manual validation. The JSON above is a partial override, not a preset snapshot; merge it into existing overrides.
+Native order/separator/compact/contextBar do not control this style. Remaining option names/bounds are listed above.
+Choose `native` to restore the original presentation without deleting overrides.
