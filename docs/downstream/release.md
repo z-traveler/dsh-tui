@@ -37,12 +37,13 @@ done
 
 ```sh
 # TAG 是已获批准并检出的下游标签。
-OUT="$PWD/.local/releases/$TAG"
+OUT="$HOME/.local/share/dsh-releases/dsh-tui/$TAG"
 mkdir -p "$OUT"
 npm pack --ignore-scripts --pack-destination "$OUT"
 sha256sum "$OUT"/*.tgz > "$OUT/SHA256SUMS"
 ```
 
+制品目录必须在工作区外，profile 会持久化 tarball 的绝对 `file:` 引用。
 包名保持宿主兼容；下游产物用标签、提交和 SHA-256 识别，不能只看包内的上游版本号。
 不要从 Git URL 安装：源码含 workspace 依赖与子模块，安装包必须包含编译产物。
 
