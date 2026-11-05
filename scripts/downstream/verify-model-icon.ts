@@ -123,4 +123,15 @@ check('a configured wide glyph widens the slot for narrow and fallback glyphs', 
   assert.equal(stringWidth(formatModelIconPrefix('llama-4', wide)), 5)
 })
 
+check('demo model icons and the fallback keep the same three-cell prefix', () => {
+  const demo = rules([{ pattern: '^deepseek', icon: '◆' }, { pattern: '^gpt', icon: '◉' }, { pattern: '^claude', icon: '✳' }])
+  assert.equal(formatModelIconPrefix('deepseek-flash', demo), '◆  ')
+  assert.equal(formatModelIconPrefix('gpt-5', demo), '◉  ')
+  assert.equal(formatModelIconPrefix('claude-sonnet-4-5', demo), '✳\ufe0f ')
+  assert.equal(formatModelIconPrefix('unknown', demo), `${FALLBACK}  `)
+  for (const model of ['deepseek-flash', 'gpt-5', 'claude-sonnet-4-5', 'unknown']) {
+    assert.equal(stringWidth(formatModelIconPrefix(model, demo)), 3)
+  }
+})
+
 console.log(`${checks} checks passed`)

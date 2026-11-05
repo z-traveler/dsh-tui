@@ -2,7 +2,7 @@
  * node --import tsx/esm scripts/downstream/hud-demo.tsx [--inline]
  * Alt+0 backend scene, 1 placement, 2 icon mode, 3 order, 4 style,
  * 5 working, 6 overflow, 7 plugin, 8 context, 9 subscription snapshot.
- * No guessed brand-icon overrides. Ctrl+C exits. */
+ * Operator-approved sample icons; not official brand logos. Ctrl+C exits. */
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -50,7 +50,8 @@ const scenes = [
   }
   const channel = createChannel(host as never, session, {
     model, provider: 'fixture', effort: 'high', cwd: home, activity: false, whale: false,
-    statusBar: { style: 'powerline', contextBar: false, cache: false, gitBranch: true },
+    statusBar: { style: 'powerline', contextBar: false, cache: false, gitBranch: true,
+      powerline: { modelIcons: [{ pattern: '^deepseek', icon: '◆' }, { pattern: '^gpt', icon: '◉' }, { pattern: '^claude', icon: '✳' }] } },
   })
   return { backendId, channel, quotaIndex: 0, turn: 0,
     emit: (events: readonly AgentEvent[]) => receive?.(events, { replay: false }) }

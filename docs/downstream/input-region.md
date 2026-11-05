@@ -30,7 +30,7 @@ Claude:  claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 
 ### 模型图标
 
-默认是通用 ``，不内置猜测的品牌图标。离线演示也不预设 ◆/◉/✳ 映射。
+出厂未配置时用通用 ``。离线演示按用户确认采用 DeepSeek ◆、GPT ◉、Claude ✳ 自定义映射；它们是演示配置，不是官方品牌图标或出厂默认。
 在 **Powerline 外观选项**的现有 JSON 中合入 `modelIcons`，例如以下仅示意语法的自定义项：
 
 ```json
@@ -76,7 +76,7 @@ replenishment. Hover retains model details and adds exact reset dates. Cost visi
 network polling is added; native adapters normalize epoch seconds to milliseconds. No live account was exercised.
 
 `modelIcons` uses first-match case-insensitive regexes on raw model IDs in Nerd mode. Unconfigured models use ``;
-there are no invented default brand mappings. All configured icons and the fallback share the widest display-cell slot
+there are no built-in brand defaults. The offline demo uses operator-approved ◆/◉/✳ sample overrides, not official logos. All configured icons and the fallback share the widest display-cell slot
 plus one gap. Bare text-default emoji symbols such as `✳` get explicit VS16; explicit selectors are preserved.
 ASCII mode uses `model`, none hides icons. Real fonts, VS15/ZWJ/complex clusters and ambiguous CJK widths still need
 manual validation. The JSON above is a partial override, not a preset snapshot; merge it into existing overrides.
