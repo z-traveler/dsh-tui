@@ -3,8 +3,9 @@
 import '../lib/fake-home.mjs'
 import assert from 'node:assert/strict'
 import { formatPowerlineQuota } from '../../src/powerline/quota.js'
+import { setLang } from '../../src/i18n.js'
 
-process.env.DSH_TUI_LANG = 'en'
+setLang('en')
 const now = 1_800_000_000_000
 const hour = 3_600_000, day = 24 * hour
 let checks = 0
