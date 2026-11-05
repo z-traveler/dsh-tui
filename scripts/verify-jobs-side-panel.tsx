@@ -90,6 +90,7 @@ let exposedFocus = ''
 let exposedActive = ''
 let exposedSplit = false
 let openJobs: (() => void) | undefined
+let jobsInputCommitted = false
 
 function Harness(): React.ReactNode {
   const sp = useSidePanel({ columns: COLS, fullscreen: true, editorOpen: false })
@@ -99,6 +100,10 @@ function Harness(): React.ReactNode {
   exposedSplit = sp.split
   openJobs = () => sp.openPanel('jobs', { focus: true })
   React.useEffect(() => channel.subscribe(() => bump(previous => previous + 1)), [])
+  // Child input handlers register in passive effects, after the roster can paint.
+  React.useEffect(() => {
+    jobsInputCommitted = sp.focus === 'panel' && sp.activePanelId === 'jobs'
+  })
   useInput((input: string, key: Record<string, boolean | undefined>) => {
     sp.handleKey(input, key as never)
     bump(previous => previous + 1)
@@ -190,6 +195,7 @@ try {
     roster.filter(line => /LLL|job-|runni|comple|step/.test(line)).join('|'))
   check('open: focus starts at the roster head', focusedLabelLine().includes('LLL1'), focusedLine().trim() + ' | ' + focusedLabelLine().trim())
   check('open: summary line counts running', roster.some(l => l.includes('2 running')), roster.find(l => l.includes('running')) ?? '')
+  check('open: focused jobs input effects have committed', await settled(() => jobsInputCommitted))
   stdin.write('s')
   await settled(() => attachedContexts.length === 1, { timeout: 4000 })
   check('send-to-chat: title and summary use localized labels', attachedContexts[0]?.title === 'Background job job-run-1' && attachedContexts[0]?.content.includes('Background job job-run-1 (running)') && attachedContexts[0]?.content.includes('Command: gh run watch 1') && attachedContexts[0]?.content.includes('Output (last 1 lines):'), JSON.stringify(attachedContexts[0]))
