@@ -2,7 +2,7 @@
  * The app lays the powerline row out with src/ink/stringWidth; xterm-headless
  * only agrees when the emulated Unicode provider widens VS16 pairs. These
  * checks assert the prefix paints the cells its own measure claims, and that
- * every model name starts at the same column. No provider calls or user state.
+ * each icon keeps its natural width followed by exactly one gap. No provider calls or user state.
  * node --import tsx/esm scripts/downstream/verify-model-icon-width.ts */
 import assert from 'node:assert/strict'
 import { activateModernEmojiWidths } from '../lib/modern-widths.mjs'
@@ -53,14 +53,14 @@ await check('every model name starts at the column the prefix measure claims', a
       { pattern: 'deepseek', icon: '界' },
     ],
   })
-  const columns = new Set<number>()
+  const columns: number[] = []
   for (const model of ['claude-sonnet-4-5', 'gpt-5', 'deepseek-chat', 'llama-4']) {
     const prefix = formatModelIconPrefix(model, shared)
     const column = await paintedWidth(prefix)
     assert.equal(column, stringWidth(prefix), `the painted prefix width of ${model}`)
-    columns.add(column)
+    columns.push(column)
   }
-  assert.deepEqual([...columns], [3])
+  assert.deepEqual(columns, [3, 2, 3, 2])
 })
 
 console.log(`${checks} checks passed`)

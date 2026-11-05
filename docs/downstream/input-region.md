@@ -38,7 +38,7 @@ Claude:  claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 ```
 
 按模型 **ID** 而非显示别名做不区分大小写的正则匹配，首个匹配生效，未匹配仍用通用图标。
-Nerd 模式支持安全的 1–8 显示单元配置；所有规则和 fallback 共用最宽图标槽位，再加一格间隔，模型名称起始列一致。
+Nerd 模式支持安全的 1–8 显示单元配置；每个图标和 fallback 后只加一格间隔，布局按各自显示宽度计预算，不因其他规则更宽而补空格，也不强求模型名称同列。
 裸单符号 `✳` 等明确为 emoji 呈现（VS16），不让字体自行在一/两格之间选择；显式选择符保留。
 ASCII 模式统一为 `model`，none 模式隐藏图标。真实字体仍需人工确认；显式 VS15、ZWJ/复杂组合及东亚模糊宽度不承诺跨终端完全一致。
 
@@ -76,8 +76,8 @@ replenishment. Hover retains model details and adds exact reset dates. Cost visi
 network polling is added; native adapters normalize epoch seconds to milliseconds. No live account was exercised.
 
 `modelIcons` uses first-match case-insensitive regexes on raw model IDs in Nerd mode. Unconfigured models use ``;
-there are no built-in brand defaults. The offline demo uses operator-approved ◆/◉/✳ sample overrides, not official logos. All configured icons and the fallback share the widest display-cell slot
-plus one gap. Bare text-default emoji symbols such as `✳` get explicit VS16; explicit selectors are preserved.
+there are no built-in brand defaults. The offline demo uses operator-approved ◆/◉/✳ sample overrides, not official logos. Each icon and the fallback keep their own display-cell width
+plus exactly one gap; wider rules never add padding to narrower icons. Bare text-default emoji symbols such as `✳` get explicit VS16; explicit selectors are preserved.
 ASCII mode uses `model`, none hides icons. Real fonts, VS15/ZWJ/complex clusters and ambiguous CJK widths still need
 manual validation. The JSON above is a partial override, not a preset snapshot; merge it into existing overrides.
 Native order/separator/compact/contextBar do not control this style. Remaining option names/bounds are listed above.

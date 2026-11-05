@@ -163,17 +163,17 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     channel.setStatusBar({ powerline: { left: ['model'], modelIcons: [
       { pattern: '^deepseek', icon: 'G' }, { pattern: '^gpt', icon: '界' }, { pattern: '^claude', icon: '✳' },
     ] } })
-    for (const model of ['deepseek-flash', 'gpt-5', 'claude-sonnet-4-5']) {
+    for (const [model, nameColumn] of [['deepseek-flash', 5], ['gpt-5', 6], ['claude-sonnet-4-5', 6]] as const) {
       receive!([{ type: 'model.changed', model, source: 'user' }], { replay: false })
       assert.ok(await settled(() => {
         const at = draftRow() - 1
         return at >= 0 && lines()[at]?.includes(model) === true
-          && terminal.buffer.active.getLine(terminal.buffer.active.baseY + at)?.getCell(6)?.getChars() === model[0]
+          && terminal.buffer.active.getLine(terminal.buffer.active.baseY + at)?.getCell(nameColumn)?.getChars() === model[0]
       }), lines().join('\n'))
       const row = terminal.buffer.active.getLine(terminal.buffer.active.baseY + draftRow() - 1)!
-      assert.equal(row.getCell(6)!.getChars(), model[0], lines().join('\n'))
+      assert.equal(row.getCell(nameColumn)!.getChars(), model[0], lines().join('\n'))
     }
-    check(`different-width icons keep model names at one cell column (${fullscreen},${columns})`, () => {
+    check(`different-width icons retain one gap without widening narrow prefixes (${fullscreen},${columns})`, () => {
       assert.ok(lines()[draftRow() - 1]!.includes('✳\ufe0f'))
     })
     receive!([{ type: 'model.changed', model: 'deepseek-flash', source: 'user' }], { replay: false })

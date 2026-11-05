@@ -105,33 +105,28 @@ check('keycap ASCII bases are not converted into emoji sequences', () => {
   assert.equal(formatModelIconPrefix('m', rules([{ pattern: 'm', icon: '#' }])), '# ')
 })
 
-check('every configured icon and the fallback share one slot width plus one gap', () => {
+check('each icon has exactly one gap without padding for other rules', () => {
   const shared = rules([{ pattern: 'claude', icon: '✳' }, { pattern: 'gpt', icon: 'G' }])
-  for (const model of ['claude-sonnet', 'gpt-5', 'llama-4']) {
-    assert.equal(stringWidth(formatModelIconPrefix(model, shared)), 3)
-  }
   assert.equal(formatModelIconPrefix('claude-sonnet', shared), '✳\ufe0f ')
-  assert.equal(formatModelIconPrefix('gpt-5', shared), 'G  ')
-  assert.equal(formatModelIconPrefix('llama-4', shared), `${FALLBACK}  `)
+  assert.equal(formatModelIconPrefix('gpt-5', shared), 'G ')
+  assert.equal(formatModelIconPrefix('llama-4', shared), `${FALLBACK} `)
 })
 
-check('a configured wide glyph widens the slot for narrow and fallback glyphs', () => {
+check('a configured wide glyph never widens other model prefixes', () => {
   const wide = rules([{ pattern: 'gpt', icon: '界界' }])
   assert.equal(formatModelIconPrefix('gpt-5', wide), '界界 ')
-  assert.equal(formatModelIconPrefix('llama-4', wide), `${FALLBACK}    `)
+  assert.equal(formatModelIconPrefix('llama-4', wide), `${FALLBACK} `)
   assert.equal(stringWidth(formatModelIconPrefix('gpt-5', wide)), 5)
-  assert.equal(stringWidth(formatModelIconPrefix('llama-4', wide)), 5)
+  assert.equal(stringWidth(formatModelIconPrefix('llama-4', wide)), 2)
 })
 
-check('demo model icons and the fallback keep the same three-cell prefix', () => {
+check('demo icons retain their own width and exactly one separating space', () => {
   const demo = rules([{ pattern: '^deepseek', icon: '◆' }, { pattern: '^gpt', icon: '◉' }, { pattern: '^claude', icon: '✳' }])
-  assert.equal(formatModelIconPrefix('deepseek-flash', demo), '◆  ')
-  assert.equal(formatModelIconPrefix('gpt-5', demo), '◉  ')
+  assert.equal(formatModelIconPrefix('deepseek-flash', demo), '◆ ')
+  assert.equal(formatModelIconPrefix('gpt-5', demo), '◉ ')
   assert.equal(formatModelIconPrefix('claude-sonnet-4-5', demo), '✳\ufe0f ')
-  assert.equal(formatModelIconPrefix('unknown', demo), `${FALLBACK}  `)
-  for (const model of ['deepseek-flash', 'gpt-5', 'claude-sonnet-4-5', 'unknown']) {
-    assert.equal(stringWidth(formatModelIconPrefix(model, demo)), 3)
-  }
+  assert.equal(formatModelIconPrefix('unknown', demo), `${FALLBACK} `)
+  assert.deepEqual(['deepseek-flash', 'gpt-5', 'claude-sonnet-4-5', 'unknown'].map(model => stringWidth(formatModelIconPrefix(model, demo))), [2, 2, 3, 2])
 })
 
 console.log(`${checks} checks passed`)

@@ -1,4 +1,3 @@
-import { stringWidth } from '../ink/stringWidth.js'
 import type { PowerlineOptions } from './config.js'
 
 const GENERIC_MODEL_ICON = '\uec19'
@@ -39,20 +38,13 @@ function normalizeModelIcon(icon: string): string {
 }
 
 /**
- * The model field prefix including its trailing gap, so the model name starts at
- * the same column whichever rule matched. Every configured icon and the generic
- * fallback share one slot: the widest of them, plus one separating space.
- * ASCII and `none` modes keep their fixed text because they reserve no slot.
+ * Keep each icon's natural width and exactly one separating space. A wider
+ * icon in another rule must not add padding to this model's prefix.
  */
 export function formatModelIconPrefix(model: string, options: PowerlineOptions): string {
   const icon = selectModelIcon(model, options)
   if (icon === '') return ''
   if (options.icons === 'ascii') return `${ASCII_MODEL_ICON} `
 
-  const fallback = normalizeModelIcon(GENERIC_MODEL_ICON)
-  const icons = options.modelIcons.map(rule => normalizeModelIcon(rule.icon))
-  const slotWidth = icons.reduce((widest, glyph) => Math.max(widest, stringWidth(glyph)), stringWidth(fallback))
-
-  const glyph = normalizeModelIcon(icon)
-  return `${glyph}${' '.repeat(slotWidth - stringWidth(glyph) + 1)}`
+  return `${normalizeModelIcon(icon)} `
 }
