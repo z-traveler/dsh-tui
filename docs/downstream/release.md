@@ -29,7 +29,7 @@ gh run watch "$RUN_ID" --repo z-traveler/dsh-tui --exit-status
 ```
 
 源码只编译一次，后续任务校验 SHA-256 后复用同一产物；vendor 缓存仍由构建器逐文件校验。
-耗时回归使用现有耗时装箱分片：render-scroll/channel-ui 各五片，session-workspace 两片，input-terminal 一片；每项仍只运行一次，发布等待全部分片成功。
+耗时回归使用现有耗时装箱分片：render-scroll/channel-ui 各六片，session-workspace 三片，input-terminal 一片；每项仍只运行一次，发布等待全部分片成功。
 仅验证流水线、不创建 Release 时，在触发命令加 `-f publish=false`，不会覆盖已安装版本。
 工作流定义可在 `z` 上维护，构建源码始终检出输入标签。
 `RELEASE.json` 同时记录源码提交、工作流提交和 run ID/attempt；不只凭包内的上游版本号认定下游身份。

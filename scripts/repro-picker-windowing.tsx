@@ -399,7 +399,7 @@ const typeKeys = async (s: string, stepMs = 40) => {
   // 步进焦点直到该行入窗——断言的是「换行压平渲染」而非「首屏可见性」，
   // 不依赖内置主题的数量。
   for (let step = 0; step < 24; step++) {
-    if (screenLines().some(l => l.includes('Foo Bar NL'))) break
+    if (await settled(() => screenLines().some(l => l.includes('Foo Bar NL')), { timeoutMs: 300 })) break
     stdin.write('\x1b[B')
     await sleep(25) // 固定窗:pacing 逐键步进
   }
