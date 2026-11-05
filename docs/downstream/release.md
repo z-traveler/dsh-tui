@@ -47,13 +47,14 @@ gh release download "$TAG" --repo z-traveler/dsh-tui --dir "$OUT" \
 (cd "$OUT" && sha256sum -c SHA256SUMS)
 ```
 
-核对 run 成功且其 headSha 与 `RELEASE.json` 的 workflowCommit 一致，标签解析出的源码 SHA 与 commit 一致，repository/tag/runId 同样匹配；
+核对 run 成功且其 headSha 与 `RELEASE.json` 的 workflowCommit 一致，workflowRef 来自 `refs/heads/z`；标签解析出的源码 SHA 与 commit 一致，repository/tag/runId 同样匹配；
 下载目标若已有不同制品，不覆盖，应保留并调查。
 profile 会持久化 tarball 的绝对 `file:` 路径，所以目录必须在工作区外。
 取得安装授权后，用这一份下载的包对齐 profile 与全局启动器：
 
 ```sh
-PACKAGE="$OUT/deepseek-harness-tui-dsh-tui-0.18.0.tgz"
+PACKAGE=$(ls "$OUT"/*.tgz)
+test -f "$PACKAGE"
 dsh plugin --profile dsh-tui add "$PACKAGE"
 npm install -g --legacy-peer-deps --ignore-scripts "$PACKAGE"
 ```
