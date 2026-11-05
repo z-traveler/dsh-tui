@@ -39,7 +39,7 @@ done
 # TAG 是已获批准并检出的下游标签。
 OUT="$HOME/.local/share/dsh-releases/dsh-tui/$TAG"
 mkdir -p "$OUT"
-npm pack --ignore-scripts --pack-destination "$OUT"
+node scripts/with-publish-manifest.mjs npm pack --ignore-scripts --pack-destination "$OUT"
 sha256sum "$OUT"/*.tgz > "$OUT/SHA256SUMS"
 ```
 
