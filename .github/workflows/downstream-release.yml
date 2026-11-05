@@ -109,9 +109,6 @@ jobs:
         run: |
           echo "$COMPILED_SHA256  $RUNNER_TEMP/compiled/compiled.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/compiled/compiled.tgz"
-      - run: pnpm verify:build
-        env:
-          NODE_ENV: production
       - run: pnpm verify:package
       - run: pnpm verify:bun-package
       - run: node scripts/verify-installer-bundle.mjs
@@ -161,6 +158,36 @@ jobs:
           path: ci-render-logs/
           if-no-files-found: ignore
           retention-days: 7
+
+  gates:
+    needs: compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiled
+      - name: Restore verified compilation
+        env:
+          COMPILED_SHA256: ${{ needs.compile.outputs.sha256 }}
+        run: |
+          echo "$COMPILED_SHA256  $RUNNER_TEMP/compiled/compiled.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/compiled/compiled.tgz"
+      - run: pnpm verify:build
+        env:
+          NODE_ENV: production
 
   regression:
     needs: compile
@@ -226,7 +253,7 @@ jobs:
 
   release:
     if: inputs.publish
-    needs: [build, regression]
+    needs: [build, gates, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
