@@ -45,6 +45,28 @@ import { settle, settled, viewportLines } from './lib/term-test.mjs'
 import { stringWidth } from '../src/ink/stringWidth.js'
 const { Terminal: XTerm } = xterm
 
+/**
+ * registry 固定装置（必须在 dynamic import Chat 之前装好）：落地页条件位②是
+ * **真探针**——Chat 一挂载就跑 `checkForTuiUpdate()`（src/update.ts →
+ * `resolveTuiUpdateTarget` → `fetch(<registry>/@deepseek-harness-tui/dsh-tui/latest)`），
+ * 发现新版本就把入口行的 `帮助` 换成 `有新版本`。回归不能随 npm 上「今天发布了
+ * 什么」变色（0.19.0 发布当天本脚本就是这样红的），也不许真出网：这里把那条
+ * `latest` 元数据固定成本包 package.json 的版本（= 自己已最新），其余请求一律
+ * 抛错。
+ */
+const PACKAGE_MANIFEST = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { name: string; version: string }
+const LATEST_METADATA_SUFFIX = '/@deepseek-harness-tui/dsh-tui/latest'
+let registryLatestVersion = PACKAGE_MANIFEST.version
+const registryRequests: string[] = []
+globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (url.endsWith(LATEST_METADATA_SUFFIX)) {
+    registryRequests.push(url)
+    return Response.json({ name: PACKAGE_MANIFEST.name, version: registryLatestVersion })
+  }
+  throw new Error(`verify-launchpad-onboarding-chat: no request may reach a real endpoint (${url})`)
+}
+
 const [
   { render, Box, ThemeProvider, AlternateScreen },
   { Chat },
@@ -58,6 +80,7 @@ const [
   { listBackends },
   { applySidePanelOpen, applySidePanelPanels, getSidePanelOpen, getSidePanelPanels },
   { TuiDialogStore },
+  { resolveTuiUpdateTarget },
 ] = await Promise.all([
   import('../src/ui.js'),
   import('../src/screens/Chat.js'),
@@ -71,6 +94,7 @@ const [
   import('../src/dsh-adapter/backend-registry.js'),
   import('../src/tuiDisplayPrefs.js'),
   import('../src/dsh-adapter/dialogs.js'),
+  import('../src/update.js'),
 ])
 
 /** 内核目录：与真机组合根同源（`kernelEntriesOf(listBackends())`）——选择器那一屏
@@ -1177,6 +1201,42 @@ for (const fullscreen of [false, true]) {
   check('T4c 收起后键盘 Enter 可再次展开（切换可重复）',
     await settled(() => modelOpen(chat.screen()) && chat.screen().includes('说点什么')))
   await chat.unmount()
+}
+
+// ── U. registry 固定装置的自检 ──
+{
+  // 「帮助」入口那组断言的成立前提是：真探针读到的是上面那份固定元数据、并
+  // 判定「已最新」。否则（URL 没对上、探针走了别的分支）固定装置形同虚设，
+  // 下面只是碰巧绿。这里直接调探针本体核对它消费的元数据。
+  const target = await resolveTuiUpdateTarget()
+  check('U1 更新探针消费固定的 registry 元数据：判为已最新，且真的打到了那条 latest URL',
+    target.kind === 'latest' && target.current === PACKAGE_MANIFEST.version
+      && registryRequests.length > 0,
+    JSON.stringify({ target, registryRequests }))
+}
+
+// ── V0. 同一份固定元数据的反方向：registry 报更高的版本 ──
+{
+  // 入口行条件位按优先级取第一个成立者，updateAvailable 顶掉兜底的「帮助」
+  // （launchpadActions 的优先级表）。这里只把固定元数据的版本号抬高一次，验证
+  // Chat 这条接线（真探针 → 条件位）确实消费探针结果——只断 chip 换人，不点
+  // 它，因此不触发任何升级/安装。
+  registryLatestVersion = '99.0.0'
+  try {
+    const chat = await mountChat({ launchpadOnBoot: true })
+    try {
+      check('V0a registry 报更高版本时入口行换成「有新版本」',
+        await settled(() => findCellInRow(chat.term, '会话与工作区', '有新版本') !== null),
+        chat.screen().slice(0, 240))
+      check('V0b 条件位取第一个成立者：「帮助」被顶掉（入口行没有它）、且没有执行任何命令',
+        findCellInRow(chat.term, '会话与工作区', '帮助') === null && chat.calls.length === 0,
+        JSON.stringify(chat.calls))
+    } finally {
+      await chat.unmount()
+    }
+  } finally {
+    registryLatestVersion = PACKAGE_MANIFEST.version
+  }
 }
 
 // ── V. 帮助入口显示覆盖层 ──

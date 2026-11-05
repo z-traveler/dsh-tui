@@ -70,7 +70,7 @@ check('a valid CJK glyph is returned as configured, without a trailing space', (
   assert.equal(selectModelIcon('deepseek-chat', options({ icons: 'ascii' })), 'model')
 })
 
-check('the raw selector stays unnormalized: the prefix formatter owns the slot', () => {
+check('the raw selector stays unnormalized: the prefix formatter owns spacing', () => {
   assert.equal(selectModelIcon('claude-sonnet', rules([{ pattern: 'claude', icon: '✳' }])), '✳')
 })
 
@@ -79,7 +79,7 @@ check('the prefix is the glyph plus one gap, and the default fallback is unchang
   assert.equal(stringWidth(formatModelIconPrefix('deepseek-chat', options(undefined))), 2)
 })
 
-check('prefix modes bypass the slot: none is empty, ascii is the word plus one gap', () => {
+check('prefix modes retain their spacing: none is empty, ascii is the word plus one gap', () => {
   const modelIcons = [{ pattern: 'deepseek', icon: '界' }]
   assert.equal(formatModelIconPrefix('deepseek-chat', options({ icons: 'none', modelIcons })), '')
   assert.equal(formatModelIconPrefix('deepseek-chat', options({ icons: 'ascii', modelIcons })), 'model ')
