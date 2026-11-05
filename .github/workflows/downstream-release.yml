@@ -57,11 +57,6 @@ jobs:
       - run: pnpm verify:package
       - run: pnpm verify:bun-package
       - run: node scripts/verify-installer-bundle.mjs
-      - name: Full regression groups
-        run: |
-          for group in render-scroll input-terminal session-workspace channel-ui; do
-            node scripts/run-ci-group.mjs "$group" || exit "$?"
-          done
       - name: Downstream regressions
         run: |
           for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts; do
@@ -109,8 +104,42 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  regression:
+    if: github.repository == 'z-traveler/dsh-tui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [render-scroll, input-terminal, session-workspace, channel-ui]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm compile
+      - name: Full regression group
+        env:
+          GROUP: ${{ matrix.group }}
+        run: node scripts/run-ci-group.mjs "$GROUP"
+      - name: Retain failure frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-frames-${{ matrix.group }}-${{ github.run_attempt }}
+          path: ci-render-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
   release:
-    needs: build
+    needs: [build, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
