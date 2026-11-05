@@ -2,60 +2,70 @@
 
 ## 开发与同步
 
-在 `feature/*` 开发；默认只运行改动面的回归与 `pnpm compile:src`。
-初次检出先执行 `git submodule update --init --recursive`、`pnpm install --frozen-lockfile --ignore-scripts`、`pnpm compile`。
-HUD 改动运行 `node --import tsx/esm scripts/downstream/verify-hud.tsx`；其他区域按上游贡献指南选测试。
+在 `feature/*` 开发，日常只运行改动面的回归与必要编译。
+初次检出执行 `git submodule update --init --recursive`、`pnpm install --frozen-lockfile --ignore-scripts`、`pnpm compile`。
+HUD 改动的定向入口为 `node --import tsx/esm scripts/downstream/verify-hud.tsx`，其他区域按贡献指南选测试。
 
-跟进上游时，先 `git fetch upstream --tags`，从 `z` 建候选分支，执行
-`git rebase --onto <新上游标签> <旧上游基线>`。用
-`git range-diff <旧基线>..<旧z提交> <新基线>..HEAD` 核对每个个人补丁，
-完成验证后才经授权推进 `z`。不要把上游整段合并历史混进个人补丁序列。
+跟进上游时，从 `z` 建候选分支，把个人补丁 rebase 到选定稳定标签，
+用 `git range-diff` 核对旧、新补丁序列；通过验证并获授权后再推进 `z`。
+不改写上游标签，不把上游合并历史混入补丁序列。
 
-## 发布门禁
+## 私有 CI 制包
 
-仅在准备发布、工作树干净且人工体验已验收后执行：
+稳定安装只使用 **私有仓库 CI 的 Release 制品**；本地构建用于开发验证，不替代 CI 来源。
+工作流为 `.github/workflows/downstream-release.yml`，只接受手动触发的不可变 `z-<上游版本>.<序号>` 标签。
+它检查版本与标签、运行构建门禁、包验证、四组完整回归及下游定向回归，
+使用已有 publish-manifest 转换器打包，在全部成功后向当前私有仓库创建 Release。
+不向 npm 发布，不使用继承的上游发布工作流；继承工作流保持禁用。
+
+人工体验验收、独立审查和本地定向检查完成后，经授权合入 `z`、创建标签并推送私有 `origin`：
 
 ```sh
-set -e
-pnpm build
-pnpm verify:package
-DSH_TUI_LANG=zh node --import tsx/esm scripts/downstream/verify-hud.tsx
-for group in render-scroll input-terminal session-workspace channel-ui; do
-  DSH_TUI_LANG=zh node scripts/run-ci-group.mjs "$group"
-done
+# TAG 为已批准的不可变标签；不可重打或覆盖同名 Release 资产。
+git push origin z "$TAG"
+gh workflow run downstream-release.yml --repo z-traveler/dsh-tui --ref z -f tag="$TAG"
+gh run list --repo z-traveler/dsh-tui --workflow downstream-release.yml
+gh run watch "$RUN_ID" --repo z-traveler/dsh-tui --exit-status
 ```
 
-以上是本机门禁；发布前还须对照 `.github/workflows/ci.yml` 补齐发布目标适用的
-平台、安装包及宿主集成检查。四组回归不等于完整 CI，缺少必需环境时暂停发布。
-任一项失败都停止发布。通过后经授权合入 `z`，打不可变标签
-`z-<上游版本>.<序号>`，并保存上游基线、代码提交与验证结果。
-不使用上游的 npm 发布工作流。
+源码只编译一次，后续任务校验 SHA-256 后复用同一产物；vendor 缓存仍由构建器逐文件校验。
+耗时回归使用现有耗时装箱分片：render-scroll/channel-ui 各六片，session-workspace 三片，input-terminal 一片；每项仍只运行一次，发布等待全部分片成功。
+仅验证流水线、不创建 Release 时，在触发命令加 `-f publish=false`，不会覆盖已安装版本。
+工作流定义可在 `z` 上维护，构建源码始终检出输入标签。
+`RELEASE.json` 同时记录源码提交、工作流提交和 run ID/attempt；不只凭包内的上游版本号认定下游身份。
+CI 失败就停止安装，修复原因后重新运行；不以本机制包绕过失败，不覆盖既有 Release。
+本流程覆盖本机使用的 Linux/Node 包；其他目标平台须补对应平台验收，不能把 Linux 结果当成 Windows/macOS 验收。
 
-## 制包与安装
+## 从仓库安装
 
-从已验证的标签检出制包，使用每个标签独立的产物目录：
+稳定切换前退出正在运行的 TUI，备份配置与 DSH profile，并保留上一份包用于回退。
+只清理被替换的安装，不删除会话或凭据。
 
 ```sh
-# TAG 是已获批准并检出的下游标签。
-OUT="$PWD/.local/releases/$TAG"
+# TAG、RUN_ID、COMMIT 分别为已成功发布的标签、CI run 和标签对应的完整提交。
+OUT="$HOME/.local/share/dsh-releases/dsh-tui/$TAG/ci-$RUN_ID"
 mkdir -p "$OUT"
-npm pack --ignore-scripts --pack-destination "$OUT"
-sha256sum "$OUT"/*.tgz > "$OUT/SHA256SUMS"
+gh release download "$TAG" --repo z-traveler/dsh-tui --dir "$OUT" \
+  --pattern '*.tgz' --pattern RELEASE.json --pattern SHA256SUMS
+(cd "$OUT" && sha256sum -c SHA256SUMS)
 ```
 
-包名保持宿主兼容；下游产物用标签、提交和 SHA-256 识别，不能只看包内的上游版本号。
-不要从 Git URL 安装：源码含 workspace 依赖与子模块，安装包必须包含编译产物。
-
-稳定切换前退出正在运行的 TUI，备份 `~/.dsh-tui` 配置及 DSH profile，保留上一个安装包。
-取得安装授权后，用同一 tarball 对齐 profile 和全局启动器：
+核对 run 成功且其 headSha 与 `RELEASE.json` 的 workflowCommit 一致，workflowRef 来自 `refs/heads/z`；标签解析出的源码 SHA 与 commit 一致，repository/tag/runId 同样匹配；
+下载目标若已有不同制品，不覆盖，应保留并调查。
+profile 会持久化 tarball 的绝对 `file:` 路径，所以目录必须在工作区外。
+取得安装授权后，用这一份下载的包对齐 profile 与全局启动器：
 
 ```sh
-# PACKAGE 为已校验 tarball 的绝对路径。
+PACKAGE=$(ls "$OUT"/*.tgz)
+test -f "$PACKAGE"
 dsh plugin --profile dsh-tui add "$PACKAGE"
-npm install -g --legacy-peer-deps "$PACKAGE"
+npm install -g --legacy-peer-deps --ignore-scripts "$PACKAGE"
 ```
 
-在 TUI 中用 `/theme status`、`/settings` 和一轮实际交互确认版本与配置。
+从仓库外运行 `dsh-tui`，确认实际加载的 profile 副本、配置和交互；
+校验安装文件与下载制品一致，安装路径、配置及模块链接不引用工作区。
+保存 Release URL、run ID、提交、校验和及安装核验记录。
+
 私有下游不要使用 `/update` 或 `dsh-tui update`，它们会取回公开上游包。
-回退时把 `PACKAGE` 换成保留的旧包，重新执行两条安装命令；必要时恢复配置备份，
-不删除会话或凭据。制包、发布和安装是独立步骤，不因开发验收自动获得授权。
+回退时从上一份成功的私有 Release 下载并核验包，再执行相同安装命令；必要时恢复备份配置。
+提交、推送、CI 发布与稳定切换分别需要授权；开发验收不自动授权发布。

@@ -1,0 +1,273 @@
+name: Private downstream release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable downstream tag to build
+        required: true
+        type: string
+      publish:
+        description: Create a Release after verification
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: downstream-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ inputs.tag }}
+  DSH_TUI_LANG: zh
+  DSH_TUI_SPLASH_FONT: bold
+  TERM: xterm-256color
+  COLORTERM: truecolor
+
+jobs:
+  compile:
+    if: github.repository == 'z-traveler/dsh-tui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      sha256: ${{ steps.archive.outputs.sha256 }}
+    steps:
+      - name: Validate tag
+        run: |
+          test "$GITHUB_REF" = refs/heads/z
+          [[ "$RELEASE_TAG" =~ ^z-[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$ ]]
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - id: vendor
+        run: echo "key=$(node scripts/build-vendor.mjs --print-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            node_modules/.cache/dsh-tui/vendor-build.json
+            vendor/dsh-std/packages/*/lib
+            vendor/mathjax-tex-svg/lib
+          key: downstream-vendor-${{ runner.os }}-${{ steps.vendor.outputs.key }}
+      - run: pnpm compile
+      - id: archive
+        run: |
+          tar -czf "$RUNNER_TEMP/compiled.tgz" lib vendor/dsh-std/packages/*/lib vendor/mathjax-tex-svg/lib
+          echo "sha256=$(sha256sum "$RUNNER_TEMP/compiled.tgz" | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: compiled-${{ github.run_id }}
+          overwrite: true
+          path: ${{ runner.temp }}/compiled.tgz
+          retention-days: 7
+          if-no-files-found: error
+
+  build:
+    needs: compile
+    if: github.repository == 'z-traveler/dsh-tui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      artifact: ${{ steps.package.outputs.artifact }}
+    steps:
+      - name: Validate tag
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = refs/heads/z
+          [[ "$RELEASE_TAG" =~ ^z-[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$ ]]
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiled
+      - name: Restore verified compilation
+        env:
+          COMPILED_SHA256: ${{ needs.compile.outputs.sha256 }}
+        run: |
+          echo "$COMPILED_SHA256  $RUNNER_TEMP/compiled/compiled.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/compiled/compiled.tgz"
+      - run: pnpm verify:package
+      - run: pnpm verify:bun-package
+      - run: node scripts/verify-installer-bundle.mjs
+      - name: Downstream regressions
+        run: |
+          for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts; do
+            node --import tsx/esm "scripts/downstream/$script" || exit "$?"
+          done
+      - name: Package tested source
+        id: package
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          VERSION=$(node -p "require('./package.json').version")
+          test "$RELEASE_TAG" = "z-$VERSION.${RELEASE_TAG##*.}"
+          OUT="$RUNNER_TEMP/downstream"
+          mkdir -p "$OUT"
+          node scripts/with-publish-manifest.mjs npm pack --ignore-scripts --pack-destination "$OUT"
+          git diff --exit-code
+          export SOURCE_COMMIT=$(git rev-parse HEAD)
+          node --input-type=module <<'JS'
+          import fs from 'node:fs'
+          const metadata = {
+            repository: process.env.GITHUB_REPOSITORY,
+            tag: process.env.RELEASE_TAG,
+            commit: process.env.SOURCE_COMMIT,
+            workflowCommit: process.env.GITHUB_WORKFLOW_SHA,
+            workflowRef: process.env.GITHUB_WORKFLOW_REF,
+            runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/downstream/RELEASE.json', JSON.stringify(metadata, null, 2) + '\n')
+          JS
+          (cd "$OUT" && sha256sum *.tgz RELEASE.json > SHA256SUMS)
+          echo "artifact=downstream-package-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.artifact }}
+          path: ${{ runner.temp }}/downstream/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain failure frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-frames-${{ github.run_attempt }}
+          path: ci-render-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  gates:
+    needs: compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiled
+      - name: Restore verified compilation
+        env:
+          COMPILED_SHA256: ${{ needs.compile.outputs.sha256 }}
+        run: |
+          echo "$COMPILED_SHA256  $RUNNER_TEMP/compiled/compiled.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/compiled/compiled.tgz"
+      - run: pnpm verify:build
+        env:
+          NODE_ENV: production
+
+  regression:
+    needs: compile
+    name: regression (${{ matrix.group }} ${{ matrix.shard }})
+    if: github.repository == 'z-traveler/dsh-tui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { group: render-scroll, shard: '1/6' }
+          - { group: render-scroll, shard: '2/6' }
+          - { group: render-scroll, shard: '3/6' }
+          - { group: render-scroll, shard: '4/6' }
+          - { group: render-scroll, shard: '5/6' }
+          - { group: render-scroll, shard: '6/6' }
+          - { group: input-terminal, shard: '1/1' }
+          - { group: session-workspace, shard: '1/3' }
+          - { group: session-workspace, shard: '2/3' }
+          - { group: session-workspace, shard: '3/3' }
+          - { group: channel-ui, shard: '1/6' }
+          - { group: channel-ui, shard: '2/6' }
+          - { group: channel-ui, shard: '3/6' }
+          - { group: channel-ui, shard: '4/6' }
+          - { group: channel-ui, shard: '5/6' }
+          - { group: channel-ui, shard: '6/6' }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiled
+      - name: Restore verified compilation
+        env:
+          COMPILED_SHA256: ${{ needs.compile.outputs.sha256 }}
+        run: |
+          echo "$COMPILED_SHA256  $RUNNER_TEMP/compiled/compiled.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/compiled/compiled.tgz"
+      - name: Full regression group
+        env:
+          GROUP: ${{ matrix.group }}
+          SHARD: ${{ matrix.shard }}
+        run: node scripts/run-ci-group.mjs "$GROUP" --shard "$SHARD"
+      - name: Retain failure frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-frames-${{ matrix.group }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: ci-render-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    if: inputs.publish
+    needs: [build, gates, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: package
+      - name: Publish to this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd package && sha256sum -c SHA256SUMS)
+          gh release create "$RELEASE_TAG" package/*.tgz package/RELEASE.json package/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "$RELEASE_TAG" \
+            --notes "CI-built downstream. Source and workflow commits, run ID and checksums are included. No npm publication."

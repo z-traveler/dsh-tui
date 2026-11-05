@@ -375,16 +375,17 @@ async function openLaunchpad(events: Ev[], options: OpenOptions = {}) {
   )
 
   const screen = () => viewportLines(term).join('\n')
-  /** 输入可只改变局部焦点或 Tips，不一定触发宿主回调。 */
+  /** Pacing only: no-op keys and event-only actions need not repaint.
+   * Behavioral assertions below keep their full settled() timeout. */
   const send = async (data: string): Promise<void> => {
     await settled(() => screen().length > 0)
     const before = events.length
     const frame = screen()
     const writes = out.writeCount
     input.write(data)
-    await settle(() => events.length > before || screen() !== frame)
+    await settle(() => events.length > before || screen() !== frame, { timeoutMs: 300 })
     if (events.length > before && screen() === frame && out.writeCount === writes) {
-      await settle(() => out.writeCount > writes)
+      await settle(() => out.writeCount > writes, { timeoutMs: 300 })
     }
   }
   const click = async (needle: string): Promise<void> => {
@@ -395,9 +396,9 @@ async function openLaunchpad(events: Ev[], options: OpenOptions = {}) {
     const frame = screen()
     const writes = out.writeCount
     input.write(`\u001b[<0;${found.col};${found.row}M\u001b[<0;${found.col};${found.row}m`)
-    await settle(() => events.length > before || screen() !== frame)
+    await settle(() => events.length > before || screen() !== frame, { timeoutMs: 300 })
     if (events.length > before && screen() === frame && out.writeCount === writes) {
-      await settle(() => out.writeCount > writes)
+      await settle(() => out.writeCount > writes, { timeoutMs: 300 })
     }
   }
   return { term, input, app, out, screen, send, click, cursorVisible: () => nativeCursorVisible, close: () => { app.unmount() } }
