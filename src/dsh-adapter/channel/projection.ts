@@ -31,6 +31,9 @@ interface ProjectionDependencies {
  /** What a submitted message's IDE selection attached (keyed by the message
   *  id the durable event carries), for the user row's indicator line. */
  selectionAttached(messageId: string): SelectionAttachment | undefined
+ /** Render settled command results and explicit skill loads as cards (the
+  *  `sessionCards` switch). */
+ sessionCards?: boolean
 }
 
 const LIVE = { replay: false } as const
@@ -52,6 +55,7 @@ export function createChannelProjection(state: ProjectionState, deps: Projection
     inputConvergence: deps.inputConvergence,
     get renderer() { return deps.renderer },
     selectionAttached: messageId => deps.selectionAttached(messageId),
+    sessionCards: deps.sessionCards === true,
     pricingWindow: dshPricingWindow,
   })
   return {

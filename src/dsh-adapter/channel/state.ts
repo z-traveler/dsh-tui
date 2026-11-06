@@ -117,6 +117,9 @@ export interface ChannelLaunchOptions {
    *  purely a decoration switch. NOT the kernel agent preset `minimal`. */
   minimalUi?: boolean
   contextBar?: boolean
+  /** Command result / explicit skill-load cards (`sessionCards`, on by
+   *  default): set false to restore the upstream transcript shape. */
+  sessionCards?: boolean
   configuredPreset?: string
   configuredProvider?: string
   configuredModel?: string
@@ -198,6 +201,7 @@ export function createInitialChannelView(
   'thinkingFold' | 'jobGroupFold' | 'toolBackground' | 'scrollGutter' | 'pageMargin' |
   'foldTerminalCommand' | 'turnUsageRow' | 'promptSessionLabel' | 'expandEditor' | 'smoothStreaming' |
   'statusBar' | 'whale' | 'whaleIdle' | 'splashFont' | 'brand' | 'minimalUi' | 'activityEnabled' | 'contextBarEnabled' |
+  'sessionCardsEnabled' |
   'statusBar' | 'whale' | 'whaleIdle' | 'whaleGirl' | 'minimalUi' | 'activityEnabled' | 'contextBarEnabled' |
   'agentPreset' | 'goal' | 'todos' | 'loadedContext' | 'pending' | 'commandList' |
   'lastUsage' | 'turnUsage' | 'turnOutcome' | 'tps' | 'tpsSamples' | 'contextSegments' | 'mainCost' | 'subagentCost' | 'subagents' | 'backgroundJobs' | 'selection'
@@ -222,7 +226,7 @@ export function createInitialChannelView(
     promptSessionLabel: options.promptSessionLabel === true, expandEditor: options.expandEditor !== false,
     smoothStreaming: options.smoothStreaming !== false, statusBar: normalizeStatusBar(options.statusBar),
     whale: options.whale !== false, whaleIdle: options.whaleIdle !== false, whaleGirl: options.whaleGirl === true, splashFont: normalizeSplashFont(options.splashFont), brand: normalizeBrandSetting(options.brand), minimalUi: options.minimalUi === true, activityEnabled: options.activity !== false,
-    contextBarEnabled: options.contextBar !== false, agentPreset: options.agentPreset, goal: undefined,
+    contextBarEnabled: options.contextBar !== false, sessionCardsEnabled: options.sessionCards !== false, agentPreset: options.agentPreset, goal: undefined,
     todos: [], loadedContext: undefined, pending: [], commandList: [], lastUsage: undefined, turnUsage: undefined, turnOutcome: undefined,
     tps: undefined, tpsSamples: [], contextSegments: { system: 0, prompt: 0, assistant: 0, thinking: 0, tools: 0 },
     // 费用估算输入：主会话按模型分桶 + 子代理快照。与 tokens 并行累计，

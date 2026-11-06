@@ -67,6 +67,11 @@ export function codexEmits(type: AgentEventType): boolean {
     case 'system.prompt':
     case 'request.header':
     case 'agent.message':
+    // Codex has no command lifecycle record for these two card facts: a skill
+    // read and a slash command are ordinary items, never their own transcript
+    // fact.
+    case 'skill.invocation':
+    case 'command.result':
       return false
     default: {
       const unhandled: never = type

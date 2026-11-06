@@ -438,6 +438,11 @@
         terminalImages: true
         # diffLayout: auto
         # mermaidDiagrams: true
+        # 命令结果 / 显式技能加载卡片（下游功能）：管理命令的完整结果与 `/name`
+        # 显式加载的技能正文在转录里各出一张默认折叠的卡片，Ctrl+O 或点击逐行展开。
+        # 默认开启；显式关闭可保持上游形态（命令结果走 dispatcher 的本地报告，注入正文
+        # 仍只对模型可见）。说明见 docs/downstream/session-cards.md。
+        # sessionCards: false
         # 通知（任务完成、等待授权、等待回答与计划评审）：off / unfocused（默认）/ always；方式：auto（默认）/ osc9 / bel / windows。
         # taskNotifications: unfocused
         # notificationMethod: auto

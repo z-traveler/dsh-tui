@@ -776,6 +776,10 @@ export function createCoreChannel(
     inputConvergence,
     projection: {
       rowIds, resetContextWarning,
+      // The deployment switch (`sessionCards`): off keeps the upstream
+      // transcript, where a command's result is the dispatcher's local report
+      // and an injected skill body stays model-facing only.
+      sessionCards: state.sessionCardsEnabled,
       jobs: NO_JOB_FEED,
       activity: { apply: (event, replaying) => { if (activityOwned()) activity.apply(event, replaying) } },
       trajectory: { observe: (event, replaying) => { if (trajectoryOwned()) agentTrajectory.observe(event, replaying) } },

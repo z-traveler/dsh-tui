@@ -142,7 +142,7 @@ interface Harness {
   enter(): Promise<void>
   unmount(): Promise<void>
 }
-async function mountChat(capabilities: Omit<SessionCapabilities, 'native'>, wrap?: (channel: ReturnType<typeof createChannel>) => unknown): Promise<Harness> {
+async function mountChat(capabilities: Omit<SessionCapabilities, 'native'>, wrap?: (channel: ReturnType<typeof createChannel>) => unknown, sessionCards?: boolean): Promise<Harness> {
   const submits: { input: AgentInput; placement: SubmitPlacement }[] = []
   const listeners = new Set<(batch: readonly AgentEvent[], meta: AgentEventMeta) => void>()
   const session: AgentSession = {
@@ -157,7 +157,7 @@ async function mountChat(capabilities: Omit<SessionCapabilities, 'native'>, wrap
     dispose: () => Promise.resolve(),
   }
   const ctx = { on: () => () => undefined, get: () => undefined, logger: { warn: () => undefined, info: () => undefined, debug: () => undefined } } as never
-  const channel = createChannel(ctx, session, { model: 'fake-model', provider: '', cwd: process.cwd(), activity: false, backendLabel: 'Fake Agent' })
+  const channel = createChannel(ctx, session, { model: 'fake-model', provider: '', cwd: process.cwd(), activity: false, backendLabel: 'Fake Agent', sessionCards })
   const COLS = 100
   const ROWS = 34
   const term = new XTerm({ cols: COLS, rows: ROWS, scrollback: 200, allowProposedApi: true })
@@ -266,6 +266,8 @@ const toastsOf = (channel: { notifications: readonly { text: string }[] }): stri
 {
   // A DSH-style composition: the registry row owns /goal even when the
   // session also had a goals host (it never does on DSH; the row wins).
+  // Explicitly disable cards to exercise the legacy report contract: this
+  // fixture returns an outcome without emitting the command lifecycle.
   const external: string[] = []
   const blocks: { title: string; lines: readonly string[]; lineLimit?: number }[] = []
   let hostCalls = 0
@@ -290,7 +292,7 @@ const toastsOf = (channel: { notifications: readonly { text: string }[] }): stri
       }
       return Reflect.get(target, key, receiver)
     },
-  }))
+  }), false)
   await h.typeLine('/goal registry route')
   await h.enter()
   check('4 a registry row owns /goal (DSH route unchanged)', await settled(() => external.includes('goal| registry route')) && hostCalls === 0 && h.submits.length === 0, external.join(','))
