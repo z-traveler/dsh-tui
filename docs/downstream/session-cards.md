@@ -23,13 +23,21 @@ DSH 的 `dsh-commands` 在执行人类输入的命令时记两条 log-only 事�
   滚动读到正文最后一行。
 - 错误命令用 `✗` 与错误色标题呈现，正文照旧是命令自己的失败文本；错误 toast 保留。
 - **不重复**：开关打开后，注册表命令的结果不再经 dispatcher 的本地报告（`local` +
-  `local-output` 行）铺一遍——同一结果只呈现一次。
+  `local-output` 行）铺一遍，也不再用成功 toast 复述——同一结果只呈现一次。错误
+  toast 保留：它与错误卡同屏，提供颜色与时限的即时提示。
 - **不出多余卡片**：成功但没有任何正文的命令不出卡（例如技能 `/name` 这类只表达
   “已执行”的命令）；`command/done` 带 `sourceEventSeq` 表示更早的权威记录已经拥有
-  更完整的呈现（例如 `/compact` 的压缩检查点），此时也不出卡。
+  更完整的呈现（例如 `/compact` 的压缩检查点），此时既不出卡也不再加 toast。
 
 与既有交互一致：折叠/展开只是 UI 状态，不重新执行命令、不请求模型；草稿消费、
 取消、入 executor 前被拒（未知命令仍是 `command-not-found` 提示）等原有语义不变。
+
+### 已知取舍
+
+- 裸 `/goal`（DSH 注册表行的状态查询）不再适合单行 toast，因此上游会打印一块
+  `/plugins` 式的转录报告；开关打开后它和其它注册表命令一样成为默认折叠的卡片，目标
+  与轮次需要 `Ctrl+O` 展开才可见。这是通用命令卡片的默认折叠契约，不是 `/goal`
+  专属行为；goal 面板的状态投影不受影响，开关关闭时仍打印整块报告。
 
 ### 显式技能卡片
 
@@ -92,16 +100,29 @@ them by `commandId` into one settled fact and projects one card:
 - A failed command gets a `✗` headline in the error colour and keeps its own
   failure text; the error toast stays.
 - **No duplicate**: with the switch on, a registry command's result no longer
-  goes through the dispatcher's local report (`local` + `local-output` rows) — one
-  result is presented once.
+  goes through the dispatcher's local report (`local` + `local-output` rows) and
+  is not repeated as a success toast either — one result is presented once. The
+  error toast stays: it shares the screen with the error card and adds the
+  colour and the timeout.
 - **No empty card**: a successful command with no text adds nothing (a `/name`
   skill command only says it ran), and a `command/done` carrying
   `sourceEventSeq` means an earlier authoritative record already owns a richer
-  presentation (`/compact`'s checkpoint), so no card is added there either.
+  presentation (`/compact`'s checkpoint), so neither a card nor a toast is added
+  there.
 
 Existing behaviour is preserved: folding is UI state that never re-executes the
 command or reaches the model, and draft consumption, cancellation and the
 pre-executor refusal (`command-not-found`) are unchanged.
+
+### Known trade-off
+
+- A bare `/goal` (the DSH registry row's status query) does not fit one toast
+  row, so upstream prints a `/plugins`-style transcript block; with the switch
+  on it becomes a collapsed card like every other registry command, and its
+  objective and rounds need `Ctrl+O`. That is the generic card's default-fold
+  contract rather than `/goal`-specific behaviour: the goal panel's own state
+  projection is unaffected, and with the switch off the whole block is still
+  printed.
 
 ### Explicit skill cards
 

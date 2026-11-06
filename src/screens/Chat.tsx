@@ -2717,8 +2717,9 @@ export function Chat({
    *
    * With `sessionCards` on, the durable card (`command/run` + `command/done`,
    * projected into the transcript) already presents the settled result text,
-   * so both local text paths step aside and only the error toast stays. The
-   * duration, the draft and the outcome are identical either way.
+   * so every local text path (the report rows below, the block rows and the
+   * success toast) steps aside and only the error toast stays. The duration,
+   * the draft and the outcome are identical either way.
    */
   const runExternalCommand = (
     name: string,
@@ -2757,7 +2758,9 @@ export function Chat({
         }
       } else {
         const cleaned = cleanRenderText(outcome.text, COMMAND_RESULT_CELLS)
-        if (cleaned !== '') {
+        // Same dedupe one step short of the report paths: the card already
+        // shows the settled text, so only a failure keeps the transient read.
+        if (cleaned !== '' && (!cardsOwnResult || outcome.kind === 'error')) {
           channel.notify(cleaned, outcome.kind === 'error' ? { color: 'error' } : undefined)
         }
       }
@@ -2793,7 +2796,10 @@ export function Chat({
         return false
       }
       const cleaned = cleanRenderText(outcome.text, COMMAND_RESULT_CELLS)
-      if (cleaned !== '') {
+      // Same dedupe as every other registry route: a mounted command's settled
+      // text is already the durable card, so only a failure keeps its toast.
+      // The preset fallback settles without text and is unaffected.
+      if (cleaned !== '' && (!channel.sessionCardsEnabled || outcome.kind === 'error')) {
         channel.notify(cleaned, outcome.kind === 'error' ? { color: 'error' } : undefined)
       }
       return outcome.consumeDraft
