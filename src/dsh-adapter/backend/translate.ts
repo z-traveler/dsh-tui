@@ -361,7 +361,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
     // marker is the legacy append.
     const skillName = skillInvocationName(data.source)
     if (skillName !== undefined) {
-      const surfaceOp = (event as { surfaceOp?: unknown }).surfaceOp
+      const surfaceOp = event.surfaceOp
       if (surfaceOp === undefined || surfaceOp === 'append') {
         return [{ type: 'skill.invocation', seq: event.seq, time: event.time, name: skillName, body: textOf(data.content) }]
       }
@@ -435,40 +435,37 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   /** Translate one durable session event (live or as part of a replay). */
   const translateEvent = (event: SessionEvent): readonly AgentEvent[] => {
     const type = (event as { type: string }).type
-    // The command lifecycle (dsh-commands): a resolved line is logged as
-    // `command/run` before its handler and `command/done` once it settles, both
-    // log-only (never model surface). Pair them by `commandId` so one settled
-    // record carries everything a card needs; an orphan done (a log slice that
-    // starts mid-pair) has no name to title a card with and stays for its own
-    // consumer rather than inventing one.
-    if (type === 'command/run') {
-      const data = (event as unknown as { data: { commandId: string; name: string; args?: string } }).data
-      openCommands.set(data.commandId, { name: data.name, ...(data.args === undefined ? {} : { args: data.args }) })
-      return NO_EVENTS
-    }
-    if (type === 'command/done') {
-      const data = (event as unknown as { data: { commandId: string; kind: 'success' | 'error'; text?: string; sourceEventSeq?: number } }).data
-      const run = openCommands.get(data.commandId)
-      openCommands.delete(data.commandId)
-      if (run === undefined) return NO_EVENTS
-      return [{
-        type: 'command.result',
-        commandId: data.commandId,
-        name: run.name,
-        ...(run.args === undefined ? {} : { args: run.args }),
-        outcome: data.kind,
-        text: data.text ?? '',
-        ...(data.sourceEventSeq === undefined ? {} : { coveredBySeq: data.sourceEventSeq }),
-        seq: event.seq,
-        time: event.time,
-      }]
-    }
     // Top-level `goal/change` events are how the goal service records durable
     // goal mutations (create/edit/pause/resume/complete/block/clear) —
     // confirmed in production logs. The pinned peer's SessionEvent union
     // predates the type, so admit it structurally.
     if (type === 'goal/change') return [goalChange((event as unknown as { data: GoalChangePayload }).data)]
     switch (event.type) {
+      // The command lifecycle is log-only. Keep its public event types here so
+      // upstream payload changes fail compilation instead of silently dropping
+      // a card. Only a paired, settled record has a name and result to show.
+      case 'command/run': {
+        const data = event.data
+        openCommands.set(data.commandId, { name: data.name, ...(data.args === undefined ? {} : { args: data.args }) })
+        return NO_EVENTS
+      }
+      case 'command/done': {
+        const data = event.data
+        const run = openCommands.get(data.commandId)
+        openCommands.delete(data.commandId)
+        if (run === undefined) return NO_EVENTS
+        return [{
+          type: 'command.result',
+          commandId: data.commandId,
+          name: run.name,
+          ...(run.args === undefined ? {} : { args: run.args }),
+          outcome: data.kind,
+          text: data.text ?? '',
+          ...(data.sourceEventSeq === undefined ? {} : { coveredBySeq: data.sourceEventSeq }),
+          seq: event.seq,
+          time: event.time,
+        }]
+      }
       case 'user/message':
         return translateUserMessage(event)
       case 'step/start':

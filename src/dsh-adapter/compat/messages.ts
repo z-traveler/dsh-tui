@@ -1,4 +1,5 @@
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import type { SkillInvocationSource } from '@deepseek-ai/dsh-skill'
 
 /** 0.1.7 puts tool output on the message; older logs wrap it in one block. */
 export function toolResultPayload(message: {
@@ -39,12 +40,12 @@ export function isCompactionCheckpointSource(source: { kind: string; plugin?: st
 
 /**
  * The name of an explicit skill-load injection (`/name` and `#skill:name` are
- * ONE durable source kind), or undefined for any other message source. Admitted
- * structurally: `MessageSourceMap` is merge-extensible, so the source's own
- * shape — not union membership — is the contract.
+ * ONE durable source kind), or undefined for any other message source. Validate
+ * restored metadata against the public source fields without re-parsing the
+ * model-facing body.
  */
 export function skillInvocationName(source: unknown): string | undefined {
   if (source === null || typeof source !== 'object') return undefined
-  const { kind, name } = source as { kind?: unknown; name?: unknown }
+  const { kind, name } = source as Partial<SkillInvocationSource>
   return kind === 'skill-invocation' && typeof name === 'string' && name !== '' ? name : undefined
 }

@@ -2,7 +2,7 @@
 
 ## 交付内容
 
-实现位于专用 `feature/session-cards` 工作树，**没有合入 z、推送、发布或切换稳定安装**。
+本指南记录专用 `feature/session-cards` 工作树的开发验收；交付当时没有合入 z、推送、发布或切换稳定安装。后续发布身份以私有 Release 的 `RELEASE.json` 为准。
 
 开启 `sessionCards: true` 后：
 
@@ -38,7 +38,7 @@
 
 - 影响限于开启开关的两类记录及呈现。没有会话格式迁移、core 补丁或新增第三方卡片协议；关闭开关即可恢复原本的命令本地回显及技能隐藏策略。已写入的命令日志仍按 core 日志策略保留，不会因关闭开关删除。
 - 必要关联修复：`enterSelection` 改为进入选择模式时读取当前可选行，修复原基线的空选择闭包；对普通用户行、命令和技能行有回归。没有重写按键系统。
-- **非全绿**：既有 `repro-toolcards.tsx` 的 7 项颜色/选择背景断言，在干净的原基线和候选、各自全新 HOME 下相同失败。保留全部断言，未夹带工具配色修复。证据为 `repro-toolcards-baseline.log` 与 `repro-toolcards-isolated.log`。
+- 开发验收时 `repro-toolcards.tsx` 曾有 7 项颜色/选择背景断言在原基线和候选相同失败。发布复检已定位：继承的 `TMUX` 触发 `src/ink/colorize.ts` 有意的 256 色降级，而该无头脚本断言 RGB。用与 CI 一致的 `env -u TMUX -u TMUX_PANE` 环境重跑后 **ALL PASS**；没有改渲染器或放宽断言。保留旧失败日志及 `repro-toolcards-no-tmux.log`，不是未修复的卡片颜色缺陷。
 - 未跑发布全量门禁、真实付费模型、Windows/ConPTY；没有安装为稳定版本。已验证约 88K 码元正文，**未验证数十 MB raw 的展开延迟和长期压力**。展开使用既有转录绘制/滚动，不是新增流式文件阅读器；inline 依赖终端自己的 scrollback 容量。
 - 新增 8 组去重分发断言在 inline harness 运行；全屏由卡片回归及真实入口补证，未逐个重复这 8 组。取消路径未改，保留原行为，但没有新增专门的取消交互断言；会话替换时丢弃迟到结果有既有回归。
 - 无成对 `command/run` 的孤立 done 不猜命令名，不显示卡片；崩溃时尚未完成的命令没有结果卡。此实现展示结算结果，不提供运行中命令卡。
@@ -134,9 +134,9 @@ bash /home/liyihang/projects/dsh-src/dsh-context/.acceptance/session-cards/tui.s
 ## 证据与版本
 
 - 规格：[spec.md](spec.md)，完整命令交接 `/home/liyihang/projects/dsh-src/dsh-tui-command-cards-handoff.md`；票集 [01](issues/01-implementation.md)、[02](issues/02-acceptance.md)，模式 ticket-driven。
-- 基线 `ad19d0960e7dfbf181ad5171348762cc63270fe8`；实现 `bc7dae8f`；**最终已验证代码 `33fff7509ac4fbb2df795668c7c503b2b823681e`**。本指南/票据另行本地文档提交，不改变已验证代码。
-- 必要编译：`npm run compile` 成功，最终完成时间 `2026-11-06T17:13:42+08:00`。`pnpm compile` 因工作树开发依赖软链接报 `ERR_PNPM_UNSAFE_MODULES_DIR`，改用相同 package script 的 npm 执行，未改 pnpm 配置或主检出产物。
+- 基线 `ad19d0960e7dfbf181ad5171348762cc63270fe8`；实现 `bc7dae8f`；**开发体验验收代码 `33fff7509ac4fbb2df795668c7c503b2b823681e`**。发布前的下游维护性复查随后把命令读取接回官方 `SessionEvent` 判别联合、技能来源字段接回官方 `SkillInvocationSource`，以便协议漂移被编译发现；不改变运行时行为。最终发布源码以不可变标签及 CI `RELEASE.json` 为准。
+- 开发体验验收的 `npm run compile` 完成于 `2026-11-06T17:13:42+08:00`；发布前类型接缝修复后已重新编译，并重跑 41 项卡片、真实分发去重及翻译回归。另在本地 rc.5 observer 源码工作树上运行 `verify-alpha-source` 通过（504 个 path mappings）；该树含观察接缝补丁，不把它称为干净官方源码。旧 baseline-validation 工作树的 Git 指针和 TypeScript 依赖已失效，没有修改或修复那个工作树。`pnpm compile` 因开发依赖软链接报 `ERR_PNPM_UNSAFE_MODULES_DIR`，改用相同 package script 的 npm 执行，未改 pnpm 配置或主检出产物。
 - 前台在最终代码实跑：`verify-session-cards` 41 项、`verify-plugin-command-output`（含 8 组新分发场景）、`verify-dsh-translate`（168 live/162 replay）、boundary、golden（5 goldens/83 replay rows）、agent-domain（24 checks）、i18n、patch-surface、两个 askpanel 脚本、`git diff --check` 均通过。命令均为仓库现有 `node --import tsx/esm scripts/...` 入口；没有声称根级 test/lint 存在。
-- worker 另跑 smoke、goal-todo、fixed-window、lite-profile 等通过；详见 01。工具卡 7 项既存失败、全量/跨平台/超大正文压力缺口见前述风险，不称全量通过。
+- worker 另跑 smoke、goal-todo、fixed-window、lite-profile 等通过；详见 01。开发时未跑发布全门禁；发布复检在修正开发依赖路径后已跑通本地 101/101 构建门禁、package、Bun package。installer 本机缺 zip，使用隔离 archiver 替代验证，真正 zip 及四组完整回归仍由私有发布 CI 把关。跨平台/超大正文压力仍见前述风险。
 - 独立初审和最终复审均为 **pass with notes，无阻塞项**；成功 toast 问题已修复且前台复跑真实分发回归。最终复审要求的保存属性证据、误标模式说明和最新 inline dump 已补齐；其余测试面限制列于风险。最终复审记录见 02。
 - 源码接缝/数据模型变动后优先复验场景 1/3/5；渲染、宽度、滚动或按键变化后复验场景 2 的两种模式；命令路由变化后复验场景 1/4 和 `sourceEventSeq` 的自动回归。
