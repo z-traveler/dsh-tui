@@ -318,6 +318,64 @@ check('compaction bracket → compaction.start/end', of(live, 'compaction.start'
   check('adoption reset forgets the previous session move', harness.state.workingDirectory === undefined)
 }
 
+// Command results (`dsh-commands` logs `command/run` before the handler and
+// `command/done` once it settles): one neutral result per pair, paired by
+// `commandId`, carrying the run's name/input and the done's outcome, text and
+// sequence/time anchors. A done without its run has no name to title a card
+// with and yields nothing.
+{
+  const translator = createDshTranslator({ tools: () => undefined, scope: () => ({}), attachments: () => undefined })
+  const run = (commandId: string, name: string, args?: string) => translator.translateEvent({
+    type: 'command/run', seq: 1, time: 10,
+    data: { commandId, name, ...(args === undefined ? {} : { args }), source: { kind: 'user' } },
+  } as unknown as Parameters<Translator['translateEvent']>[0])
+  const done = (commandId: string, data: { kind: 'success' | 'error'; text?: string; sourceEventSeq?: number }, seq = 2, time = 20) => translator.translateEvent({
+    type: 'command/done', seq, time, data: { commandId, ...data },
+  } as unknown as Parameters<Translator['translateEvent']>[0])
+  check('command/run alone projects nothing (the settled record is the fact)', run('cmd-a', 'model-context', ' raw').length === 0)
+  const [settled] = done('cmd-a', { kind: 'success', text: 'BODY' }, 2, 20)
+  check('command/run + command/done → one command.result paired by commandId',
+    settled?.type === 'command.result' && settled.commandId === 'cmd-a' && settled.name === 'model-context'
+      && settled.args === ' raw' && settled.outcome === 'success' && settled.text === 'BODY'
+      && settled.seq === 2 && settled.time === 20,
+    JSON.stringify(settled))
+  run('cmd-b', 'compact')
+  const [covered] = done('cmd-b', { kind: 'success', text: 'Compacted.', sourceEventSeq: 7 }, 4, 40)
+  check('sourceEventSeq is carried as coveredBySeq (the richer record owns the presentation)',
+    covered?.type === 'command.result' && covered.coveredBySeq === 7 && covered.args === undefined)
+  const [failure] = (() => {
+    run('cmd-c', 'permission', ' plan')
+    return done('cmd-c', { kind: 'error', text: 'rejected' })
+  })()
+  check('an error result keeps its text and status', failure?.type === 'command.result' && failure.outcome === 'error' && failure.text === 'rejected')
+  const [orphan] = done('cmd-missing', { kind: 'success', text: 'orphan' })
+  check('a command/done without its run projects nothing (no invented name)', orphan === undefined)
+  check('each command settles once (a repeat done is not a second result)', done('cmd-a', { kind: 'success', text: 'again' }).length === 0)
+}
+
+// Explicit skill loads: one durable `skill-invocation` source for both gestures
+// (`/name` and `#skill:name`), the message body being the canonical injected
+// text; a REPLACED copy is model-only (no transcript fact), and a legacy record
+// without the surface marker is an append.
+{
+  const body = '<skill_content name="alpha">\n<skill_instructions>\nALPHA-MARKER\n</skill_instructions>\n</skill_content>'
+  const userMessage = (source: unknown, surfaceOp?: unknown) => ({
+    type: 'user/message', seq: 5, time: 50, ...(surfaceOp === undefined ? {} : { surfaceOp }),
+    data: { id: 'msg-skill', role: 'user', content: [{ type: 'text', text: body }], source },
+  }) as unknown as Parameters<Translator['translateEvent']>[0]
+  const translate = (event: ReturnType<typeof userMessage>) => createDshTranslator({ tools: () => undefined, scope: () => ({}), attachments: () => undefined }).translateEvent(event)
+  const [load] = translate(userMessage({ kind: 'skill-invocation', name: 'alpha', form: 'instructions' }, 'append'))
+  check('skill-invocation source → skill.invocation with the saved body',
+    load?.type === 'skill.invocation' && load.name === 'alpha' && load.body === body && load.seq === 5 && load.time === 50,
+    JSON.stringify(load))
+  const [legacy] = translate(userMessage({ kind: 'skill-invocation', name: 'alpha', form: 'instructions' }))
+  check('a legacy record without a surface marker is an append', legacy?.type === 'skill.invocation' && legacy.name === 'alpha')
+  const [replaced] = translate(userMessage({ kind: 'skill-invocation', name: 'alpha', form: 'instructions' }, { op: 'replace', startSeq: 1, endSeq: 2 }))
+  check('a replacement copy is model-only material (no skill card fact)', replaced?.type === 'user.message' && replaced.source === 'injected' && replaced.text === '')
+  const [injected] = translate(userMessage({ kind: 'plugin', plugin: 'context' }))
+  check('other injected context still keeps the hidden no-bubble branch', injected?.type === 'user.message' && injected.source === 'injected')
+}
+
 const customs = of(live, 'custom').map(event => event.nativeType)
 check('unknown plugin events → custom', customs.includes('fixture-plugin/note') && customs.includes('other-plugin/ping') && customs.includes('developer/message'))
 

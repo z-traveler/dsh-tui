@@ -1832,6 +1832,15 @@ const dict = {
   'rename-current': { zh: '当前名称  {{title}}', en: 'Current title  {{title}}' },
   'rename-done': { zh: '已重命名为「{{title}}」', en: 'Renamed to "{{title}}"' },
   'compact-summary-folded': { zh: '摘要已折叠', en: 'Summary folded' },
+
+  // ── components/messages/CommandCardRow.tsx（命令结果卡片）──────────
+  // 折叠时一行标题 + 一行摘要；展开后正文完整铺开。
+  'command-card-rows': { zh: '{{n}} 行', en: '{{n}} rows' },
+
+  // ── components/messages/SkillCardRow.tsx（显式技能加载卡片）──────────
+  // 默认一行只报 `<标签> 名字 · 已加载指令`；正文靠既有 Ctrl+O/逐行展开。
+  'skill-card-label': { zh: '技能', en: 'skill' },
+  'skill-card-loaded': { zh: '已加载指令', en: 'instructions loaded' },
   'new-message': { zh: '↓ {{n}} 条新消息', en: '↓ 1 new message' },
   'new-messages': { zh: '↓ {{n}} 条新消息', en: '↓ {{n}} new messages' },
   'back-to-bottom': { zh: '↓ 回到底部（Enter/End）', en: '↓ back to bottom (Enter/End)' },

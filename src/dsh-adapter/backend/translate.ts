@@ -24,7 +24,7 @@ import { isPeakHour } from '../../deepseekPricing.js'
 import { BACKGROUND_START_ACK, isSubagentToolName, parseJobOutputId, todoPanelItems, toolCommandOf } from '../channel/projection-helpers.js'
 import { harnessToolResultView, prepareReplayEvents, toolErrorText } from '../channel/transcript.js'
 import type { ToolCallView, ToolResultView, ToolsRegistryLike } from '../channel/types.js'
-import { isCompactionCheckpointSource, toolResultPayload } from '../compat/messages.js'
+import { isCompactionCheckpointSource, skillInvocationName, toolResultPayload } from '../compat/messages.js'
 import { transcriptImagesOf } from '../transcript-images.js'
 import { isTeamToolName, TEAM_SPAWN_TOOL, teamMessageOf, teamToolCallView, teamToolResultView } from '../team-tools.js'
 import { refineSessionSearchTitle } from '../session-tools.js'
@@ -71,6 +71,8 @@ export function dshEmits(type: AgentEventType): boolean {
     case 'step.start':
     case 'step.end':
     case 'user.message':
+    case 'skill.invocation':
+    case 'command.result':
     case 'pending.changed':
     case 'assistant.attempt.start':
     case 'assistant.delta':
@@ -164,6 +166,15 @@ type GoalChangePayload = {
   roundsStarted?: number
 }
 
+/**
+ * One durable command result: core pairs `command/run` with `command/done` by
+ * `commandId`, and the done record carries the outcome while the run record
+ * carries the name and input. Only the settled record is projected, so the
+ * pairing lives here (the translator is the DSH-shaped seam) instead of
+ * leaving a half-known card in the shared vocabulary.
+ */
+type OpenCommand = { readonly name: string; readonly args?: string }
+
 // ContentBlockMap is merge-extensible: plugin-added block types are silently
 // skipped (v1 renders text blocks only) — never crashes.
 const textOf = (content: readonly ContentBlock[] | undefined): string =>
@@ -235,6 +246,12 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
    * projector's own card index: deleted on result, cleared on reset.
    */
   const openCalls = new Map<string, { readonly name: string; readonly args: string; readonly card: boolean }>()
+  /**
+   * Open command invocations by `commandId` until their `command/done` settles
+   * them (a crash between the two leaves one small entry until the session
+   * resets). Bounded like `openCalls`.
+   */
+  const openCommands = new Map<string, OpenCommand>()
   /**
    * `spawn_teammate` calls that have not written their member yet. The team
    * refuses a teammate (name taken or invalid, member limit, not the Lead,
@@ -334,6 +351,21 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
     if (team !== undefined) {
       return [{ type: 'user.message', ...base, blocks: team.blocks, source: 'team-message', sender: team.sender, text: team.text }]
     }
+    // A user-explicit skill load: core records ONE durable source kind for both
+    // gestures (`/name` and `#skill:name` are the same claim), and the message
+    // body is the canonical rendered content the model received. The card shows
+    // that saved text, so nothing here re-reads the skill file or re-scans the
+    // user's line — and the generic injected message is replaced, never added.
+    // Only an APPENDED injection is transcript material: a replacement copy
+    // (`surfaceOp` replace) is model-only, and a pre-V4 record without the
+    // marker is the legacy append.
+    const skillName = skillInvocationName(data.source)
+    if (skillName !== undefined) {
+      const surfaceOp = (event as { surfaceOp?: unknown }).surfaceOp
+      if (surfaceOp === undefined || surfaceOp === 'append') {
+        return [{ type: 'skill.invocation', seq: event.seq, time: event.time, name: skillName, body: textOf(data.content) }]
+      }
+    }
     // Injected context (plugin/skill source) is model-facing only; it has no
     // transcript-facing text.
     if (data.source.kind !== 'user') return [{ type: 'user.message', ...base, source: 'injected', text: '' }]
@@ -403,6 +435,34 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   /** Translate one durable session event (live or as part of a replay). */
   const translateEvent = (event: SessionEvent): readonly AgentEvent[] => {
     const type = (event as { type: string }).type
+    // The command lifecycle (dsh-commands): a resolved line is logged as
+    // `command/run` before its handler and `command/done` once it settles, both
+    // log-only (never model surface). Pair them by `commandId` so one settled
+    // record carries everything a card needs; an orphan done (a log slice that
+    // starts mid-pair) has no name to title a card with and stays for its own
+    // consumer rather than inventing one.
+    if (type === 'command/run') {
+      const data = (event as unknown as { data: { commandId: string; name: string; args?: string } }).data
+      openCommands.set(data.commandId, { name: data.name, ...(data.args === undefined ? {} : { args: data.args }) })
+      return NO_EVENTS
+    }
+    if (type === 'command/done') {
+      const data = (event as unknown as { data: { commandId: string; kind: 'success' | 'error'; text?: string; sourceEventSeq?: number } }).data
+      const run = openCommands.get(data.commandId)
+      openCommands.delete(data.commandId)
+      if (run === undefined) return NO_EVENTS
+      return [{
+        type: 'command.result',
+        commandId: data.commandId,
+        name: run.name,
+        ...(run.args === undefined ? {} : { args: run.args }),
+        outcome: data.kind,
+        text: data.text ?? '',
+        ...(data.sourceEventSeq === undefined ? {} : { coveredBySeq: data.sourceEventSeq }),
+        seq: event.seq,
+        time: event.time,
+      }]
+    }
     // Top-level `goal/change` events are how the goal service records durable
     // goal mutations (create/edit/pause/resume/complete/block/clear) —
     // confirmed in production logs. The pinned peer's SessionEvent union
@@ -583,6 +643,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   const translateReplay = (events: readonly SessionEvent[]): readonly AgentEvent[] => {
     lastStreamRevision = -1
     promptSeen = false
+    openCommands.clear()
     const out: AgentEvent[] = []
     for (const event of prepareReplayEvents(events)) {
       for (const translated of translateEvent(event)) out.push(translated)
@@ -594,6 +655,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   const reset = (): void => {
     lastStreamRevision = -1
     promptSeen = false
+    openCommands.clear()
     openCalls.clear()
     unwrittenSpawns.clear()
   }

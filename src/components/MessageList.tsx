@@ -10,6 +10,8 @@ import type { TranscriptImage } from '../dsh-adapter/transcript-images.js'
 import type { DOMElement } from '../ink/dom.js'
 import { Divider } from './design-system/Divider.js'
 import { UserPromptMessage } from './messages/UserPromptMessage.js'
+import { CommandCardRow } from './messages/CommandCardRow.js'
+import { SkillCardRow } from './messages/SkillCardRow.js'
 import { TeamMessageBubble } from './messages/TeamMessageBubble.js'
 import { AssistantTextLeafRow, ThinkingLeafRow, ToolLeafRow } from './messages/TranscriptLeaves.js'
 import { liveOutputMaxLines, liveOutputRows } from './messages/liveOutputLines.js'
@@ -324,6 +326,23 @@ function signatureParts(
       )
       break
     }
+    case 'command':
+      // Collapsed headline+summary vs the recorded body painted whole: both
+      // expansion switches, the command line's own text and (only while
+      // expanded) the body length decide the height. `displayTextLen` above is
+      // the body length, which a window fold lowers to the preview.
+      signatureScratch.push(
+        expanded,
+        expandedRows.has(row.id),
+        row.command?.name ?? '',
+        row.command?.args ?? '',
+        row.command?.status ?? '',
+      )
+      break
+    case 'skill':
+      // One collapsed line vs the revealed saved body.
+      signatureScratch.push(expanded, expandedRows.has(row.id), row.skill?.name ?? '')
+      break
     case 'compact':
       // Folded one-liner vs full summary text.
       signatureScratch.push(expanded, expandedRows.has(row.id))
@@ -1594,6 +1613,10 @@ export function MessageList({
               revealVersion={revealVersion}
               activityFrames={activityFrames}
               background={rowBackground(row.id)}
+              commandName={row.kind === 'command' ? row.command?.name : undefined}
+              commandArgs={row.kind === 'command' ? row.command?.args : undefined}
+              commandStatus={row.kind === 'command' ? row.command?.status : undefined}
+              skillName={row.kind === 'skill' ? row.skill?.name : undefined}
               toolCallId={tool?.callId}
               toolName={tool?.name}
               toolArgsText={tool?.argsText}
@@ -1686,6 +1709,12 @@ type MemoRowProps = {
   /** Working-activity preset name; drives the subagent card's running glyph. */
   activityFrames: string | undefined
   background: 'messageActionsBackground' | undefined
+  /** Command rows: the settled command's identity as the card headlines it. */
+  commandName: string | undefined
+  commandArgs: string | undefined
+  commandStatus: 'success' | 'error' | undefined
+  /** Skill rows: the loaded skill's name. */
+  skillName: string | undefined
   // ToolRow, flattened: the channel writes status/result fields in place,
   // so passing the object itself would make mutations invisible to memo.
   toolCallId: string | undefined
@@ -1785,6 +1814,10 @@ function TranscriptRow({
   foldTerminalCommand,
   activityFrames,
   background,
+  commandName,
+  commandArgs,
+  commandStatus,
+  skillName,
   toolCallId,
   toolName,
   toolArgsText,
@@ -1862,7 +1895,7 @@ function TranscriptRow({
   // `lang` is a dependency because the fold marker is localized: a row that
   // re-renders unchanged after /lang must not keep the previous language.
   const lang = getLang()
-  const foldable = kind !== 'reasoning' && kind !== 'tool'
+  const foldable = kind !== 'reasoning' && kind !== 'tool' && kind !== 'command' && kind !== 'skill'
   const folded = React.useMemo(
     () => (foldable ? foldLongLines(text) : { text, hiddenChars: 0, foldedLines: 0 }),
     [foldable, text, lang],
@@ -2071,6 +2104,39 @@ function TranscriptRow({
       return (
         <Box paddingLeft={2} backgroundColor={background} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
           <Text dimColor>{displayText}</Text>
+        </Box>
+      )
+    case 'command':
+      if (commandName === undefined || commandStatus === undefined) return null
+      // A settled command result: collapsed headline + one summary row,
+      // expanded the recorded body. The row itself is the disclosure (click),
+      // the same gesture Ctrl+O and selection-Enter drive.
+      return (
+        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
+          <CommandCardRow
+            name={commandName}
+            args={commandArgs}
+            status={commandStatus}
+            text={text}
+            expanded={expanded || isExpanded}
+            background={background}
+            onClick={foldOnClick}
+          />
+        </Box>
+      )
+    case 'skill':
+      if (skillName === undefined) return null
+      // A user-explicit skill load: one line while it stays folded, the saved
+      // canonical body once expanded.
+      return (
+        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
+          <SkillCardRow
+            name={skillName}
+            body={text}
+            expanded={expanded || isExpanded}
+            background={background}
+            onClick={foldOnClick}
+          />
         </Box>
       )
     case 'compact':

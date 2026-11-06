@@ -64,6 +64,8 @@
     # 以下为 /settings 可改的显示设置；每项说明与默认值见应用内 /settings 屏。
     terminalImages: true
     # mermaidDiagrams: true
+    # 命令结果 / 显式技能加载卡片（下游开关，默认关闭）：见 docs/downstream/session-cards.md。
+    # sessionCards: true
     # 任务完成通知：off / unfocused（默认）/ always；方式：auto（默认）/ osc9 / bel / windows。
     # taskNotifications: unfocused
     # notificationMethod: auto

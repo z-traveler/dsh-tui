@@ -85,6 +85,13 @@ export interface ChannelProjectionDeps {
    *  id the durable event carries), for the user row's indicator line. */
   selectionAttached(messageId: string): SelectionAttachment | undefined
   /**
+   * Whether a settled command result and a user-explicit skill load render as
+   * transcript cards — the `sessionCards` deployment switch. Absent/false
+   * keeps the upstream shape: no command card (the caller's own report path
+   * owns that text) and no skill card (the injected body stays model-facing).
+   */
+  sessionCards?: boolean
+  /**
    * Rate window a usage at `time` bills under. Injected by the backend that
    * owns the pricing policy (DSH: the DeepSeek peak hours); absent → every
    * usage lands in the `idle` bucket.
@@ -1138,6 +1145,45 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
       case 'user.message':
         applyUserMessage(event)
         return
+      case 'command.result': {
+        // A settled command (core's command/run + command/done, paired by the
+        // backend): one card, unless there is nothing to present. A success
+        // with no text has no outcome to show, and `coveredBySeq` names an
+        // earlier record that already owns this outcome's presentation
+        // (a compaction checkpoint) — a card there would be its duplicate.
+        if (deps.sessionCards !== true) return
+        if (event.text === '' || event.coveredBySeq !== undefined) return
+        appendRow({
+          id: deps.rowIds.value,
+          kind: 'command',
+          text: event.text,
+          seq: event.seq,
+          time: event.time,
+          command: {
+            commandId: event.commandId,
+            name: event.name,
+            ...(event.args === undefined || event.args === '' ? {} : { args: event.args }),
+            status: event.outcome,
+          },
+        })
+        deps.rowIds.value += 1
+        return
+      }
+      case 'skill.invocation': {
+        // A user-explicit skill load. The card shows the canonical body core
+        // injected, verbatim; the switch keeps the upstream hidden injection.
+        if (deps.sessionCards !== true) return
+        appendRow({
+          id: deps.rowIds.value,
+          kind: 'skill',
+          text: event.body,
+          seq: event.seq,
+          time: event.time,
+          skill: { name: event.name },
+        })
+        deps.rowIds.value += 1
+        return
+      }
       case 'step.start':
         openStep = { turn: event.turn, step: event.step }
         if (tpsTurn === event.turn) {

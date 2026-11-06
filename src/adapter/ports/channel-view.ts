@@ -103,7 +103,7 @@ export interface WorkingActivityView {
  */
 export interface ChatRow {
   id: number
-  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'subagent' | 'job' | 'turn-summary'
+  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'command' | 'skill' | 'subagent' | 'job' | 'turn-summary'
   /** Extra label for non-human user rows (e.g. `steering`). */
   label?: string
   /** `user` rows another agent sent (an Agent Teams peer message): its name. */
@@ -123,6 +123,11 @@ export interface ChatRow {
   tool?: ToolRow
   /** Present on `turn-summary` rows; the turn's usage ledger. */
   turnUsage?: TurnUsageSummary
+  /** Present on `command` rows; the settled command result this card stands
+   *  for (its `text` is the command's own result text). */
+  command?: CommandRow
+  /** Present on `skill` rows; the user-explicit load this card stands for. */
+  skill?: SkillRow
   /** Present on `subagent` rows; the subagent state snapshot. */
   subagent?: SubagentRow
   /** Present on `job` rows; the background-job state snapshot. */
@@ -165,6 +170,34 @@ export interface ChatRow {
   /** Present on user rows whose submit consumed a live IDE selection: the
    *  transcript renders the "Selected N lines" indicator above the bubble. */
   selectionAttached?: SelectionAttachment
+}
+
+/**
+ * One settled command result in the transcript (a backend's command lifecycle
+ * record, never a tool call). The row's `text` is the command's complete
+ * result text; `status` says whether the command succeeded. The card is
+ * display-only: expanding it never executes the command and never reaches the
+ * model.
+ */
+export interface CommandRow {
+  /** The backend's pairing id of the invocation (`command/run` ↔ `done`). */
+  readonly commandId: string
+  /** Command name without the leading slash. */
+  readonly name: string
+  /** The invocation's own input after the name (the backend's split). */
+  readonly args?: string
+  readonly status: 'success' | 'error'
+}
+
+/**
+ * One user-explicit skill load in the transcript (a `#skill:name` mention or
+ * the shipped `/name` gesture — the same durable fact). The row's `text` is
+ * the canonical body the model was handed, shown verbatim when the card is
+ * expanded: the card never re-reads the skill file.
+ */
+export interface SkillRow {
+  /** Skill name exactly as the user's gesture spelled it. */
+  readonly name: string
 }
 
 /** Tool-call card state: the presentation of one tool invocation. */

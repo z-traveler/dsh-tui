@@ -110,6 +110,11 @@ export interface Config {
    *  `ctx used/window` readout) in the status footer; off hides that row
    *  while the status/mode lines stay (issue #29). */
   contextBar?: boolean
+  /** Fold command results and explicit skill loads into collapsible
+   *  transcript cards. Off by default: an unset deployment keeps the upstream
+   *  shape, where a registry command's result is the dispatcher's own local
+   *  report and an injected skill body stays model-facing only. */
+  sessionCards?: boolean
   /** Run in the terminal's alternate screen (full-screen terminal layout).
    *  Defaults to true — the fullscreen surface is the more complete one
    *  (mouse, timeline rail, scrollbar gutter, selection copy), so fresh
@@ -341,6 +346,9 @@ export const Config: Schema<Config, RuntimeConfig<Config>> = editableConfig<Conf
   activity: Schema.boolean().default(true),
   activityFrames: Schema.string().required(false),
   contextBar: Schema.boolean().default(true),
+  // Command/skill transcript cards: a downstream presentation feature behind
+  // an explicit opt-in, so an unset deployment keeps the upstream transcript.
+  sessionCards: Schema.boolean().default(false),
   fullscreen: Schema.boolean().default(true),
   terminalImages: Schema.boolean().default(true),
   // No `.default()` on purpose (same rule as recapOnOpen): an unset key must

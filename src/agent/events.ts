@@ -236,6 +236,17 @@ export type AgentEvent =
    */
   | { readonly type: 'user.message'; readonly id: string; readonly anchor: string; readonly seq: number; readonly turn?: number; readonly time: number; readonly source: 'user' | 'injected' | 'goal' | 'compaction' | 'command-output' | 'notification' | 'team-message'; readonly text: string; readonly blocks: readonly ContentBlockView[]; readonly images?: readonly ImageRef[]; readonly label?: string; /** `team-message`: the sending member's name. */ readonly sender?: string }
   /**
+   * A user-explicit skill load the backend recorded: one skill the user's own
+   * input named (a `#skill:name` mention, or the shipped `/name` gesture — the
+   * two are ONE fact on the durable record, so the gesture syntax is never
+   * re-scanned here). `name` is the gesture's own spelling and `body` the
+   * canonical text the model received for it: a card shows that saved body and
+   * never re-reads the skill file. Only an appended injection is such a fact
+   * (a replacement copy is model-only material). It is instructions the model
+   * was handed — never a user bubble, never proof the work ran.
+   */
+  | { readonly type: 'skill.invocation'; readonly seq: number; readonly time: number; readonly name: string; readonly body: string }
+  /**
    * Snapshot of the backend's queue of unclaimed user inputs (replaces the
    * previous one). `claimed`/`discarded` name the ids that left the queue in
    * this change: a claimed input became part of a turn, a discarded one never
@@ -247,6 +258,17 @@ export type AgentEvent =
    * `discarded` (#1651).
    */
   | { readonly type: 'pending.changed'; readonly items: readonly PendingItem[]; readonly claimed?: readonly string[]; readonly discarded?: readonly string[]; readonly dropped?: readonly string[] }
+  /**
+   * One resolved command's settled result (DSH `command/run` + `command/done`,
+   * paired by `commandId`). Log-only in the backend: it is neither a user
+   * message nor a model turn, so a card standing for it never claims the work
+   * ran. `text` is the command's own result text ('' when it produced none),
+   * `args` the invocation's input after the name (the backend's own split, so
+   * no line is re-parsed here). `coveredBySeq` names an earlier authoritative
+   * record that already presents this outcome (a compaction checkpoint): the
+   * transcript shows that record, so a command card would be a duplicate.
+   */
+  | { readonly type: 'command.result'; readonly commandId: string; readonly name: string; readonly args?: string; readonly outcome: 'success' | 'error'; readonly text: string; readonly coveredBySeq?: number; readonly seq: number; readonly time: number }
   // ── assistant stream ────────────────────────────────────────────────
   /** A streamed attempt opened at (turn, step); a still-open earlier attempt
    *  is superseded. `firstTokenTime`, when known, timestamps the backend's

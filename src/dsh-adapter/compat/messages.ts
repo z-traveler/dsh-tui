@@ -36,3 +36,15 @@ export function answeredToolCallIds(message: {
 export function isCompactionCheckpointSource(source: { kind: string; plugin?: string }): boolean {
   return source.kind === 'compact-checkpoint' || (source.kind === 'plugin' && source.plugin === 'compact')
 }
+
+/**
+ * The name of an explicit skill-load injection (`/name` and `#skill:name` are
+ * ONE durable source kind), or undefined for any other message source. Admitted
+ * structurally: `MessageSourceMap` is merge-extensible, so the source's own
+ * shape — not union membership — is the contract.
+ */
+export function skillInvocationName(source: unknown): string | undefined {
+  if (source === null || typeof source !== 'object') return undefined
+  const { kind, name } = source as { kind?: unknown; name?: unknown }
+  return kind === 'skill-invocation' && typeof name === 'string' && name !== '' ? name : undefined
+}
