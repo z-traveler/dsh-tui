@@ -322,6 +322,8 @@ const SELECTABLE_KINDS = new Set<ChatRow['kind']>([
   'local',
   'local-output',
   'compact',
+  'command',
+  'skill',
 ])
 
 /** Shared empty list for mode-gated derived rows (stable reference, so
@@ -2761,6 +2763,9 @@ export function Chat({
         channel.notify(t('command-not-found', { name }), { color: 'error' })
         return false
       }
+      // With `sessionCards` on, the durable card already shows the settled
+      // text: every local text path steps aside, only the error toast stays.
+      const cardsOwnResult = channel.sessionCardsEnabled
       if (render?.report === true) {
         const { lines, truncated } = cleanCommandReport(outcome.text)
         if (truncated) lines.push(t('command-output-truncated'))
@@ -2768,7 +2773,7 @@ export function Chat({
         // splitting an emoji or a combining sequence in the local row sink.
         // A side-effect-only command can return no text: with no report there
         // is nothing to title, so keep the same guard as the block branch.
-        if (lines.length > 0) channel.pushLocal(`/${name}`, lines, { lineLimit: 65_536, preserveWhitespace: true })
+        if (lines.length > 0 && !cardsOwnResult) channel.pushLocal(`/${name}`, lines, { lineLimit: 65_536, preserveWhitespace: true })
         if (outcome.kind === 'error') {
           const cleaned = cleanRenderText(outcome.text, COMMAND_RESULT_CELLS)
           if (cleaned !== '') channel.notify(cleaned, { color: 'error' })
@@ -2776,10 +2781,10 @@ export function Chat({
       } else if (render?.block === true && outcome.kind !== 'error') {
         // Per-line sanitize: the newlines here are the report's structure.
         const lines = cleanBlockLines(outcome.text, LOCAL_BLOCK_CELLS)
-        if (lines.length > 0) channel.pushLocal(`/${name}`, lines, { lineLimit: LOCAL_BLOCK_CELLS })
+        if (lines.length > 0 && !cardsOwnResult) channel.pushLocal(`/${name}`, lines, { lineLimit: LOCAL_BLOCK_CELLS })
       } else {
         const cleaned = cleanRenderText(outcome.text, COMMAND_RESULT_CELLS)
-        if (cleaned !== '') {
+        if (cleaned !== '' && (!cardsOwnResult || outcome.kind === 'error')) {
           channel.notify(cleaned, outcome.kind === 'error' ? { color: 'error' } : undefined)
         }
       }
@@ -2815,7 +2820,8 @@ export function Chat({
         return false
       }
       const cleaned = cleanRenderText(outcome.text, COMMAND_RESULT_CELLS)
-      if (cleaned !== '') {
+      // Same `sessionCards` dedupe as runExternalCommand.
+      if (cleaned !== '' && (!channel.sessionCardsEnabled || outcome.kind === 'error')) {
         channel.notify(cleaned, outcome.kind === 'error' ? { color: 'error' } : undefined)
       }
       return outcome.consumeDraft
@@ -4814,7 +4820,10 @@ export function Chat({
 
   const enterSelection = () => {
     setSelectionActive(true)
-    const last = selectableRows[selectableRows.length - 1]
+    // `selectableRows` is still empty in this render (it is gated on the mode
+    // being switched ON): derive the list here over the same kinds.
+    const rows = channel.rows.filter(row => SELECTABLE_KINDS.has(row.kind))
+    const last = rows[rows.length - 1]
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- runtime guard: empty selectable list
     setSelectedId(last ? last.id : null)
   }

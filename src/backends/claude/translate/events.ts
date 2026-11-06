@@ -71,6 +71,11 @@ export function claudeEmits(type: AgentEventType): boolean {
     case 'system.prompt':
     case 'request.header':
     case 'session.cwd':
+    // Claude has no command lifecycle record for these two card facts: a skill
+    // load there is an ordinary Skill tool call (its own tool card), and a
+    // user-typed slash command never reaches the durable log.
+    case 'skill.invocation':
+    case 'command.result':
     case 'custom':
       return false
     default: {

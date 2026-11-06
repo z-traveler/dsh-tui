@@ -229,6 +229,7 @@ export const CHANNEL_UI_PROPERTIES = [
   'minimal',
   'activityEnabled',
   'contextBarEnabled',
+  'sessionCardsEnabled',
   'goal',
   'todos',
   'loadedContext',

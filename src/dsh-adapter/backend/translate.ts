@@ -25,7 +25,8 @@ import { BACKGROUND_START_ACK, isSubagentToolName, parseJobOutputId, todoPanelIt
 import { harnessToolResultView, prepareReplayEvents, toolErrorText } from '../channel/transcript.js'
 import type { ToolCallView, ToolResultView, ToolsRegistryLike } from '../channel/types.js'
 import { CompactionPreviews } from '../compat/compaction-previews.js'
-import { isCompactionCheckpointSource, toolResultPayload } from '../compat/messages.js'
+import { createCommandResults } from './session-card-facts.js'
+import { isCompactionCheckpointSource, skillInvocationName, toolResultPayload } from '../compat/messages.js'
 import { transcriptImagesOf } from '../transcript-images.js'
 import { isTeamToolName, TEAM_SPAWN_TOOL, teamMessageOf, teamToolCallView, teamToolResultView } from '../team-tools.js'
 import { refineSessionSearchTitle } from '../session-tools.js'
@@ -72,6 +73,8 @@ export function dshEmits(type: AgentEventType): boolean {
     case 'step.start':
     case 'step.end':
     case 'user.message':
+    case 'skill.invocation':
+    case 'command.result':
     case 'pending.changed':
     case 'assistant.attempt.start':
     case 'assistant.delta':
@@ -242,6 +245,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
    * projector's own card index: deleted on result, cleared on reset.
    */
   const openCalls = new Map<string, { readonly name: string; readonly args: string; readonly card: boolean }>()
+  const commands = createCommandResults()
   /**
    * `spawn_teammate` calls that have not written their member yet. The team
    * refuses a teammate (name taken or invalid, member limit, not the Lead,
@@ -345,6 +349,21 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
     if (team !== undefined) {
       return [{ type: 'user.message', ...base, blocks: team.blocks, source: 'team-message', sender: team.sender, text: team.text }]
     }
+    // A user-explicit skill load: core records ONE durable source kind for both
+    // gestures (`/name` and `#skill:name` are the same claim), and the message
+    // body is the canonical rendered content the model received. The card shows
+    // that saved text, so nothing here re-reads the skill file or re-scans the
+    // user's line — and the generic injected message is replaced, never added.
+    // Only an APPENDED injection is transcript material: a replacement copy
+    // (`surfaceOp` replace) is model-only, and a pre-V4 record without the
+    // marker is the legacy append.
+    const skillName = skillInvocationName(data.source)
+    if (skillName !== undefined) {
+      const surfaceOp = event.surfaceOp
+      if (surfaceOp === undefined || surfaceOp === 'append') {
+        return [{ type: 'skill.invocation', seq: event.seq, time: event.time, name: skillName, body: textOf(data.content) }]
+      }
+    }
     // Injected context (plugin/skill source) is model-facing only; it has no
     // transcript-facing text.
     if (data.source.kind !== 'user') return [{ type: 'user.message', ...base, source: 'injected', text: '' }]
@@ -421,6 +440,10 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
     // predates the type, so admit it structurally.
     if (type === 'goal/change') return [goalChange((event as unknown as { data: GoalChangePayload }).data)]
     switch (event.type) {
+      case 'command/run':
+        return commands.run(event)
+      case 'command/done':
+        return commands.done(event)
       case 'user/message':
         return translateUserMessage(event)
       case 'step/start':
@@ -597,6 +620,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   const translateReplay = (events: readonly SessionEvent[]): readonly AgentEvent[] => {
     lastStreamRevision = -1
     promptSeen = false
+    commands.clear()
     compactionPreviews.clear()
     const out: AgentEvent[] = []
     for (const event of prepareReplayEvents(events)) {
@@ -609,6 +633,7 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   const reset = (): void => {
     lastStreamRevision = -1
     promptSeen = false
+    commands.clear()
     compactionPreviews.clear()
     openCalls.clear()
     unwrittenSpawns.clear()
