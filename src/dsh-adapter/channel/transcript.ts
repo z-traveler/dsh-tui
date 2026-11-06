@@ -1,5 +1,5 @@
 import { type SessionEvent } from '@deepseek-ai/dsh-session'
-import { toolResultPayload } from '../compat/messages.js'
+import { toolResultPayload, skillInvocationName } from '../compat/messages.js'
 import { t } from '../../i18n.js'
 import type { ChatRow, ToolResultView, ToolViewPresenter } from './types.js'
 import { markChannelReadDirty } from '../../adapter/channel/read-view.js'
@@ -11,8 +11,9 @@ export { ARGS_PREVIEW_LIMIT, LOCAL_OUTPUT_LIMIT, MAX_ROWS, preview, previewInden
 
 /**
  * Fold the oldest rows beyond the transcript window cap: drop each row's
- * full-text fields (assistant/reasoning text, tool args/results) and keep
- * only its preview text, kind, id, and seq. Bounds the TUI's retained text
+ * full-text fields (assistant/reasoning text, tool args/results, a command
+ * result's or a skill body's text) and keep only its preview text, kind, id,
+ * and seq. Bounds the TUI's retained text
  * without touching the session log (the source of truth for /export and
  * loadOlder). Small local/notice/interrupt rows are left intact (they hold
  * terminal-local text the log cannot restore). Restored rows are exempt so
@@ -54,7 +55,7 @@ export function foldRows(
   let folded = 0
   for (const row of rows.slice(from, excess)) {
     if (row.folded || row.restored) continue
-    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool') continue
+    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool' && row.kind !== 'command' && row.kind !== 'skill') continue
     if (restorable !== undefined && !restorable(row)) continue
     row.folded = true
     folded += 1
@@ -95,7 +96,8 @@ export function foldBack(rows: ChatRow[], events: readonly SessionEvent[], views
   const firstFoldedSeq = folded[0]?.seq ?? 0
   const restoreEvents = events.filter(event => event.seq >= firstFoldedSeq)
   // tool results are matched by callId, not seq, because the result event
-  // seq differs from the call event seq that anchored the row.
+  // seq differs from the call event seq that anchored the row. A command
+  // card is matched the same way, by its `commandId` pairing id.
   const resultsByCall = new Map<string, SessionEvent<'tool/result'>>()
   for (const event of restoreEvents) {
     if (event.type === 'tool/result') {
@@ -118,6 +120,30 @@ export function foldBack(rows: ChatRow[], events: readonly SessionEvent[], views
       row.tool.resultView = result !== undefined && row.tool.status === 'ok'
         ? views?.result(call.data.name, call.data.arguments, result.data)
         : undefined
+      row.folded = false
+      markChannelReadDirty(row)
+      markChannelReadDirty(rows)
+      restored += 1
+      continue
+    }
+    if (row.kind === 'command' && row.command !== undefined) {
+      // The settled record owns the body: it is found by the same `commandId`
+      // the card was built from (the run record only names it, so the folded
+      // row keeps that metadata and drops just the text).
+      const done = restoreEvents.find(event => event.type === 'command/done' && event.data.commandId === row.command?.commandId)
+      if (done === undefined || done.type !== 'command/done') continue
+      row.text = done.data.text ?? ''
+      row.folded = false
+      markChannelReadDirty(row)
+      markChannelReadDirty(rows)
+      restored += 1
+      continue
+    }
+    if (row.kind === 'skill') {
+      // The injected user/message at the row's own seq carries the saved body.
+      const load = restoreEvents.find(event => event.seq === rowSeq && event.type === 'user/message' && skillInvocationName(event.data.source) !== undefined)
+      if (load === undefined || load.type !== 'user/message') continue
+      restoreRowFromEvent(row, load)
       row.folded = false
       markChannelReadDirty(row)
       markChannelReadDirty(rows)
@@ -164,6 +190,12 @@ export function restoreRowFromEvent(row: ChatRow, event: SessionEvent): void {
     case 'tool': {
       if (event.type !== 'tool/call' || row.tool === undefined) break
       row.tool.argsFull = event.data.arguments
+      break
+    }
+    case 'skill': {
+      if (event.type !== 'user/message') break
+      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('').trim()
+      if (body) row.text = body
       break
     }
     default:

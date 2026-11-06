@@ -4,7 +4,7 @@
 
 在 `feature/*` 开发，日常只运行改动面的回归与必要编译。
 初次检出执行 `git submodule update --init --recursive`、`pnpm install --frozen-lockfile --ignore-scripts`、`pnpm compile`。
-HUD 改动的定向入口为 `node --import tsx/esm scripts/downstream/verify-hud.tsx`，其他区域按贡献指南选测试。
+HUD 改动的定向入口为 `node --import tsx/esm scripts/downstream/verify-hud.tsx`；会话卡片用 `node --import tsx/esm scripts/downstream/verify-session-cards.tsx` 与 `node --import tsx/esm scripts/verify-plugin-command-output.mjs`。其他区域按贡献指南选测试。
 
 跟进上游时，从 `z` 建候选分支，把个人补丁 rebase 到选定稳定标签，
 用 `git range-diff` 核对旧、新补丁序列；通过验证并获授权后再推进 `z`。
@@ -17,6 +17,8 @@ HUD 改动的定向入口为 `node --import tsx/esm scripts/downstream/verify-hu
 它检查版本与标签、运行构建门禁、包验证、四组完整回归及下游定向回归，
 使用已有 publish-manifest 转换器打包，在全部成功后向当前私有仓库创建 Release。
 不向 npm 发布，不使用继承的上游发布工作流；继承工作流保持禁用。
+下游定向回归仅自动挂在此发布工作流中，`z` 的日常 push 不触发继承的 CI。
+因此候选 rebase 后应先运行对应的本地定向脚本，不能把日常分支的 CI 状态视为已验证下游行为。
 
 人工体验验收、独立审查和本地定向检查完成后，经授权合入 `z`、创建标签并推送私有 `origin`：
 
