@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from '../../ui.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { t } from '../../i18n.js'
+import { CardBox, useCardSurface } from '../cardSurface.js'
 
 type Props = {
   /** The sending team member's name. */
@@ -23,8 +24,9 @@ const MARK = '✉ '
  * (the main list, a child scene's padded page, a split with the workbench).
  */
 export function TeamMessageBubble({ sender, text, marginTopOnTurn, isSelected = false }: Props): React.ReactNode {
+  const card = useCardSurface('user')
   return (
-    <Box
+    <CardBox surface={card}
       flexDirection="column"
       marginTop={marginTopOnTurn ? 1 : 0}
       backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
@@ -39,6 +41,6 @@ export function TeamMessageBubble({ sender, text, marginTopOnTurn, isSelected = 
           <Text wrap="wrap">{text}</Text>
         </Box>
       </Box>
-    </Box>
+    </CardBox>
   )
 }

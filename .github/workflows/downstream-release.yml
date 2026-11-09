@@ -114,10 +114,16 @@ jobs:
       - run: node scripts/verify-installer-bundle.mjs
       - name: Downstream regressions
         run: |
-          for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts verify-session-cards.tsx; do
+          for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts verify-session-cards.tsx verify-card-styles.ts verify-card-rendering.tsx verify-card-demo.tsx verify-local-dst-profile.mjs; do
             node --import tsx/esm "scripts/downstream/$script" || exit "$?"
           done
           node --import tsx/esm scripts/verify-input-completions.tsx
+          # 卡片状态底色在两个色档上都要验：真彩档与 256 色档的量化结果不同
+          # （tmux 客户端不全部支持 RGB 时降到 2 档，见 src/ink/colorize.ts）。
+          FORCE_COLOR=2 node --import tsx/esm scripts/downstream/verify-card-rendering.tsx || exit "$?"
+          # 16 色档的降级同样有断言（diff 词色只能发终端自己的绿/红槽位），
+          # 与上面两档一起构成三档门禁。
+          FORCE_COLOR=1 node --import tsx/esm scripts/downstream/verify-card-rendering.tsx || exit "$?"
       - name: Package tested source
         id: package
         run: |

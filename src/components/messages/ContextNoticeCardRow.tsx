@@ -1,8 +1,10 @@
 import React from 'react'
-import { Box, Text } from '../../ui.js'
+import { Box, Text, useTheme } from '../../ui.js'
+import { isLightThemeActive } from '../../theme.js'
 import { t } from '../../i18n.js'
 import { cleanCardBody, cleanRenderText } from '../../channel/sanitize.js'
 import { primaryComboString } from '../../utils/keymap.js'
+import { useCardSurface } from '../cardSurface.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
 
 /** The collapsed summary follows the command card's render budget. */
@@ -12,8 +14,8 @@ const CONTEXT_NOTICE_SUMMARY_CELLS = 240
  * One generic context notice in the transcript — a durable message whose
  * producer declared `source.form: 'notice'`, whatever its kind.
  *
- * Collapsed (the default) it is ONE line: a neutral `[notice]` tag and the
- * producer's summary. It deliberately reads no severity from the tag, the
+ * Collapsed it shows the producer's summary: legacy uses one inline label,
+ * pi-like a separate title above a truncated summary in a neutral rail card. It deliberately reads no severity from the tag, the
  * summary or the body: a `notice` is a one-off account, not an error class.
  * The shared expansion — Ctrl+O globally, or a click / selection Enter on
  * this row (`expandedRows`) — reveals the complete saved body. That body is
@@ -45,8 +47,22 @@ export function ContextNoticeCardRow({
   // summary is never a cut of the raw string and the expanded body keeps
   // every line, CJK/emoji included.
   const content = React.useMemo(() => cleanCardBody(body), [body])
+  const card = useCardSurface('notice')
+  const [themeName] = useTheme()
+  const piLike = card.preset === 'pi-like'
+  if (piLike) return (
+    <Box flexDirection="column" {...card.box} backgroundColor={background ?? card.box.backgroundColor}
+      paddingLeft={card.style.paddingX + 1} paddingRight={card.style.paddingX + 1} onClick={onClick}>
+      <Text color={isLightThemeActive(themeName) ? 'text' : 'merged'} wrap="truncate-end">
+        {`${content === '' ? '·' : expanded ? '▾' : '▸'} ${t('context-notice-label')}${source === '' ? '' : ` · ${cleanRenderText(source, 60)}`}`}
+        {!expanded && content !== '' ? <Text dimColor>{` ${t('hint-expand-ctrl-o', { key: primaryComboString('transcript') })}`}</Text> : null}
+      </Text>
+      <Text wrap={expanded ? 'wrap' : 'truncate-end'}>{expanded && content !== '' ? content : headline}</Text>
+    </Box>
+  )
   return (
-    <Box flexDirection="column" paddingLeft={2} backgroundColor={background} onClick={onClick}>
+    <Box flexDirection="column" {...card.box} paddingLeft={2 + card.style.paddingX}
+      paddingRight={card.style.paddingX} backgroundColor={background ?? card.box.backgroundColor} onClick={onClick}>
       {/* One Text owns the line so a narrow terminal WRAPS it instead of
           clipping the summary away. */}
       <Text>

@@ -38,6 +38,9 @@ import { getRevealVersion, revealLengthOf, revealTextOf, scopeRevealKey } from '
 import { useRevealScope } from './revealScope.js'
 import { useRevealVersion } from '../hooks/useRevealVersion.js'
 import { TranscriptImages } from './messages/TranscriptImages.js'
+import { cardMarginTop, useCardSurface } from './cardSurface.js'
+import { CardBox, hashJobProgress, jobFoldDefaultSig, jobGroupOpened, useTranscriptCardStyles } from './transcriptCards.js'
+import { cardRowExpanded, type CardKind } from '../cardStyles.js'
 import { primaryComboString } from '../utils/keymap.js'
 
 /**
@@ -106,6 +109,24 @@ function isTurnRow(row: ChatRow): boolean {
  *  undefined for every other row, which renders as the human's prompt. */
 function teamSenderOf(row: ChatRow): string | undefined {
   return row.label === 'team-message' ? row.sender ?? '' : undefined
+}
+
+/** Transcript row kind → card style kind (cardStyles.ts). The style taxonomy
+ *  is coarser than the transcript's: thinking is the `thinking` card, the
+ *  compaction summary is `summary`, context notices are `notice`, and ordinary
+ *  notices / interrupts / local echoes / the turn ledger draw as `other`. */
+function cardKindOf(kind: ChatRow['kind']): CardKind {
+  switch (kind) {
+    case 'user': return 'user'
+    case 'assistant': return 'assistant'
+    case 'reasoning': return 'thinking'
+    case 'tool': return 'tool'
+    case 'subagent': return 'subagent'
+    case 'job': return 'job'
+    case 'compact': return 'summary'
+    case 'context-notice': return 'notice'
+    default: return 'other'
+  }
 }
 
 /** Keep a settled text-only reply visible when narration is its whole body. */
@@ -239,13 +260,15 @@ function signatureParts(
   displayTextLen: number,
   sessionCwd: string | undefined,
   fullscreen: boolean,
+  cardHeightKey: string,
 ): Array<string | number | boolean> {
   signatureScratch.length = 0
   // Universal height inputs: width reflows every row; kind switches height
   // semantics wholesale; text length drives wrapping. `displayTextLen` is the
   // REVEALED length while smooth streaming is painting (the height follows
   // what is on screen, not what has arrived).
-  signatureScratch.push(columns, row.kind, displayTextLen)
+  // `cardHeightKey`: resolved card styles change heights like width does.
+  signatureScratch.push(columns, row.kind, displayTextLen, cardHeightKey)
   const images = row.images
   signatureScratch.push(images?.length ?? 0)
   if (images?.length === 1) {
@@ -346,8 +369,8 @@ function signatureParts(
       signatureScratch.push(expanded, expandedRows.has(row.id), row.skill?.name ?? '')
       break
     case 'context-notice':
-      // One collapsed line (summary) vs the revealed saved body; the summary
-      // and both expansion switches are height inputs.
+      // Collapsed summary vs the revealed saved body; the summary and both
+      // expansion switches are height inputs (preset layout joins cardHeightKey).
       signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.source ?? '', row.contextNotice?.summary ?? '')
       break
     case 'compact':
@@ -559,6 +582,7 @@ export function MessageList({
   // Reveal memory is per Chat root: a recompose can mount this transcript
   // under a fresh root, and each root owns its row ids.
   const revealScope = useRevealScope()
+  const { cardStyles, cardHeightKey } = useTranscriptCardStyles(toolBackground)
   const hiddenCount = rows.length - RENDERED_ROW_CAP
   // The thinking filter runs BEFORE virtualization so window indices line up.
   //
@@ -577,6 +601,8 @@ export function MessageList({
     thinkingVisible: boolean
     out: readonly ChatRow[]
     margins: ReadonlyMap<number, boolean>
+    /** Style changes can add/remove the preset's minimum breathing row. */
+    cardHeightKey: string
     /** Per-row `streaming === true` bits. The settle flip (streaming cleared
      * in place, rows identity/length unchanged) changes empty-assistant
      * filtering below, so the cache must rebuild on any bit change. */
@@ -610,10 +636,12 @@ export function MessageList({
   // and a folded run REMOVES its members from the visible window. One
   // allocation-free pass over the row list (only job rows feed the hash).
   let jobsSig = (expanded ? 1 : 0) * 7 + (jobGroupFold === 'always' ? 1 : jobGroupFold === 'never' ? 2 : 3)
+    + jobFoldDefaultSig(cardStyles)
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!
     if (row.kind !== 'job' || row.job === undefined) continue
     jobsSig = (jobsSig * 33 + row.id + jobStatusCode(row.job.status) + (expandedRows.has(row.id) ? 7 : 0)) | 0
+    jobsSig = hashJobProgress(jobsSig, row.job)
   }
   if (
     visibleCache === null ||
@@ -621,6 +649,7 @@ export function MessageList({
     visibleCache.rowsLength !== rows.length ||
     visibleCache.showAll !== (showAll || hiddenCount <= 0) ||
     visibleCache.thinkingVisible !== thinkingVisible ||
+    visibleCache.cardHeightKey !== cardHeightKey ||
     visibleCache.jobsSig !== jobsSig ||
     visibleCache.turnRowOn !== turnUsageRow ||
     !streamBitsSame
@@ -743,7 +772,7 @@ export function MessageList({
       // every run; the header click lands in expandedRows.
       const foldMin = jobGroupFold === 'always' ? 2 : JOB_GROUP_FOLD_MIN
       const folded = jobGroupFold !== 'never' && count >= foldMin &&
-        (jobGroupFold === 'always' || running === 0) && !expanded && !expandedRows.has(head.id)
+        (jobGroupFold === 'always' || running === 0) && !expanded && !jobGroupOpened(cardStyles, expandedRows.has(head.id))
       for (let k = i; k <= end; k++) {
         // Copy-on-write: decorate a shallow copy. `out[k].jobGroup = …` in
         // place throws on the frozen rows the session projection delivers
@@ -779,7 +808,11 @@ export function MessageList({
       let prev: ChatRow['kind'] | undefined
       for (const row of visibleOut) {
         const member = row.jobGroup !== undefined && !row.jobGroup.head
-        margins.set(row.id, prev !== undefined && !member)
+        // `minimumGap` adds a real top row even for the first block (pi-like's
+        // breathing space); measured turn tops have to include it. Group
+        // members apply their minimum breathing space inside the card.
+        const breathing = !member && cardStyles.kinds[cardKindOf(row.kind)].minimumGap > 0
+        margins.set(row.id, (prev !== undefined && !member) || breathing)
         prev = row.kind
       }
     }
@@ -792,6 +825,7 @@ export function MessageList({
       thinkingVisible,
       out: visibleOut,
       margins,
+      cardHeightKey,
       streamBits,
       jobsSig,
       turnRowOn: turnUsageRow,
@@ -947,6 +981,7 @@ export function MessageList({
         revealDisplayLen(row, smoothStreaming, revealScope),
         sessionCwd,
         fullscreen,
+        cardHeightKey,
       )
       const cachedParts = sigs.get(row.id)
       let same = false
@@ -1567,6 +1602,19 @@ export function MessageList({
         // spacing; only the very first row of the whole list has none.
           const marginTopOnTurn = margins.get(row.id) === true
           const tool = row.tool
+          // Per-row expansion: the configured `defaultExpanded` is only the
+          // default for a row the user has not toggled (a click/Enter reverses
+          // it), and Ctrl+O still forces every row open. Job rows are the
+          // exception — their default is the GROUP state decided above, and
+          // this flag keeps meaning "the row was toggled" for the card body.
+          const toggled = expandedRows.has(row.id)
+          // A live thinking row's preview/full choice belongs to
+          // `dsh-tui.thinkingFold` and its per-row override, not to the card
+          // default (see CardFold): the default only reaches settled rows.
+          const liveThinking = row.kind === 'reasoning' && (row.streaming === true || row.thinkingOpen === true)
+          const rowExpanded = row.kind === 'job' || liveThinking
+            ? toggled
+            : cardRowExpanded(toggled, cardStyles.kinds[cardKindOf(row.kind)].fold?.defaultExpanded)
           const subagent = row.kind === 'subagent' ? row.subagent : undefined
           const job = row.kind === 'job' ? row.job : undefined
           const jobGroup = row.kind === 'job' ? row.jobGroup : undefined
@@ -1612,7 +1660,7 @@ export function MessageList({
               time={row.time}
               marginTopOnTurn={marginTopOnTurn}
               isSelected={selectedId === row.id}
-              isExpanded={expandedRows.has(row.id)}
+              isExpanded={rowExpanded}
               expanded={expanded}
               model={model}
               diffLayout={diffLayout}
@@ -1904,6 +1952,8 @@ function TranscriptRow({
   }, [onOpenSubagent, subagent])
   // compact 摘要折叠行 hover 轻指示（∴ 提亮，不刷背景）。
   const [compactHovered, setCompactHovered] = useState(false)
+  // Card face for the rows drawn inline here (see CardBox).
+  const card = useCardSurface(cardKindOf(kind), { toolBackground })
 
   // Long single lines are clipped before layout (utils/fold-long-lines.ts):
   // one 300k-char paste or minified-JS line otherwise wraps into thousands of
@@ -1966,7 +2016,7 @@ function TranscriptRow({
       )
     case 'assistant':
       return streaming ? (
-        <Box
+        <CardBox surface={card}
           alignItems="flex-start"
           flexDirection="row"
           marginTop={marginTopOnTurn ? 1 : 0}
@@ -1983,7 +2033,7 @@ function TranscriptRow({
             <StreamingMarkdown>{displayText}</StreamingMarkdown>
             {images !== undefined && <TranscriptImages images={images} indent={0} onPreview={onPreviewImage} suppressGraphics={suppressImageGraphics} />}
           </Box>
-        </Box>
+        </CardBox>
       ) : (
         <Box
           width="100%"
@@ -2092,15 +2142,15 @@ function TranscriptRow({
     }
     case 'notice':
       return (
-        <Box marginTop={1} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
+        <CardBox surface={card} marginTop={1} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
           <Divider title={` ${displayText} `} />
-        </Box>
+        </CardBox>
       )
     case 'interrupt':
       return (
-        <Box marginTop={1} ref={ref}>
+        <CardBox surface={card} marginTop={1} ref={ref}>
           <TurnInterruptedRow backendLabel={interruptBackend} />
-        </Box>
+        </CardBox>
       )
     case 'turn-summary':
       // The turn's closing ledger: a quiet RIGHT-aligned
@@ -2110,22 +2160,22 @@ function TranscriptRow({
       // against).
       if (turnUsage === undefined) return null
       return (
-        <Box paddingLeft={2} width="100%" flexDirection="row" justifyContent="flex-end" ref={ref}>
+        <CardBox surface={card} paddingLeft={2} width="100%" flexDirection="row" justifyContent="flex-end" ref={ref}>
           <TurnUsageRow usage={turnUsage} />
-        </Box>
+        </CardBox>
       )
     case 'local':
       // `!` mode command echo.
       return (
-        <Box marginTop={1} backgroundColor={background} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
+        <CardBox surface={card} marginTop={1} backgroundColor={background} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
           <Text color="bashBorder">!{executionTarget ? ` [${executionTarget}]` : ''} {displayText}</Text>
-        </Box>
+        </CardBox>
       )
     case 'local-output':
       return (
-        <Box paddingLeft={2} backgroundColor={background} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
+        <CardBox surface={card} paddingLeft={2} backgroundColor={background} ref={ref} onClick={foldClickable ? foldOnClick : undefined}>
           <Text dimColor>{displayText}</Text>
-        </Box>
+        </CardBox>
       )
     case 'command':
       if (commandName === undefined || commandStatus === undefined) return null
@@ -2162,10 +2212,10 @@ function TranscriptRow({
       )
     case 'context-notice':
       if (contextSummary === undefined) return null
-      // A generic context notice: one line while it stays folded, the saved
-      // complete body once expanded. No severity styling is inferred.
+      // A generic context notice: a folded summary or the saved complete body.
+      // Its neutral notice face never infers severity from the message text.
       return (
-        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
+        <Box flexDirection="column" ref={ref} marginTop={cardMarginTop(marginTopOnTurn, card.style)}>
           <ContextNoticeCardRow
             source={contextSource ?? ''}
             summary={contextSummary}
@@ -2181,7 +2231,7 @@ function TranscriptRow({
       // text preview; Ctrl+O (global), message-selection Enter, or a click
       // reveals the full summary.
       return (
-        <Box
+        <CardBox surface={card}
           marginTop={marginTopOnTurn ? 1 : 0}
           paddingLeft={2}
           backgroundColor={background}
@@ -2199,7 +2249,7 @@ function TranscriptRow({
               {t('hint-expand-ctrl-o', { key: primaryComboString('transcript') })}
             </Text>
           )}
-        </Box>
+        </CardBox>
       )
     case 'subagent':
       if (!subagent) return null
@@ -2226,8 +2276,8 @@ function TranscriptRow({
           flexDirection="column"
           // The head's block margin moves UP to the group (the summary line
           // is what separates the run from what precedes it); the card under
-          // it must not add a second blank line.
-          marginTop={groupHead && marginTopOnTurn ? 1 : 0}
+          // it keeps only the preset breathing row, never a second transition.
+          marginTop={groupHead ? cardMarginTop(marginTopOnTurn, card.style) : 0}
           ref={ref}
         >
           {groupHead && <JobGroupHeader group={jobGroup} onToggle={toggleJobGroup} />}

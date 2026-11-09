@@ -18,7 +18,7 @@ if (selected === undefined) {
   const outputs = []
   for (const fixture of cases) {
     const env = { ...process.env }
-    for (const key of ['FORCE_COLOR', 'NO_COLOR', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'COLORTERM', 'TMUX', 'DSH_TUI_TMUX_TRUECOLOR', 'CI']) delete env[key]
+    for (const key of ['FORCE_COLOR', 'NO_COLOR', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'COLORTERM', 'TMUX', 'TMUX_PANE', 'DSH_TUI_TMUX_TRUECOLOR', 'CI']) delete env[key]
     const result = spawnSync(process.execPath, ['--import', 'tsx/esm', fileURLToPath(import.meta.url), fixture.name], {
       env: { ...env, ...fixture.env }, encoding: 'utf8', timeout: 30_000,
     })

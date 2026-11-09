@@ -17,6 +17,7 @@ import { t } from '../i18n.js'
 import { useTheme } from './design-system/ThemeProvider.js'
 import type { ToolBackground } from '../tuiDisplayPrefs.js'
 import { revealLinesOf } from './smoothReveal.js'
+import { changedLineTint, changedWordColor, type SplitDiffPresentation } from './diffAppearance.js'
 import { getGraphemeSegmenter } from '../utils/intl.js'
 import { primaryComboString } from '../utils/keymap.js'
 import { isPatchDiff, parseFilePatch, patchHeader, patchHeaderText, type ParsedPatch, type PatchLine } from './diffPatch.js'
@@ -500,6 +501,7 @@ function PaneLine({
   width,
   tone,
   toolBackground,
+  presentation,
   paneId,
   padding,
   continuation,
@@ -513,6 +515,7 @@ function PaneLine({
   readonly width: number
   readonly tone: 'old' | 'new'
   readonly toolBackground: ToolBackground
+  readonly presentation: SplitDiffPresentation | undefined
 }): React.ReactNode {
   const ordinaryBackground = toolBackground === 'subtle'
     ? 'toolCardBackgroundDim'
@@ -521,13 +524,14 @@ function PaneLine({
       : undefined
   // Additions/removals keep their semantic tint; unchanged and empty panes
   // inherit the configured ordinary tool-card surface.
-  const backgroundColor =
-    kind === 'context'
+  const backgroundColor = presentation?.quietTints === true
+    ? changedLineTint(presentation, kind, tone)
+    : kind === 'context'
       ? ordinaryBackground
       : tone === 'old'
         ? 'diffRemovedDimmed'
         : 'diffAddedDimmed'
-  const wordColor = tone === 'old' ? 'diffRemovedWord' : 'diffAddedWord'
+  const wordColor = changedWordColor(presentation, kind, tone) ?? (tone === 'old' ? 'diffRemovedWord' : 'diffAddedWord')
   return (
     <Box width={width} flexShrink={0} backgroundColor={backgroundColor} selectionPane={paneId} noSelect={padding} softWrapContinuation={continuation}>
       <Box noSelect><Text dimColor backgroundColor={backgroundColor}>{prefix}</Text></Box>
@@ -561,6 +565,7 @@ export function SplitDiffView({
   maxRows,
   verbose,
   toolBackground = 'none',
+  presentation,
   reveal,
 }: {
   readonly diffs: readonly ToolFileDiff[]
@@ -570,6 +575,7 @@ export function SplitDiffView({
   readonly maxRows: number
   readonly verbose: boolean
   readonly toolBackground?: ToolBackground
+  readonly presentation?: SplitDiffPresentation
   /**
    * Smooth-streaming participation (the card owning this view computes
    * eligibility): when present, the capped row list reveals line-by-line at
@@ -761,11 +767,11 @@ export function SplitDiffView({
         const rightPad = ' '.repeat(stringWidth(plan.rightPrefix))
         return Array.from({ length: plan.height }, (_, visual) => (
           <Box key={`${index}-${visual}`} flexDirection="row">
-            {plan.singleSide !== 'new' && <PaneLine padding={plan.leftRows[visual] === undefined} paneId={paneId + '-old'} continuation={visual > 0 && plan.leftRows[visual] !== undefined ? stringWidth(plan.leftPrefix) + stringWidth(plan.leftRows[visual - 1]!.map(s => s.text).join('')) : undefined} segments={plan.leftRows[visual]} prefix={visual === 0 ? plan.leftPrefix : leftPad} kind={plan.leftKind} tone="old" width={plan.paneWidth} toolBackground={toolBackground} />}
+            {plan.singleSide !== 'new' && <PaneLine padding={plan.leftRows[visual] === undefined} paneId={paneId + '-old'} continuation={visual > 0 && plan.leftRows[visual] !== undefined ? stringWidth(plan.leftPrefix) + stringWidth(plan.leftRows[visual - 1]!.map(s => s.text).join('')) : undefined} segments={plan.leftRows[visual]} prefix={visual === 0 ? plan.leftPrefix : leftPad} kind={plan.leftKind} tone="old" width={plan.paneWidth} toolBackground={toolBackground} presentation={presentation} />}
             {plan.singleSide === undefined && <Box width={1} flexShrink={0} noSelect>
               <Text dimColor>│</Text>
             </Box>}
-            {plan.singleSide !== 'old' && <PaneLine padding={plan.rightRows[visual] === undefined} paneId={paneId + '-new'} continuation={visual > 0 && plan.rightRows[visual] !== undefined ? stringWidth(plan.rightPrefix) + stringWidth(plan.rightRows[visual - 1]!.map(s => s.text).join('')) : undefined} segments={plan.rightRows[visual]} prefix={visual === 0 ? plan.rightPrefix : rightPad} kind={plan.rightKind} tone="new" width={plan.paneWidth} toolBackground={toolBackground} />}
+            {plan.singleSide !== 'old' && <PaneLine padding={plan.rightRows[visual] === undefined} paneId={paneId + '-new'} continuation={visual > 0 && plan.rightRows[visual] !== undefined ? stringWidth(plan.rightPrefix) + stringWidth(plan.rightRows[visual - 1]!.map(s => s.text).join('')) : undefined} segments={plan.rightRows[visual]} prefix={visual === 0 ? plan.rightPrefix : rightPad} kind={plan.rightKind} tone="new" width={plan.paneWidth} toolBackground={toolBackground} presentation={presentation} />}
           </Box>
         ))
       })}

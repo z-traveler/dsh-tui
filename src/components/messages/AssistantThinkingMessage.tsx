@@ -14,6 +14,7 @@ import { interpolateColor } from '../Spinner/spinnerUtils.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
 import { primaryComboString } from '../../utils/keymap.js'
+import { CardBox, useCardSurface } from '../cardSurface.js'
 
 /** Preview body rows — a FIXED row count (kimicode-style constant-height
  *  ticker). Ink's truncate slices the whole string across newlines as one
@@ -76,6 +77,21 @@ export function AssistantThinkingMessage({
   isSelected = false,
   onClick,
 }: Props): React.ReactNode {
+  const card = useCardSurface('thinking')
+  // 配置的 previewLines 只改这条流式 ticker 的行数（固定高度是它的契约），
+  // 静态折叠仍是只留表头。
+  const previewRows = card.style.fold?.previewLines ?? PREVIEW_ROWS
+  // A streaming row can go from token-only to text without remounting.
+  // Keep every hook above the empty-text return, but only tick for text.
+  const [frame, setFrame] = React.useState(0)
+  const [hovered, setHovered] = React.useState(false)
+  const hasThinking = Boolean(thinking)
+  React.useEffect(() => {
+    if (!streaming || !hasThinking) return
+    const interval = setInterval(() => setFrame(f => f + 1), THINKING_SPINNER_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [streaming, hasThinking])
+
   if (!thinking) {
     if (reasoningTokens === undefined) return null
     return (
@@ -94,15 +110,6 @@ export function AssistantThinkingMessage({
   // — the revealed slice under smooth streaming, the full text otherwise.
   const tickerText = textFull ?? thinking
 
-  // Spinner frame (80ms cadence, only while the reasoning is still
-  // streaming — same pattern as BtwPanel's answering spinner).
-  const [frame, setFrame] = React.useState(0)
-  React.useEffect(() => {
-    if (!streaming) return
-    const interval = setInterval(() => setFrame(f => f + 1), THINKING_SPINNER_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [streaming])
-
   const duration =
     durationMs !== undefined && durationMs >= 1000
       ? ` · ${formatDuration(durationMs)}`
@@ -119,7 +126,6 @@ export function AssistantThinkingMessage({
   const frameText = THINKING_SPINNER_FRAMES[frame % THINKING_SPINNER_FRAMES.length]!
   // Hover 轻指示：可点击折叠时折叠头从 dim 提亮为正常色（不刷整行背景，
   // 转录视觉保持安静）。
-  const [hovered, setHovered] = React.useState(false)
   const hoverProps = onClick !== undefined
     ? { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }
     : {}
@@ -143,16 +149,16 @@ export function AssistantThinkingMessage({
     // at the line's end — stay visible while the line is longer than the
     // width.
     const lines = tickerText.split('\n')
-    const visible = lines.slice(-PREVIEW_ROWS)
+    const visible = lines.slice(-previewRows)
     const clipped = lines.length > visible.length
     // Pad with single spaces — an empty-string Text renders with zero
     // height in ink, so '' padding would not hold the row open.
     const rows = Array.from(
-      { length: PREVIEW_ROWS },
+      { length: previewRows },
       (_, i) => visible[i] ?? ' ',
     )
     return (
-      <Box
+      <CardBox surface={card}
         flexDirection="column"
         marginTop={marginTopOnTurn ? 1 : 0}
         backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
@@ -163,7 +169,7 @@ export function AssistantThinkingMessage({
         <Box
           flexDirection="column"
           paddingLeft={2}
-          height={PREVIEW_ROWS}
+          height={previewRows}
           flexShrink={0}
           overflow="hidden"
         >
@@ -185,25 +191,25 @@ export function AssistantThinkingMessage({
             </Box>
           ))}
         </Box>
-      </Box>
+      </CardBox>
     )
   }
 
   if (!verbose) {
     return (
-      <Box
+      <CardBox surface={card}
         marginTop={marginTopOnTurn ? 1 : 0}
         backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
         onClick={onClick}
         {...hoverProps}
       >
         {header}
-      </Box>
+      </CardBox>
     )
   }
 
   return (
-    <Box
+    <CardBox surface={card}
       flexDirection="column"
       gap={1}
       marginTop={marginTopOnTurn ? 1 : 0}
@@ -219,7 +225,7 @@ export function AssistantThinkingMessage({
           cost at O(new content) instead of re-laying out the whole block. */}
         <StreamingMarkdown dimColor>{thinking}</StreamingMarkdown>
       </Box>
-    </Box>
+    </CardBox>
   )
 }
 
@@ -249,12 +255,13 @@ function ThinkingTokensHeader({
     return () => clearInterval(interval)
   }, [streaming])
   const minimalUi = isMinimalUiMode()
+  const card = useCardSurface('thinking')
   const n = formatTokens(tokens)
   const pulse = (Math.sin(frame * 0.9) + 1) / 2
   const pulseColor = interpolateColor(BRAND, ICE, pulse)
   const frameText = THINKING_SPINNER_FRAMES[frame % THINKING_SPINNER_FRAMES.length]!
   return (
-    <Box
+    <CardBox surface={card}
       flexDirection="row"
       marginTop={marginTopOnTurn ? 1 : 0}
       backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
@@ -268,6 +275,6 @@ function ThinkingTokensHeader({
       ) : (
         <Text dimColor italic>{`${minimalUi ? '*' : THINKING_SETTLED_MARKER} ${t('thinking-tokens-done', { n })}`}</Text>
       )}
-    </Box>
+    </CardBox>
   )
 }

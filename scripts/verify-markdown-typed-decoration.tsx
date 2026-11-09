@@ -16,13 +16,16 @@
  *  5. The selection fingerprint reads the same screen planes.
  *  6. Mermaid fallback shares the typed frame; a changed decoration
  *     object invalidates the paint cache.
- *  7. codeFrameStyle setting: light default, full box, round trip.
+ *  7. codeFrameStyle setting: full box, narrow fallback, round trip.
  *  8. A Text gaining or losing its decoration keeps its hook count.
  *  9. Measure matches paint, and decoration never paints past its node.
  * 10. Code soft wraps copy source characters across styles and engines;
  *     partial, reverse, clipped and scrolled selections keep that contract.
  * 11. Alternating hard/soft masks replay only the visible runs on cache hits.
  * 12. Real full-width ScrollBox shifts carry wrap metadata with their rows.
+ * 13. An unset codeFrameStyle follows the card-style preset (legacy light,
+ *     pi-like full); explicit light/full wins, clearing returns to the
+ *     preset default.
  *
  * Run: node --import tsx/esm scripts/verify-markdown-typed-decoration.tsx
  */
@@ -351,10 +354,10 @@ assert.equal(liveRow(), RAIL + ' ' + body, 'switching back repaints again')
 await app2.unmount()
 console.log('6. mermaid fallback shares the typed frame; decoration identity keys the paint cache')
 
-// -- 7. codeFrameStyle setting: light default, full form, roundtrip -------
+// -- 7. codeFrameStyle setting: explicit full form, roundtrip ----------------
 
-const { applyCodeFrameStyle, getCodeFrameStyle } = await import('../src/tuiDisplayPrefs.js')
-assert.equal(getCodeFrameStyle(), 'light', 'light is the default frame style')
+const { applyCodeFrameStyle, getCodeFrameStyle, getCodeFrameStyleOverride } = await import('../src/tuiDisplayPrefs.js')
+assert.equal(getCodeFrameStyle(), 'light', 'the effective getter still reads light while the setting is unset')
 assert.equal(applyCodeFrameStyle('nonsense'), 'light', 'normalize rejects unknown values')
 
 // Light rows byte-identical with section 3 (the default path is unchanged).
@@ -731,5 +734,84 @@ for (const shape of ['plain', 'light/typed', 'light/hybrid', 'full/typed', 'full
   await app.unmount()
 }
 console.log('12. real full-width ScrollBox: plain/typed/hybrid, both frames, scroll down/up/back, copy and footer mask')
+
+// -- 13. Unset codeFrameStyle follows the card-style preset ---------------
+
+// No explicit setting: the frame asks the card-style preset (cardStyles.ts).
+// `legacy` keeps the open rail, `pi-like` closes the box; an explicit
+// light/full outranks the preset, and clearing it returns to the preset
+// default instead of latching the last value.
+const { applyCardStyles } = await import('../src/cardStyles.js')
+const FENCE = codeToken('ts', 'const a = 1' + NL + 'const bb = 2')
+const fenceRows = () => snap(<CodeBlockFrame token={FENCE} highlight={null} />, 60).rows
+function assertClosedBox(rows: string[], label: string) {
+  const body = rows.filter(row => row !== '')
+  assert.ok(body.length >= 4, label + ': header, body rows and a bottom edge')
+  assert.ok(body[0]!.startsWith('\u250c\u2500 ts ') && body[0]!.endsWith('\u2500\u2510'),
+    label + ': closed header: ' + JSON.stringify(body[0]))
+  for (const row of body.slice(1, -1)) {
+    assert.ok(row.startsWith(RAIL + ' ') && row.endsWith(RAIL),
+      label + ': every body row keeps the rail and the right wall: ' + JSON.stringify(row))
+  }
+  const bottom = body[body.length - 1]!
+  assert.ok(bottom.startsWith('\u2514\u2500') && bottom.endsWith('\u2500\u2518'),
+    label + ': bottom edge closes the box: ' + JSON.stringify(bottom))
+}
+
+applyCardStyles(undefined)
+applyCodeFrameStyle(undefined)
+assert.equal(getCodeFrameStyleOverride(), undefined, 'unset frame style keeps no explicit value')
+assert.equal(getCodeFrameStyle(), 'light', 'the public effective getter still reads light when unset')
+const legacyFence = fenceRows()
+assert.deepEqual(snap(<Markdown>{SRC}</Markdown>, 60).rows, target.rows,
+  'legacy preset + unset style keeps the section-3 rows')
+
+// pi-like preset: the same unset setting now closes the box.
+applyCardStyles({ preset: 'pi-like' })
+const piFence = fenceRows()
+assertClosedBox(piFence, 'pi-like preset + unset style')
+
+// An explicit light outranks the preset (and keeps the rail bytes).
+applyCodeFrameStyle('light')
+assert.equal(getCodeFrameStyleOverride(), 'light', 'an explicit light is recorded')
+assert.deepEqual(fenceRows(), legacyFence, 'pi-like preset + explicit light keeps the light rows byte-identical')
+
+// Clearing the setting returns to the preset default, not to the last value.
+applyCodeFrameStyle(undefined)
+assert.equal(getCodeFrameStyleOverride(), undefined, 'clearing drops the explicit choice')
+assert.deepEqual(fenceRows(), piFence, 'cleared style follows pi-like again (no latched light)')
+
+// An explicit full is preserved under legacy.
+applyCardStyles(undefined)
+applyCodeFrameStyle('full')
+assertClosedBox(fenceRows(), 'legacy preset + explicit full')
+
+// Live preset switching with the setting cleared flips the default both ways.
+applyCodeFrameStyle(undefined)
+assert.deepEqual(fenceRows(), legacyFence, 'legacy preset + unset style after an explicit full')
+applyCardStyles({ preset: 'pi-like' })
+assertClosedBox(fenceRows(), 'preset switched to pi-like with the setting unset')
+applyCardStyles(undefined)
+assert.deepEqual(fenceRows(), legacyFence, 'preset switched back to legacy with the setting unset')
+
+// The narrow fallback, wall exclusion and body copy still hold under the
+// preset-provided full default.
+applyCardStyles({ preset: 'pi-like' })
+const tinyPi = snap(<CodeBlockFrame token={codeToken('js', 'const a = 1')} highlight={null} />, 12)
+assert.ok(tinyPi.rows.some(row => row.startsWith('```js')),
+  'net width < 8 keeps the ANSI fence under a preset-provided full default')
+assert.ok(!tinyPi.rows.some(row => row.includes('\u2510')), 'no closed-box glyphs in the narrow fallback')
+const piCopy = snap(<CodeBlockFrame token={codeToken('txt', LONG_CODE)} highlight={null} />, 20)
+const piLastBody = piCopy.rows.length - 2
+assert.ok(piCopy.rows[piLastBody]!.endsWith(RAIL), 'the last body row still carries the right wall')
+assert.ok(piCopy.rows[piCopy.rows.length - 1]!.startsWith('\u2514\u2500'), 'the bottom edge follows the body')
+assert.equal(copyRect(piCopy.screen, [2, 1], [19, piLastBody]), LONG_CODE,
+  'pi-like default full box copies the clean payload')
+assert.equal(piCopy.screen.noSelect[1 * 20 + 19], 1, 'the right wall stays out of the selection')
+
+// Leave the stores as the earlier sections expect them.
+applyCardStyles(undefined)
+applyCodeFrameStyle('light')
+console.log('13. codeFrameStyle: unset follows the card-style preset (legacy light, pi-like full), explicit light/full wins, clearing and preset switches restore the preset default, narrow fallback and copy unchanged')
 
 console.log('markdown typed decoration verified (engine equivalence, structure counts, copy contract, hanging continuations, fingerprint, mermaid sharing, cache identity, frame style, decoration toggle, measure/paint agreement)')
