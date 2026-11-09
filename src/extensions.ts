@@ -3,7 +3,7 @@
 // Plugin authors import the seam types from here
 // (`@deepseek-harness-tui/dsh-tui/extensions`); importing the module also
 // applies the `declare module '@deepseek-ai/cordis'` augmentation for the
-// decision events and the five service properties on Context. In particular,
+// decision events and the service properties on Context. In particular,
 // `tuiStatus.registerView()` returns `undefined` when the host refuses a rich
 // registration, or a cleanup-aware disposer when it admits one.
 export * from './dsh-adapter/extensions.js'
@@ -88,6 +88,16 @@ export type {
   TuiInputCompletionToken,
   TuiInputCompletionTrigger,
 } from './dsh-adapter/input-completions.js'
+// The host-integration seam: the foreground binding reader/change callback and
+// the per-launch prompt editor extension. The host side (publish/prepare
+// accessors) stays behind the adapter boundary.
+export { TuiIntegrationRuntime } from './dsh-adapter/integration.js'
+export type {
+  TuiForegroundBinding,
+  PromptEditorLaunch,
+  PromptEditorPrepare,
+  PromptEditorPrepareContext,
+} from './dsh-adapter/integration.js'
 // The D-7 permission vocabulary (which grant each decision event needs) is
 // part of the plugin-facing contract too.
 export { DECISION_EVENT_PERMISSIONS } from './dsh-adapter/decision-guard.js'

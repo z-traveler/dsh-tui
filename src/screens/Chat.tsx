@@ -18,6 +18,7 @@ import { previousCodePoint } from '../components/AgentMessageComposer.js'
 import { resetRevealSession } from '../components/smoothReveal.js'
 import { RevealScopeContext } from '../components/revealScope.js'
 import { isPlainReturnInput } from '../utils/modifiers.js'
+import type { PromptEditorPrepare } from '../utils/promptEditorLaunch.js'
 import { actionMatches, effectiveComboDisplay, primaryComboString } from '../utils/keymap.js'
 import { formatTokens } from '../terminal-utils/format.js'
 import { formatClock } from '../trajectory/format.js'
@@ -431,6 +432,7 @@ export function Chat({
   activityStore,
   extensionShortcuts,
   inputCompletions,
+  promptEditor,
   themeHost,
   onExit,
   onUpdate,
@@ -485,6 +487,9 @@ export function Chat({
    * neither registers sources nor reads the registry. Absent on bare embeds.
    */
   inputCompletions?: TuiInputCompletionHost
+  /** Ctrl+G launch extension registered by an external plugin (the
+   *  `tuiIntegration` row). Absent → the built-in launch, unchanged. */
+  promptEditor?: PromptEditorPrepare
   /** Optional runtime theme host; static JSON themes work without it. */
   themeHost?: TuiThemeHost
   onExit: () => void
@@ -7580,6 +7585,7 @@ export function Chat({
           onCaretImage={handleCaretImage}
           caretPreviewOpen={peekPreview !== null}
           onDismissCaretPreview={dismissPeek}
+          promptEditor={promptEditor}
         />
         <StatusLine
           channel={channel}

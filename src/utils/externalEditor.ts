@@ -41,6 +41,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join, win32 } from 'node:path'
 import instances from '../ink/instances.js'
 import { cmdEscapeArgument, cmdEscapeCommand } from './shellQuote.js'
+import { preparePromptEditorLaunch, type PreparedPromptEditorLaunch, type PromptEditorLaunchOptions } from './promptEditorLaunch.js'
 
 /**
  * Outcome of one editor round-trip; the caller maps these to UI feedback:
@@ -57,6 +58,7 @@ export type EditorOutcome =
   | { kind: 'unchanged' }
   | { kind: 'unavailable' }
   | { kind: 'failed'; message: string }
+
 
 /**
  * Split an `$EDITOR`-style command line into argv, honoring single/double
@@ -177,9 +179,15 @@ export function buildCmdExeSpawn(
  * Run the editor to completion with the terminal attached; resolves to the
  * exit code, or -1 when the process could not start — including a
  * SYNCHRONOUS spawn failure (e.g. an empty command string), which would
- * otherwise reject the promise and skip every cleanup step.
+ * otherwise reject the promise and skip every cleanup step. `argv` already
+ * carries the draft file as its last element; `env` (when a hook supplied
+ * one) is the child's environment in place of the inherited one.
  */
-function runEditor(argv: readonly string[], file: string): Promise<number> {
+function runEditor(argv: readonly string[], env: Readonly<Record<string, string>> | undefined): Promise<number> {
+  const [command, ...args] = argv
+  // The child env is the hook's only process-level reach: it is built per
+  // spawn, so nothing is written back to process.env.
+  const options = { stdio: 'inherit' as const, ...(env === undefined ? {} : { env: { ...process.env, ...env } }) }
   return new Promise(resolve => {
     let settled = false
     const finish = (code: number): void => {
@@ -190,18 +198,18 @@ function runEditor(argv: readonly string[], file: string): Promise<number> {
     let child
     try {
       if (process.platform === 'win32') {
-        const shim = resolveWindowsShim(argv[0]!)
+        const shim = resolveWindowsShim(command!)
         if (shim.viaCmd) {
-          const cmd = buildCmdExeSpawn(shim.command, [...argv.slice(1), file])
+          const cmd = buildCmdExeSpawn(shim.command, args)
           child = spawn(cmd.file, cmd.args, {
-            stdio: 'inherit',
+            ...options,
             windowsVerbatimArguments: cmd.verbatim,
           })
         } else {
-          child = spawn(shim.command, [...argv.slice(1), file], { stdio: 'inherit' })
+          child = spawn(shim.command, args, options)
         }
       } else {
-        child = spawn(argv[0]!, [...argv.slice(1), file], { stdio: 'inherit' })
+        child = spawn(command!, args, options)
       }
     } catch {
       finish(-1)
@@ -236,7 +244,7 @@ function errorMessage(error: unknown): string {
  * user content. Trailing blank lines the user actually added (or had in
  * the draft, e.g. from Shift+Enter) survive untouched.
  */
-export async function editInExternalEditor(draft: string): Promise<EditorOutcome> {
+export async function editInExternalEditor(draft: string, options?: PromptEditorLaunchOptions): Promise<EditorOutcome> {
   const argv = resolveEditorCommand()
   if (argv === undefined) return { kind: 'unavailable' }
 
@@ -247,17 +255,21 @@ export async function editInExternalEditor(draft: string): Promise<EditorOutcome
     (instances.size === 1 ? [...instances.values()][0] : undefined)
   let handed = false
   let dir: string | undefined
+  let launch: PreparedPromptEditorLaunch | undefined
   try {
     dir = await mkdtemp(join(tmpdir(), 'dsh-tui-prompt-'))
     // .md so markdown-aware editors highlight the draft like a chat message.
     const file = join(dir, 'input.md')
     await writeFile(file, draft, 'utf8')
 
+    launch = await preparePromptEditorLaunch(options, file, [...argv, file])
+
     // Mark the handover as attempted BEFORE entering: if enter fails after
     // suspending stdin, the finally must still run the restore pass.
     handed = ink !== undefined
     ink?.enterAlternateScreen()
-    const code = await runEditor(argv, file)
+    const code = await runEditor(launch.argv, launch.env)
+    await launch.release()
     // Read back BEFORE the finally resumes stdin — keystrokes typed the
     // moment the editor exits must not race the prompt adopting the result.
     const saved = await readFile(file, 'utf8').catch(() => null)
@@ -281,6 +293,7 @@ export async function editInExternalEditor(draft: string): Promise<EditorOutcome
     if (dir !== undefined) {
       await rm(dir, { recursive: true, force: true }).catch(() => {})
     }
+    await launch?.release()
     if (handed) {
       try {
         ink?.exitAlternateScreen()

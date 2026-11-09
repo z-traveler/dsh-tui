@@ -195,6 +195,11 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
   TuiEffectLedgerRuntime: {
     record: { kind: 'capability', capability: 'host.ledger.record', guard: 'kernel' },
   },
+  TuiIntegrationRuntime: {
+    getForeground: { kind: 'exempt', reason: 'read-only snapshot of the published foreground binding; no effect' },
+    onChange: { kind: 'capability', capability: 'host.integration.subscribe' },
+    registerEditor: { kind: 'capability', capability: 'host.integration.register-editor' },
+  },
 }
 
 /**
@@ -795,6 +800,12 @@ try {
   const {
     ApprovalStore,
   } = await import('../src/dsh-adapter/approvals.js')
+  const { TuiIntegrationRuntime } = await import('../src/dsh-adapter/integration.js')
+  const p3Integration = new TuiIntegrationRuntime(passiveRoot)
+  process.env.DSH_TUI_ADAPTER_MODE = 'new'
+  assert.throws(() => p3Integration.onChange(() => undefined), /shadow policy denies/)
+  assert.throws(() => p3Integration.registerEditor(() => undefined), /shadow policy denies/)
+  process.env.DSH_TUI_ADAPTER_MODE = 'passive-shadow'
   const p3Scenes = new TuiSceneRuntime(passiveRoot)
   const p3Panels = new TuiPanelRuntime(passiveRoot)
   const p3Settings = new TuiSettingsSectionsRuntime(passiveRoot)
@@ -961,6 +972,12 @@ try {
   const {
     ApprovalStore,
   } = await import('../src/dsh-adapter/approvals.js')
+  const { TuiIntegrationRuntime } = await import('../src/dsh-adapter/integration.js')
+  const p3Integration = new TuiIntegrationRuntime(root)
+  process.env.DSH_TUI_ADAPTER_MODE = 'new'
+  assert.throws(() => p3Integration.onChange(() => undefined), /shadow policy denies/)
+  assert.throws(() => p3Integration.registerEditor(() => undefined), /shadow policy denies/)
+  process.env.DSH_TUI_ADAPTER_MODE = 'replay-shadow'
   const p3Scenes = new TuiSceneRuntime(root)
   const p3Panels = new TuiPanelRuntime(root)
   const p3Settings = new TuiSettingsSectionsRuntime(root)

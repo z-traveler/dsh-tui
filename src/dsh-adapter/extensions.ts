@@ -15,6 +15,12 @@
  * - `ctx.tuiThemes`    — runtime theme declarations (host-readable)
  * - `ctx.tuiInputCompletions` — plugin input-completion sources (host-owned
  *   token bounds, menu, keys and replacement; see `input-completions.ts`)
+ * - `ctx.tuiSessions` — read-only current binding and fork/rewind notifications
+ *   (`./tui-sessions.ts`)
+ * - `ctx.tuiIntegration` — the foreground binding (reader + change callback)
+ *   and the per-launch prompt-editor extension point for external plugins
+ *   (`./integration.ts`); the channel publishes into it, the editor launch
+ *   consults it, and without this row both degrade to the built-in behavior.
  *
  * The decision-point events (`tui/input`, `tui/rewind-prompt`, …) need no
  * separate service — they are fired by the channel and answered through the
@@ -42,6 +48,7 @@ import TuiToastRuntime from './toast.js'
 import TuiThemeRuntime from './themes.js'
 import TuiInputCompletionRuntime from './input-completions.js'
 import { TuiSessionsRuntime } from './tui-sessions.js'
+import TuiIntegrationRuntime from './integration.js'
 import { installDecisionGuard } from './decision-guard.js'
 import { readGrantStore } from '../adapter/standard/grants.js'
 import { adapterRuntimeFor } from '../adapter/kernel/runtime-context.js'
@@ -58,4 +65,5 @@ export function apply(ctx: Context): void {
   ctx.plugin(TuiThemeRuntime)
   ctx.plugin(TuiInputCompletionRuntime)
   ctx.plugin(TuiSessionsRuntime)
+  ctx.plugin(TuiIntegrationRuntime)
 }

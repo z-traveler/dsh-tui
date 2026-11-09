@@ -101,6 +101,7 @@ import { createTeamCommandEntry, filterTeamReplacedTools } from './team-mode.js'
 import { getHostToastStore, type TuiToastRuntime } from './toast.js'
 import { getHostShortcuts, type TuiShortcutRuntime } from './shortcuts.js'
 import { getHostInputCompletions, type TuiInputCompletionRuntime } from './input-completions.js'
+import { getHostIntegration, type TuiIntegrationRuntime } from './integration.js'
 import { getHostThemes, type TuiThemeHost, type TuiThemeRuntime } from './themes.js'
 import type { DshAuthService } from './oauth/service.js'
 import { attachSessionToWorkspace } from './workspace.js'
@@ -3472,6 +3473,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
     // Plugin input-completion sources (dsh-tui-extensions row). The facade is
     // host-only: Chat receives resolve/subscribe, never the registry itself.
     inputCompletions: getHostInputCompletions(ctx.get('tuiInputCompletions') as TuiInputCompletionRuntime | undefined),
+    // Ctrl+G prompt-editor hook of the integration seam (`./integration.ts`).
+    promptEditor: getHostIntegration(ctx.get('tuiIntegration') as TuiIntegrationRuntime | undefined)?.prepareEditor,
     themeHost: liveThemeHost(),
     // Full-screen surfaces inside Chat — the trajectory scene and the session
     // browser — enter the alt screen themselves in inline mode; in fullscreen

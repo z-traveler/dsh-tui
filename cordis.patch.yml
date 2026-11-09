@@ -305,7 +305,8 @@
 
     # Plugin-facing UI seams (the pi-style extension surface): managed
     # dialogs (select/confirm/input), keyed status-line contributions,
-    # keyboard shortcuts, and custom session-entry text renderers. The
+    # keyboard shortcuts, custom session-entry text renderers, input completions,
+    # the tuiIntegration host bridge, and the read-only tuiSessions binding. The
     # decision events (tui/input, tui/rewind-prompt, tui/session-switch,
     # tui/compact, …) are fired by the channel on the cordis bus directly
     # and need no row.

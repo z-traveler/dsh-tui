@@ -27,6 +27,7 @@ import type { AgentEvent } from '../../../agent/events.js'
 import type { AgentSession } from '../../../agent/session.js'
 import { createActivityProjection } from '../../../channel/activity.js'
 import { channelCapabilities } from '../../../channel/capabilities.js'
+import { startForegroundPublication } from '../../foreground.js'
 import { anchoredRow, prependHistoryRows, projectHistorySlice, restoreFoldedRows } from '../../../channel/history-restore.js'
 import { t } from '../../../i18n.js'
 import { WORKING_GATE_NOTICES } from '../../../commands.js'
@@ -1164,6 +1165,7 @@ export function createCoreChannel(
       extension.start?.before?.()
       startHostSubscriptions(host, owner, state, ctx)
       extension.start?.after?.()
+      startForegroundPublication(host, owner, state, ctx)
       // The startup session's history, read ahead of construction, paints
       // before any live event (an extension owning the facts replays its own).
       feed.bind(extension.bind?.ownsSessionFacts === true ? undefined : options.initialHistory)

@@ -29,6 +29,7 @@ import { wordBoundaryLeft, wordBoundaryRight } from '../utils/inputWordBoundary.
 import { formatClipboardInsert, readClipboard } from '../utils/clipboard.js'
 import { imagePathMediaType, parsePastedImagePath, readBoundedRegularFile, stageClipboardFilePaths } from '../utils/pastedImagePath.js'
 import { editInExternalEditor } from '../utils/externalEditor.js'
+import type { PromptEditorPrepare } from '../utils/promptEditorLaunch.js'
 import { setPromptEditorNode, EditorButton } from './PromptEditor.js'
 import type { ChannelUi as Channel } from '../adapter/channel/ui-policy.js'
 import type {
@@ -581,6 +582,14 @@ export interface PromptInputProps {
   caretPreviewOpen?: boolean
   onDismissCaretPreview?(): void
   /**
+   * Host seam for Ctrl+G: an external plugin may extend THIS launch (extra
+   * argv, child-only env, a cleanup) while the input keeps the editor
+   * resolution, the temp file, the terminal handoff and the draft adoption.
+   * Absent (the default, and every host without the integration row) the
+   * launch is exactly the built-in one.
+   */
+  promptEditor?: PromptEditorPrepare
+  /**
    * Clock seam for the draft undo's 700ms idle coalescing. Defaults to
    * `Date.now`; the regression harness passes a hand-advanced clock so the idle
    * rule is exercised without a wall-clock sleep (which would be flaky).
@@ -641,6 +650,7 @@ export function PromptInput({
   onCaretImage,
   caretPreviewOpen = false,
   onDismissCaretPreview,
+  promptEditor,
   now = Date.now,
 }: PromptInputProps) {
   const [themeName] = useTheme()
@@ -2797,7 +2807,13 @@ export function PromptInput({
       editorBusyRef.current = true
       void (async () => {
         try {
-          const outcome = await editInExternalEditor(value)
+          const outcome = await editInExternalEditor(value, {
+            // The foreground session the draft belongs to — the same facts the
+            // `tui/*` events carry — so a launch hook can scope what it adds to
+            // this session (history, isolation) without reaching back in.
+            sessionId: String(channel.agentId),
+            prepare: promptEditor,
+          })
           // Session switches, clears, history restores, and unmount all
           // revoke this editor round-trip. Never write its old draft into a
           // newer composer after the terminal handoff returns.

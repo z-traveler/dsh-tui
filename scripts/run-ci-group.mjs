@@ -675,6 +675,15 @@ const GROUPS = {
 //    与粘性报错、真 Chat 驱动的对话框/状态行/快捷键端到端。
     ["verify-extension-events", ['node', '--import', 'tsx/esm', 'scripts/verify-extension-events.tsx']],
     ["verify-extension-ui", ['node', '--import', 'tsx/esm', 'scripts/verify-extension-ui.tsx']],
+// 外部插件集成接缝（ctx.tuiIntegration，docs/downstream/omni-seams.md）：
+//  - foreground：真 channel + 真 cordis 根——扩展行晚于 channel 挂载、after-
+//    bind 晚 attach 的同步读取、/new 与 /workspace 的绑定变化、释放、
+//    插件卸载、抛错隔离、无该行时的原行为。
+//  - editor：真 cordis 服务 + 真编辑器子进程 + 真 Chat→PromptInput 路径——
+//    内建 argv/env 不变、插件 argv/env/dispose（await、子进程后）、拒绝与
+//    抛错回退、注册顺序、卸载、宿主拒绝。
+    ["verify-foreground-seam", ['node', '--import', 'tsx/esm', 'scripts/verify-foreground-seam.ts']],
+    ["verify-prompt-editor-seam", ['node', '--import', 'tsx/esm', 'scripts/verify-prompt-editor-seam.tsx']],
 // 非 TTY 宿主门禁回归（Web/Tauri 共存）：profile 装有 dsh-tui 的非终端
 // 宿主（stdout 为 pipe/null）必须静默跳过插件、不 throw、不影响宿主启动；
 // 显式 dsh-tui launcher/standalone 启动无 TTY 仍保留原报错。
