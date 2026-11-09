@@ -74,6 +74,18 @@ export type {
   TuiThemeDescriptor,
   TuiThemeRegistration,
 } from './dsh-adapter/themes.js'
+// Plugin input-completion sources run through the host-owned token/menu seam
+// (`./input-completions` also carries the Context augmentation). The host
+// facade stays internal: plugins only call register() and receive types.
+export { TuiInputCompletionRuntime } from './dsh-adapter/input-completions.js'
+export type {
+  TuiInputCompletionCandidate,
+  TuiInputCompletionContext,
+  TuiInputCompletionProvider,
+  TuiInputCompletionQuery,
+  TuiInputCompletionToken,
+  TuiInputCompletionTrigger,
+} from './dsh-adapter/input-completions.js'
 // The D-7 permission vocabulary (which grant each decision event needs) is
 // part of the plugin-facing contract too.
 export { DECISION_EVENT_PERMISSIONS } from './dsh-adapter/decision-guard.js'

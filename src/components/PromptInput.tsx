@@ -37,6 +37,7 @@ import type {
   StagedImageHandle,
 } from '../dsh-adapter/channel.js'
 import type { TranscriptImage } from '../dsh-adapter/transcript-images.js'
+import type { TuiInputCompletionHost, TuiInputCompletionItem } from '../dsh-adapter/input-completions.js'
 import { isBootSafeCommand, isHiddenCommandName, isLocalCommandName, isUnavailableLocalCommand, parseCommandName, workingHoldOf } from '../commands.js'
 import { appendHistory, HISTORY_LIMIT, historyProjectKey, loadHistoryOldestFirst } from '../history.js'
 import { mentionAtCaret } from '../utils/mentions.js'
@@ -45,6 +46,8 @@ import { isMod } from '../utils/modifiers.js'
 import { actionMatches } from '../utils/keymap.js'
 import { CommandSuggestions } from './CommandSuggestions.js'
 import { FileSuggestions } from './FileSuggestions.js'
+import { InputCompletionSuggestions } from './InputCompletionSuggestions.js'
+import { useInputCompletions } from './useInputCompletions.js'
 import { HelpMenu } from './HelpMenu.js'
 import { OverlayAbove, useOverlayListRows } from './OverlayAbove.js'
 import { listWindow } from './listWindow.js'
@@ -550,6 +553,13 @@ export interface PromptInputProps {
    * "← N agents" hint when provided (hidden when undefined).
    */
   backgroundAgentsNeedingInput?: number
+  /**
+   * Plugin input completions. The host facade owns the draft token, the
+   * merged menu and selection; sources only supply trigger/query/candidates.
+   * Absent (bare embeds, an older profile without the extensions row): no
+   * plugin completion menu, and typing behaves exactly as before.
+   */
+  inputCompletions?: TuiInputCompletionHost
   /** Filled with the live controller each render (see PromptController). */
   controllerRef?: React.RefObject<PromptController | null>
   /**
@@ -625,6 +635,7 @@ export function PromptInput({
   onOpenSessions,
   backendLabel,
   backgroundAgentsNeedingInput,
+  inputCompletions,
   controllerRef,
   onCaretImage,
   caretPreviewOpen = false,
@@ -1332,6 +1343,30 @@ export function PromptInput({
     !selectionActive &&
     !fileMenuDismissed(mention.start)
 
+  // Plugin completions are the THIRD owner of the composer, after the built-in
+  // `/` and `@` menus. The hook owns only the async request lifecycle; the
+  // host owns token bounds and replacement (see useInputCompletions.ts).
+  const builtinCompletionOwned = value.startsWith('/') || atTrigger
+  const pluginCompletions = useInputCompletions({
+    host: inputCompletions,
+    enabled: !suspended
+      && !expanded
+      && !helpOpen
+      && !selectionActive
+      && !overlayOpen
+      && !fileOverlayOpen
+      && !builtinCompletionOwned,
+    text: value,
+    cursor,
+    backendId: (channel.backendCapabilities as Channel['backendCapabilities'] | undefined)?.backendId ?? '',
+    sessionId: String(channel.sessionId ?? channel.agentId),
+    cwd: channel.cwd,
+    bindingGeneration: resolveBindingGeneration(channel),
+    revision: inputEditSequenceRef.current,
+  })
+  const completionOpen = pluginCompletions.open
+  const completionMenu = pluginCompletions.menu
+
   /**
    * The `[Image #N]` tokens of `text` that carry a live draft capability.
    * These are atomic: the caret never rests inside one, ←/→ step over the
@@ -1567,6 +1602,21 @@ export function PromptInput({
     const next = value.slice(0, mention.start) + insert + value.slice(mention.end)
     setInput(next, mention.start + insert.length, 'step')
     setFileSelected(0)
+  }
+
+  /**
+   * Accept the selected plugin candidate: replace ONLY the host-owned token
+   * (`menu.start/end`). Text before it, the rest of the sentence, `@path#L12`
+   * and atomic `[Image #N]` spans are untouched. The edit is one undo step and
+   * never enters submit/steer/queue.
+   */
+  const acceptInputCompletion = (item: TuiInputCompletionItem): void => {
+    const menu = pluginCompletions.menu
+    const current = valueRef.current
+    if (menu === undefined || current !== completionInput) return
+    const next = current.slice(0, menu.start) + item.replacement + current.slice(menu.end)
+    setInput(next, menu.start + item.replacement.length, 'step')
+    pluginCompletions.dismissAccepted(menu.start, inputEditSequenceRef.current)
   }
 
   const imageRefsFor = (text: string): ComposerImageRef[] => {
@@ -2147,6 +2197,17 @@ export function PromptInput({
         return
       }
     }
+    // Plugin completion owns Enter before every submit/steer/queue path,
+    // including while a turn is running. A preceding edit in this stdin batch
+    // leaves the rows stale: submit the current draft instead (same rule as
+    // the command menu) rather than accepting a candidate the user cannot see.
+    if (completionOpen && value === completionInput) {
+      const selected = pluginCompletions.selectedItem()
+      if (selected) {
+        acceptInputCompletion(selected)
+        return
+      }
+    }
     // Not ready: refuse before any path that clears the draft.
     if (channel.ready === false && value.trim() !== '') {
       if (tryRunCommand(value)) return
@@ -2229,6 +2290,10 @@ export function PromptInput({
         // on the next text edit, including one in the same stdin batch.
         fileEscRef.current = { edit: inputEditSequenceRef.current, start: currentMention.start }
         refreshFileMenu(tick => tick + 1)
+        return true
+      }
+      if (completionOpen) {
+        pluginCompletions.dismiss()
         return true
       }
     }
@@ -2824,7 +2889,7 @@ export function PromptInput({
     }
     // Completion menus own Backtab just like plain Tab; do not mutate the
     // background session mode while the user is choosing a candidate.
-    if (key.tab && key.shift && (fileOverlayOpen || overlayOpen)) {
+    if (key.tab && key.shift && (fileOverlayOpen || overlayOpen || completionOpen)) {
       event.stopImmediatePropagation()
       return
     }
@@ -2871,6 +2936,12 @@ export function PromptInput({
         updateFoldBlock(null)
         setInput(command.replacement, command.replacement.length, 'step')
       }
+      return
+    }
+    // Plugin completion owns Tab before the working-turn queue path.
+    if (key.tab && completionOpen) {
+      const selected = pluginCompletions.selectedItem()
+      if (selected && value === completionInput) acceptInputCompletion(selected)
       return
     }
     // Tab while the model is working = queue for AFTER the turn (followup),
@@ -2939,6 +3010,10 @@ export function PromptInput({
         setFileSelected(index =>
           index <= 0 ? fileMatches.length - 1 : index - 1,
         )
+        return
+      }
+      if (completionOpen && historyIndex.current < 0 && value === completionInput) {
+        pluginCompletions.move(-1)
         return
       }
       // With a fold block the caret in the tail walks the TAIL's lines
@@ -3026,6 +3101,10 @@ export function PromptInput({
         setFileSelected(index =>
           index >= fileMatches.length - 1 ? 0 : index + 1,
         )
+        return
+      }
+      if (completionOpen && historyIndex.current < 0 && value === completionInput) {
+        pluginCompletions.move(1)
         return
       }
       // Mirror of the tail-side ↑ walk: with a fold block the caret walks
@@ -4207,7 +4286,7 @@ export function PromptInput({
   const floatersOpen =
     !suspended &&
     !expanded &&
-    (helpOpen || channel.pending.length > 0 || fileOverlayOpen || overlayOpen || peekOpen)
+    (helpOpen || channel.pending.length > 0 || fileOverlayOpen || overlayOpen || completionOpen || peekOpen)
   // 顶边框右侧的会话名标签 chip：色随强调色；超宽截断，宽度
   // 随终端列数伸缩但不超过 28 显示单元。默认关闭——`/settings` 的
   // 「会话名标签」开关（dsh-tui.promptSessionLabel）开启后显示。
@@ -4495,6 +4574,22 @@ export function PromptInput({
             onWheelStep={(step) => {
               setSelectedCommand(i => Math.max(0, Math.min(suggestions.length - 1, i + step)))
             }}
+          />
+        )}
+        {completionOpen && completionMenu !== undefined && (
+          <InputCompletionSuggestions
+            items={completionMenu.items}
+            multiSource={completionMenu.multiSource}
+            selectedIndex={pluginCompletions.selected}
+            columns={columns}
+            accent={promptAccent}
+            // 点击行 = 接受该项（与 Enter/Tab 同路径）
+            onPick={(index) => {
+              const item = completionMenu.items[index]
+              if (item) acceptInputCompletion(item)
+            }}
+            // 滚轮 = 移动选中行（与 ↑/↓ 同路径，窗口跟随）
+            onWheelStep={(step) => { pluginCompletions.move(step) }}
           />
         )}
         {peekOpen && (
