@@ -1,0 +1,57 @@
+{
+  "captures": "/home/liyihang/.tmp/card-styles-pty-ygmpvp30",
+  "cases": [
+    {
+      "mode": "fullscreen-40",
+      "exit": 0,
+      "bytes": 14489,
+      "saw_demo": true,
+      "saw_legacy": true,
+      "saw_pi_like": true,
+      "saw_border_preset": true,
+      "file_config_loaded": true,
+      "light_background_replied": true,
+      "alternate_screen_restored": true,
+      "no_exception": true
+    },
+    {
+      "mode": "fullscreen-30",
+      "exit": 0,
+      "bytes": 13094,
+      "saw_demo": true,
+      "saw_legacy": true,
+      "saw_pi_like": true,
+      "saw_border_preset": true,
+      "file_config_loaded": true,
+      "light_background_replied": true,
+      "alternate_screen_restored": true,
+      "no_exception": true
+    },
+    {
+      "mode": "inline-40",
+      "exit": 0,
+      "bytes": 16457,
+      "saw_demo": true,
+      "saw_legacy": true,
+      "saw_pi_like": true,
+      "saw_border_preset": true,
+      "file_config_loaded": true,
+      "light_background_replied": true,
+      "alternate_screen_restored": true,
+      "no_exception": true
+    },
+    {
+      "mode": "inline-30",
+      "exit": 0,
+      "bytes": 16219,
+      "saw_demo": true,
+      "saw_legacy": true,
+      "saw_pi_like": true,
+      "saw_border_preset": true,
+      "file_config_loaded": true,
+      "light_background_replied": true,
+      "alternate_screen_restored": true,
+      "no_exception": true
+    }
+  ]
+}

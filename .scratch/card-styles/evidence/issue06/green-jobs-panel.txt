@@ -1,0 +1,121 @@
+--- A: BackgroundJobStore units ---
+PASS  A1 注册两个任务
+PASS  A1 无变化 replace 不触发事件
+PASS  A2 running→completed 触发一次 onSettled  (pwsh-1:completed)
+PASS  A2 重复终态不重复触发
+PASS  A3 存活任务消失合成 killed  (pwsh-1:completed,pwsh-2:killed)
+PASS  A3 消失任务冻结保留在快照
+PASS  A4 镜像输出去空行 + 去 [status:] 尾缀  ([{"text":"line A"},{"text":"line B"}])
+PASS  A4 输出尾部有界  (len=30)
+PASS  A4 未知任务镜像被忽略
+PASS  A7 跨 chunk 行拼接（无换行尾暂存）  ([{"text":"partial without newline end","channel":"stdout"}])
+PASS  A7 游标推进到 next  (29)
+PASS  A7 总字节跟踪  (29)
+PASS  A7 通道标签落行（stderr/log）  ([{"text":"partial without newline end","channel":"stdout"},{"text":"warn line","channel":"stderr","gapBefore":true},{"text":"narration","channel":"log"}])
+PASS  A7 gapBefore 标记在丢失后首行  ([{"text":"partial without newline end","channel":"stdout"},{"text":"warn line","channel":"stderr","gapBefore":true},{"text":"narration","channel":"log"}])
+PASS  A7 丢失标记置位 outputDropped
+PASS  A7 空增量 lossy 不清丢失标记
+PASS  A5 终态有界且存活全保留  (len=40)
+PASS  A6 时长格式化  (3m12s)
+PASS  A8 drop 移除记录并通知一次
+PASS  A8 drop 未跟踪 id 无事发生
+--- B: channel integration ---
+PASS  B1 任务注册进快照
+PASS  B1 转录出现任务卡行
+PASS  B1 卡行初态 running  (running)
+PASS  B2 job_output 结果镜像进卡行  ([{"text":"build step 1 ok"},{"text":"build step 2 ok"}])
+PASS  B2 镜像记录输出更新时间  (1794209587890)
+PASS  B3 落定后卡行 completed + exit detail
+PASS  B3 完成 toast 送达（含任务 id）  (["Background job completed: gh run watch 42 (pwsh-1 · 3s)"])
+PASS  B4 第二个任务注册
+PASS  B4 存活任务消失→卡行冻结 killed  (killed)
+PASS  B4 面板快照冻结为 killed 保留
+PASS  B5 jobControl.kill 调用注册表并带 owner  (pwsh-1)
+PASS  B5 终态任务 kill 不触发 steer
+PASS  B8 存活任务注册
+PASS  B8 存活 kill 返回 true
+PASS  B8 kill 后 steer 送达模型（含任务 id）  ([{"type":"text","text":"I killed background job bash-3 (sleep 100) via the /jobs panel"}])
+PASS  B9 启动 ack 捕获完整命令（注册后挂上）  (gh pr checks --watch 42)
+PASS  B6 /new 成功
+PASS  B6 切换后面板快照清空
+PASS  B6 切换后任务卡行清空
+PASS  B7 无 jobs 服务：快照为空
+PASS  B7 无 jobs 服务：kill 安全返回 false
+--- B2: kernel event bus integration ---
+PASS  B2a 内核 registered 事件建卡
+PASS  B2a roster 携带 progress 进度行  (2/5)
+PASS  B2b output 事件拉取增量（通道落行）  ([{"text":"kernel line 1","channel":"stdout"},{"text":"kernel warn","channel":"stderr"}])
+PASS  B2b 非消费游标推进（cursor 跟踪字节）  (26)
+PASS  B2c gapBefore → 丢失标记 + 行级 gap 标记  ([{"text":"kernel line 1","channel":"stdout"},{"text":"kernel warn","channel":"stderr"},{"text":"after gap","channel":"stdout","gapBefore":true}])
+PASS  B2d settled 事件 → 完成 toast  (["Background job completed: kernel stream (pwsh-7 · 0s)"])
+PASS  B2d 未 removed 的落定卡留在转录（面板与状态栏继续跟踪）  (["completed"])
+PASS  B2e kill 以会话 id 字符串过围栏
+PASS  B2f 前台 shell 注册时建卡（记录此刻仍在可见集）
+PASS  B2f awaited 落定不发完成 toast  ([])
+PASS  B2g removed → 任务卡与面板快照一并离场  ({"rows":["pwsh-7"],"jobs":["pwsh-7"]})
+--- B10: a card is held until the call that registered it returns ---
+PASS  B10a 注册调用未返回：卡挂起，名册照收
+PASS  B10b 对不上任何在飞调用：立即建卡（不过度挂起）
+PASS  B10c 调用返回：挂起的卡出现（后台 id 就在这条结果里）
+PASS  B10d 前台命令注册：卡挂起
+PASS  B10d removed 先到：卡从头到尾没出现，名册也清空  ({"rows":["bash-91","bash-90"],"jobs":["bash-90","bash-91"]})
+PASS  B10e 无结果的在飞调用：卡先挂起
+PASS  B10e 无人收走的落定：卡出现（完成通知已把它交给模型）
+PASS  B10f 同名双调用：卡挂起
+PASS  B10f 只返回一个：卡继续挂起
+PASS  B10f 两个都返回：卡出现
+PASS  B10g /new 成功
+PASS  B10g 换会话后旧的在飞调用不再挂起新卡
+PASS  B10h 旧终态卡先建卡
+PASS  B10h 名册超上界逐出最旧终态：卡作为历史留在转录  ({"roster":44,"row":true})
+--- B3: session rebind (the roster must follow the binding) ---
+PASS  B3a 订阅不带 owner 过滤（带则换绑后事件全被内核丢弃）  ([{"owners":"all"}])
+PASS  B3b 挂载即按当前会话读名册  (sess-boot)
+PASS  B3c 会话未变时 reanchor 不重复读（挂载只读一次）  (sess-boot)
+PASS  B3d 换绑后按新会话重读且旧名册被替换  (sess-boot,sess-user → user-job)
+PASS  B3e 换绑后本会话事件仍能触发刷新（反证：订阅没被冻结）  (sess-boot,sess-user,sess-user)
+PASS  B3f 他人会话的输出事件被围栏挡住（不崩、不污染名册）  (sess-boot,sess-user,sess-user → user-job)
+--- B11: a rebind re-seeds the in-flight call ledger from the log ---
+PASS  B11a 绑定会话 A：名册里的 job 正常建卡  (bash-201)
+PASS  B11b 换绑到在跑前台命令的会话：日志种子让卡继续挂起（不建新行）  (rows=[bash-201] roster=bash-200)
+PASS  B11c 该调用的结果到达：卡出现  (bash-201,bash-200)
+PASS  B11d 畸形日志事件被忽略且照常建卡  (bash-201,bash-200,bash-202)
+--- C: render smoke ---
+PASS  C1 运行卡头含 id/label
+PASS  C1 瀑布呈现镜像输出
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  C1 无输出时仅保留任务头和命令行  (● job: pwsh-1 pwsh 1m5s running|│ ❯ gh run watch 42|)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  C2 落定卡仍保留尾两行输出
+PASS  C2 落定卡头含 exit detail
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  C3 面板标题与两行任务
+PASS  C3 面板含操作提示
+PASS  C3 聚焦行详情含完整任务名与开始时间  (|  ──────────────────────── Background Jobs ─────────────────────────||  1 running   1 completed                                          ✕|||  ❯● pwsh-1    gh run watch 42                        1m5s   running|  │ ❯ gh pr checks --watch 42)
+PASS  C3 聚焦行详情含完整命令  (|  ──────────────────────── Background Jobs ─────────────────────────||  1 running   1 completed                                          ✕|||  ❯● pwsh-1    gh run watch 42                        1m5s   running|  │ ❯ gh pr checks --watch 42)
+PASS  C3 聚焦行详情含镜像输出尾巴
+PASS  C3 非聚焦行无详情块
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  C4 initialFocusId 聚焦指定任务（非首行）  (  ❯● subagent… review the regressions                  15s   running|  │ ❯ review the regressions)
+PASS  C4 默认首行不被聚焦  (   ● pwsh-1    gh run watch 42                        1m5s   running)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  C4 未知 initialFocusId 回退首行
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G16: panel commands wrap below the job header ---
+PASS  G16 28 columns: command folds by default  ( 1 running|| ❯● pwsh-1  pwsh -C… runni…| │ ❯ Write-Output|     started 15:32:07|     │ ≡ build step 1 ok|     │   build step 2 ok)
+PASS  G16 28 columns: command tail remains visible  ( 1 running|| ❯● pwsh-1  pwsh -C… runni…| │ ❯ Write-Output| │ long-command-segment; | │ Write-Output         | │ long-command-segment; | │ Write-Output )
+PASS  G16 28 columns: command starts below its id row  ([" ❯● pwsh-1  pwsh -C… runni…"," │ ❯ Write-Output"," │ long-command-segment; "])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G16 34 columns: command folds by default  ( 1 running 0 completed|| ❯● pwsh-1   pwsh …   1m6s runni…| │ ❯ Write-Output|     started 15:32:07|     │ ≡ build step 1 ok|     │   build step 2 ok)
+PASS  G16 34 columns: command tail remains visible  ( 1 running 0 completed|| ❯● pwsh-1   pwsh …   1m6s runni…| │ ❯ Write-Output| │ long-command-segment; | │ Write-Output         | │ long-command-segment; | │ Write-Output )
+PASS  G16 34 columns: command starts below its id row  ([" ❯● pwsh-1   pwsh …   1m6s runni…"," │ ❯ Write-Output"," │ long-command-segment; "])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G17: the job panel keeps all twenty-five script rows ---
+PASS  G17 panel: script begins folded at its first statement
+PASS  G17 panel: expanded script remains complete after scrolling  ( │ PANEL-SCRIPT-19| │ PANEL-SCRIPT-20| │ PANEL-SCRIPT-21| │ PANEL-SCRIPT-22| │ PANEL-SCRIPT-23| │ PANEL-SCRIPT-24| │ PANEL-SCRIPT-25|     started 15:32:07|     (no mirrored output yet — appears when the agent reads it)||     timeline (latest)|     timeline unavailable (the job started before this launch)||)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- D: /jobs panel owns Esc ---
+PASS  D1 /jobs 打开后台任务面板
+PASS  D1 面板已打开时回合在跑且未被打断
+PASS  D2 面板打开时 Esc 关闭面板
+PASS  D2 同一次 Esc 不中断对话  ([])
+PASS  D3 面板关闭后 Esc 恢复中断对话  (["cancel"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- E: panel-variant column allocation ---
+PASS  E1 宽面板（52）三列全开
+PASS  E1 中宽面板（46）无进度列、有时长与状态
+PASS  E1 中等面板（38）无进度列、有时长与状态
+PASS  E1 窄面板（30）省略时长列、保留状态列
+PASS  E1 minColumns=28 仍有状态列
+
+ALL PASS

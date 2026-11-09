@@ -1,0 +1,29 @@
+PASS 1: the default config is legacy with no fill, border, padding or gap
+PASS 2: legacy keeps toolBackground for the tool card and for no other kind
+PASS 3: the default user face is a whisper of the theme text over the real terminal background
+PASS 4: pi-like keeps padding 0 and leaves the reading kinds unfilled
+PASS 5: pi-like owns the legacy tool background for the tool and subagent states
+PASS 6: pi-like tells the three execution states apart in every built-in theme
+PASS 7: the default state faces sit close to a dark terminal and keep distinct hues
+PASS 8: the 256-colour state slots carry distinct hues, not adjacent grey steps
+PASS 9: the 256-colour user face takes the nearest neutral grey step, not a quantized cube block
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: add rows get a faint line tint
+    at <anonymous> (/home/liyihang/projects/dsh-src/.worktree/dsh-tui/card-styles/scripts/downstream/verify-card-styles.ts:348:10)
+    at check (/home/liyihang/projects/dsh-src/.worktree/dsh-tui/card-styles/scripts/downstream/verify-card-styles.ts:34:51)
+    at <anonymous> (/home/liyihang/projects/dsh-src/.worktree/dsh-tui/card-styles/scripts/downstream/verify-card-styles.ts:335:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: undefined,
+  operator: 'notStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.16.0

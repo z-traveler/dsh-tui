@@ -1,0 +1,134 @@
+--- G1: two settled jobs group without folding ---
+PASS  G1 组头汇总出现（×2）  (● note one||▾ background jobs ×2 · 2 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed)
+PASS  G1 两张卡都在屏上  (i1=3 i2=5)
+PASS  G1 相邻卡片之间只有命令行、没有空行  (i1=3 i2=5)
+PASS  G1 色边仅覆盖命令节，胶囊无组竖线  (["✓ job: pwsh-1 pwsh 3s exit code: 0 completed","│ ❯ run pwsh-1","✓ job: pwsh-2 pwsh 3s exit code: 0 completed","│ ❯ run pwsh-2"])
+PASS  G1 两张不触发自动折叠
+PASS  G1 组头报已完成数
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G2: three settled jobs fold into the summary ---
+PASS  G2 全组落定 → 折叠成一行  (● note one||▸ 3 background jobs folded · all completed · 3s total · click to expand|||)
+PASS  G2 折叠行报全部完成
+PASS  G2 折叠行给出展开提示
+PASS  G2 折叠标是 ▸
+PASS  G2 成员卡全部收起
+PASS  G2 展开后三张卡回归
+PASS  G2 展开后回到汇总头（×3）
+PASS  G2 重新折叠
+PASS  G2 Ctrl+O 展开折叠组
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G3: a click on the fold line expands the run ---
+PASS  G3 点击前整组折叠  (● note one||▸ 3 background jobs folded · all completed · 3s total · click to expand|||)
+PASS  G3 折叠行可在屏上定位
+PASS  G3 点击折叠行展开整组  (toggled=[2] | ● note one||▾ background jobs ×3 · 3 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed)
+PASS  G3 点击落在组头行 id 上（不是别的行）  ([2])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G4: a live member keeps the run open ---
+PASS  G4 组头汇总出现（×3）  (● note one||▾ background jobs ×3 · 1 running · 2 completed · 4s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|● job: pwsh-2 pwsh 4s running)
+PASS  G4 组头报运行中
+PASS  G4 三张卡都可见
+PASS  G4 有存活成员时不折叠
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G5: non-adjacent jobs stay ungrouped ---
+PASS  G5 两张卡都在屏上  (✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1||● in between||✓ job: pwsh-2 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-2|)
+PASS  G5 不出现组头
+PASS  G5 单卡胶囊无组rail，命令节色边独立
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G6: failures stay loud on the fold line ---
+PASS  G6 三张落定仍折叠  (▸ 3 background jobs folded · 1 failed · 2 completed · 3s total · click to expand||||)
+PASS  G6 折叠行报失败数
+PASS  G6 有失败就不说"全部完成"
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G7: two runs do not merge ---
+PASS  G7 前段（3 张）折叠  (▸ 3 background jobs folded · all completed · 3s total · click to expand||● break||▾ background jobs ×2 · 2 completed · 3s total|✓ job: pwsh-4 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-4|✓ job: pwsh-5 pwsh 3s exit code: 0 completed)
+PASS  G7 后段（2 张）仍开组
+PASS  G7 两段不合并成 ×5
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G8: jobGroupFold=never keeps runs open ---
+PASS  G8 never：仍成组（组头在）  (▾ background jobs ×3 · 3 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-2)
+PASS  G8 never：三张卡都留着
+PASS  G8 never：不出现折叠行
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G9: jobGroupFold=always folds a live pair ---
+PASS  G9 always：两张（含在跑）立即折叠  (▸ 2 background jobs folded · 1 running · 1 completed · 5s total · click to expand||||)
+PASS  G9 always：折叠行报运行中
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G10: a lone card keeps the original rhythm ---
+PASS  G10 单卡在屏上  (● note one||✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1||)
+PASS  G10 单卡不成组（无组头/连接线）  ("✓ job: pwsh-1 pwsh 3s exit code: 0 completed")
+PASS  G10 单卡保留块间空行  (iNote=0 iCard=2)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G11: hovering an open group header offers the fold ---
+PASS  G11 悬停前不显示折叠提示  (▾ background jobs ×2 · 2 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed)
+PASS  G11 组头行可在屏上定位
+PASS  G11 悬停组头出现折叠提示  (▾ background jobs ×2 · 2 completed · 3s total · click to fold|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;useInsertionEffect must not schedule updates.
+--- G12: Chat wires channel.jobGroupFold through ---
+PASS  G12 never 档：Chat 传下去后三张卡仍开着  (███  ███ ███      ███      ███  ███ ███      ███      ███      ███ ███|███  ███ ███▀▀▀▀  ███▀▀▀▀  ███▄▄▀▀▀  ▀▀▀▀▀▀▄ ███▀▀▀▀  ███▀▀▀▀  ████|███  ███ ███      ███      ███           ███ ███      ███      ███ ███|███▄▄▀▀▀ ███▄▄▄▄▄ ███▄▄▄▄▄ ███      ███▄▄▄▄▀ ███▄▄▄▄▄ ███▄▄▄▄▄ ███  ███|  ███  ███   ▄▄▀▀▄▄   ███▀▀▄▄▄  ███  ███  ███▀▀▀▀▀  ███▀▀▀▀▀  ███▀▀▀▀▀)
+PASS  G12 never 档：不出现折叠行
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G12 auto 档：同一条转录折叠成一行  (✦ dsh-TUI  v0.1.0|███▀▀▄▄▄ ███▀▀▀▀▀ ███▀▀▀▀▀ ███▀▀▄▄▄ ███▀▀▀▀▀ ███▀▀▀▀▀ ███▀▀▀▀▀ ███  ███|███  ███ ███      ███      ███  ███ ███      ███      ███      ███ ███|███  ███ ███▀▀▀▀  ███▀▀▀▀  ███▄▄▀▀▀  ▀▀▀▀▀▀▄ ███▀▀▀▀  ███▀▀▀▀  ████)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G13: a long command label wraps in full ---
+PASS  G13 长命令默认折叠并显示续行数  (✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;|||)
+PASS  G13 长命令尾部可见（换行而非截断）  (✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;|│ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;|│ END-OF-LONG-COMMAND)
+PASS  G13 长命令占多行  (["✓ job: pwsh-1 pwsh 3s exit code: 0 completed","│ ❯ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;","│ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;"])
+PASS  G13 每个命令正文行都有节色边且没有词标签或树标  (✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;|│ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName } ;|│ END-OF-LONG-COMMAND||)
+PASS  G13 可以再次折叠
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G14: a long output line wraps and keeps the tail ---
+PASS  G14 长输出尾部可见（折行取尾）  (│ ❯ run pwsh-1|│ ≡ segment-17 segment-18 segment-19 segment-20 segment-21 segment-22 segment-23 segment-24|│ segment-25 segment-26 segment-27 segment-28 segment-29 OUTPUT-TAIL-MARKER)
+PASS  G14 瀑布恒定两行  (rows=2 ["│ ≡ segment-17 segment-18 segment-19 segment-20 segment-21 segment-22 segment-23 segment-24","│ segment-25 segment-26 segment-27 segment-28 segment-29 OUTPUT-TAIL-MARKER"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G15: the jobs panel wraps long command/output lines ---
+PASS  G15 面板详情默认折叠长命令  (|  ─────────────────────────────────────── Background Jobs ────────────────────────────────────────||  1 running   0 completed                                                                        ✕|||  ❯● pwsh-9    deploy --stack service-name service-name service-name service-nam…     7s   running|  │ ❯ pnpm --filter @deepseek-harness-tui/dsh-tui run build:everything --with-flags|      started 15:41:49)
+PASS  G15 面板详情：长命令尾部可见  (  ─────────────────────────────────────── Background Jobs ────────────────────────────────────────|  1 running   0 completed                                                                        ✕|  ❯● pwsh-9    deploy --stack service-name service-name service-name service-name     7s   running|               service-name service-name service-name service-name                  |               LABEL-TAIL-MARKER|  │ ❯ pnpm --filter @deepseek-harness-tui/dsh-tui run build:everything --with-flags |  │ build:everything --with-flags build:everything --with-flags build:everything --with-flags |  │ CMD-TAIL-MARKER                                                                               )
+PASS  G15 面板列表：长任务名换行后尾部可见  (  ❯● pwsh-9    deploy --stack service-name service-name service-name service-name     7s   running|               service-name service-name service-name service-name                  |               LABEL-TAIL-MARKER)
+PASS  G15 面板详情：长 stderr 行尾部可见  (      │   error: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G16: frozen rows survive grouping (session snapshot contract) ---
+PASS  G16 冻结行成组不崩且折叠行出现  (● note one||▸ 3 background jobs folded · all completed · 3s total · click to expand|||)
+PASS  G16 共享行对象未被写入装饰
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G17: command expansion does not move the status out of its capsule ---
+PASS  G17 folded: all three capsules remain visible
+PASS  G17 capsules: status stays bright outside section edges  (["✓ job: pwsh-1 pwsh 3s exit code: 0 completed","✓ job: pwsh-2 pwsh 3s exit code: 0 completed","✓ job: pwsh-3 pwsh 3s exit code: 0 completed"])
+PASS  G17 folded: command sections each show one first statement
+PASS  G17 expanded: full command remains available
+PASS  G17 expanded: no orphan state glyph or tree controls
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G18: content rows use continuous section edges, not a group rail ---
+PASS  G18 both sections render
+PASS  G18 every command/output row has exactly one edge  (["│ ❯ cd D:/project","│ Write-Output first section row","│ Write-Output final section row","│ ❯ cd D:/project","│ Write-Output first section row","│ Write-Output final section row","│ ≡ output first","│ output last"])
+PASS  G18 capsules replace group separators without extra rails
+PASS  G18 section marks occur only on first rows
+PASS  G18 command and output edges use different continuous colors  ({"cmdColor":8233438,"outColor":8566941})
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G19: output remains a two-row tail while command expansion changes ---
+PASS  G19 folded: newest output rows remain, earlier output does not
+PASS  G19 expanded: only the command grows
+PASS  G19 output symbol and edge stay on two preview rows  (["│ ≡ LIVE-OUT-3","│ LIVE-OUT-4"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G20: summaries stay above zero-gap capsules and folded groups hide sections ---
+PASS  G20 open: group summary remains
+PASS  G20 open: capsule is the only card separator  (▾ background jobs ×2 · 2 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed|│ ❯ run pwsh-2|)
+PASS  G20 open: no group bracket remains
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G20 folded: one summary and no command/output edges
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G21: every width keeps content inside the two-column section edge ---
+PASS  G21 60: command and tail both render
+PASS  G21 60: content rows keep edges without group brackets  (["│ ❯ cd D:/project","│ Write-Output expanded command piece; Write-Output expanded","│ command piece; Write-Output expanded command piece;","│ Write-Output expanded command piece; COMMAND-END","│ ≡ first output","│ last output"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G21 80: command and tail both render
+PASS  G21 80: content rows keep edges without group brackets  (["│ ❯ cd D:/project","│ Write-Output expanded command piece; Write-Output expanded command piece;","│ Write-Output expanded command piece; Write-Output expanded command piece;","│ COMMAND-END","│ ≡ first output","│ last output"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G21 140: command and tail both render
+PASS  G21 140: content rows keep edges without group brackets  (["│ ❯ cd D:/project","│ Write-Output expanded command piece; Write-Output expanded command piece; Write-Output expanded command piece; Write-Output expanded","│ command piece; COMMAND-END","│ ≡ first output","│ last output"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G22: narrow sections keep at least twenty-four content columns and full expansion ---
+PASS  G22 28: folded preview fits the interpreter-free first statement  (● job: pwsh-narrow pwsh 6s r|│ ❯ ABCDEFGHIJKLMNOPQRSTUVWX|│ ≡ last output row||)
+PASS  G22 28: two-column edge plus one-character section mark  ("│ ❯ ABCDEFGHIJKLMNOPQRSTUVWX")
+PASS  G22 28: remaining command rows expand inside the edge
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  G22 34: folded preview fits the interpreter-free first statement  (● job: pwsh-narrow pwsh 6s running|│ ❯ ABCDEFGHIJKLMNOPQRSTUVWX|│ ≡ last output row||)
+PASS  G22 34: two-column edge plus one-character section mark  ("│ ❯ ABCDEFGHIJKLMNOPQRSTUVWX")
+PASS  G22 34: remaining command rows expand inside the edge
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G23: body clicks and Ctrl+O toggle only the command; capsule opens the job ---
+PASS  G23 default: first statement and two output rows only
+PASS  G23 hit target: cd D:/project
+PASS  G23 body click: full command opens but output remains two rows
+PASS  G23 hit target: CLICK-OUT-3
+PASS  G23 output click: folds the command without expanding output
+PASS  G23 Ctrl+O: opens full command
+PASS  G23 hit target: COMMAND-LAST-LINE
+PASS  G23 global expanded: body click can still fold this command
+PASS  G23 hit target: cd D:/project
+PASS  G23 global expanded: body click can reopen this command
+PASS  G23 Ctrl+O: folds the command again
+PASS  G23 hit target: job: pwsh-click
+PASS  G23 capsule: opens the correct task rather than expanding  (["pwsh-click"])
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;--- G24: twenty-five script lines expand completely with no control rows ---
+PASS  G24 folded: interpreter-free first statement without labels
+PASS  G24 expanded: twenty-five command rows all paint  (✓ job: pwsh-all pwsh 3s exit code: 0 completed|│ ❯ SCRIPT-ROW-01|│ SCRIPT-ROW-02   |│ SCRIPT-ROW-03 |│ SCRIPT-ROW-04|│ SCRIPT-ROW-05|│ SCRIPT-ROW-06|│ SCRIPT-ROW-07|│ SCRIPT-ROW-08|│ SCRIPT-ROW-09|│ SCRIPT-ROW-10|│ SCRIPT-ROW-11|│ SCRIPT-ROW-12|│ SCRIPT-ROW-13|│ SCRIPT-ROW-14|│ SCRIPT-ROW-15|│ SCRIPT-ROW-16|│ SCRIPT-ROW-17|│ SCRIPT-ROW-18|│ SCRIPT-ROW-19|│ SCRIPT-ROW-20|│ SCRIPT-ROW-21|│ SCRIPT-ROW-22|│ SCRIPT-ROW-23|│ SCRIPT-ROW-24|│ SCRIPT-ROW-25|│ ≡ output row one|│ output row two||)
+PASS  G24 hierarchy: content stays gray and capsule stays bright
+PASS  G24 output: settled and expanded cards still show exactly two rows
+PASS  G24 blanks: repeated empty lines compress to one without adding labels  (["❯ first","","last"])
+PASS  G24 blanks: one actual visual blank row remains inside the edge  (✓ job: pwsh-blank pwsh 3s exit code: 0 completed|│ ❯ first        |│                 |│ last          |                                                                                                    |                                                                                                    )
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;
+ALL PASS

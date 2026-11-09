@@ -1,0 +1,26 @@
+PASS 1: the default config is legacy with no fill, border, padding or gap
+PASS 2: legacy keeps toolBackground for the tool card and for no other kind
+PASS 3: the default user face is a whisper of the theme text over the real terminal background
+PASS 4: pi-like fills the block kinds, keeps padding 0 and leaves the reading kinds unfilled
+PASS 5: pi-like owns the legacy tool background for the tool and subagent states
+PASS 6: pi-like tells the three execution states apart in every built-in theme
+PASS 7: the default state faces are low-saturation pastels with distinct hues
+PASS 8: the 256-colour state slots carry distinct hues, not adjacent grey steps
+PASS 9: the 256-colour user face takes the nearest neutral grey step, not a quantized cube block
+PASS 10: the 16-colour tier leaves the default user face unfilled and keeps explicit colours
+PASS 11: the existing domain statuses map to the three configurable fills
+PASS 12: common overrides apply to every kind, kind overrides win over common
+PASS 13: an ordinary background override leaves the state fills alone
+PASS 14: state fills are overridable per status, common first and kind last
+PASS 15: switching the base preset keeps every personal override
+PASS 16: pi-like keeps cards one uncoloured row apart without stacking the transition
+PASS 17: a user background/states override still paints the transparent job card
+PASS 18: every fold knob defaults to unset, so each kind keeps its own mechanism
+PASS 19: broken config falls back per field instead of breaking the transcript
+PASS 20: card content width narrows by border and padding and never goes below one column
+PASS 21: a background resolves against the active theme: theme key and explicit colour
+PASS 22: the lower colour tiers use readable state slots and never rewrite a user colour
+PASS 23: the plugin keeps the runtime schema and the single apply site
+PASS 24: a real settings.json user layer reaches the resolved styles and outranks cordis.yml
+PASS 25: the live store applies, keeps identity on a no-op and notifies subscribers
+card styles: 25 checks passed

@@ -1,0 +1,5 @@
+{"mode": "fullscreen-30", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "raw": "/home/liyihang/.tmp/card-styles-issue04-entry-b86d7mgr"}
+{"mode": "fullscreen-80", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "raw": "/home/liyihang/.tmp/card-styles-issue04-entry-b86d7mgr"}
+{"mode": "inline-30", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "raw": "/home/liyihang/.tmp/card-styles-issue04-entry-b86d7mgr"}
+{"mode": "inline-80", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "raw": "/home/liyihang/.tmp/card-styles-issue04-entry-b86d7mgr"}
+real entry body checks: 4 passed

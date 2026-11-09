@@ -1,0 +1,20 @@
+Source: /tmp/edit-card-probe/logs/80-pi-like-3-ok.log
+[y=1] " • Edit /tmp/demo.ts · 2s                                                       "
+[y=2] "  ⎿ - const a = 1                                                               "
+  probe const-c x=6 'c' fg=rgb:#b26671 bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=2.72
+  probe const-t x=10 't' fg=rgb:#b26671 bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=2.72
+  probe var-a x=12 'a' fg=rgb:#b26671 bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=2.72
+  probe digit x=16 '1' fg=rgb:#b26671 bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=2.72
+[y=3] "    + const a = 2                                                               "
+  probe const-c x=6 'c' fg=rgb:#57956b bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=3.2
+  probe const-t x=10 't' fg=rgb:#57956b bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=3.2
+  probe var-a x=12 'a' fg=rgb:#57956b bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=3.2
+  probe digit x=16 '2' fg=rgb:#57956b bg=rgb:#303d37 effBg=#303d37 dim=false bold=false contrast=3.2
+
+Source: /tmp/edit-card-probe/logs/120-pi-like-2-ok.log
+[y=1] " • Edit /tmp/demo.ts · 2s                                                                                               "
+[y=2] "  ⎿ − const a = 1                                           │ + const a = 2                                             "
+  probe const-c x=6 'c' fg=palette:110 #87afd7 bg=palette:59 #5f5f5f effBg=#5f5f5f dim=false bold=false contrast=2.78
+  probe const-t x=10 't' fg=palette:110 #87afd7 bg=palette:59 #5f5f5f effBg=#5f5f5f dim=false bold=false contrast=2.78
+  probe var-a x=12 'a' fg=palette:188 #d7d7d7 bg=palette:59 #5f5f5f effBg=#5f5f5f dim=false bold=false contrast=4.44
+  probe digit x=16 '1' fg=palette:138 #af8787 bg=palette:59 #5f5f5f effBg=#5f5f5f dim=false bold=true contrast=2.02

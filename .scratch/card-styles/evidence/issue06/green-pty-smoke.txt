@@ -1,0 +1,5 @@
+{"mode": "fullscreen-40", "exit": 0, "bytes": 24223, "saw_demo": true, "saw_legacy": true, "saw_pi_like": true, "saw_border_preset": true, "file_config_loaded": true, "light_background_replied": true, "alternate_screen_restored": true, "no_exception": true}
+{"mode": "fullscreen-30", "exit": 0, "bytes": 20607, "saw_demo": true, "saw_legacy": true, "saw_pi_like": true, "saw_border_preset": true, "file_config_loaded": true, "light_background_replied": true, "alternate_screen_restored": true, "no_exception": true}
+{"mode": "inline-40", "exit": 0, "bytes": 24558, "saw_demo": true, "saw_legacy": true, "saw_pi_like": true, "saw_border_preset": true, "file_config_loaded": true, "light_background_replied": true, "alternate_screen_restored": true, "no_exception": true}
+{"mode": "inline-30", "exit": 0, "bytes": 21560, "saw_demo": true, "saw_legacy": true, "saw_pi_like": true, "saw_border_preset": true, "file_config_loaded": true, "light_background_replied": true, "alternate_screen_restored": true, "no_exception": true}
+PTY smoke: 4/4 passed; captures: /home/liyihang/.tmp/card-styles-pty-2pjsuqnz

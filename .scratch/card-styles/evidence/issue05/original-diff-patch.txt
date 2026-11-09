@@ -1,0 +1,63 @@
+4mu4mu4mu4mu4mu4mu4mu4muPASS  1 the Codex headerless hunk parses with real numbers
+PASS  1 synthesized headers read the same as real ones
+PASS  1 (+N -M) comes from the hunks
+PASS  1 a patch diff is told apart from an old/new one
+PASS  1 several hunks keep their own numbering
+PASS  1 an added file numbers its new lines from 1
+PASS  1 a deleted file numbers its old lines
+PASS  1 a raw-content add becomes one all-added hunk
+PASS  1 a raw-content delete becomes one all-removed hunk
+PASS  1 "No newline" markers carry no content
+PASS  1 a hunk whose counts disagree still numbers (lenient walk)
+PASS  1 unreadable text keeps its raw lines
+PASS  1 the parse is cached by text
+PASS  1 one file: a stat line
+PASS  1 one moved file: → destination and stat
+PASS  1 one new file: its label and stat
+PASS  1 several files: a path row that opens the destination
+PASS  1 several files: a deleted file says so
+PASS  1 zh labels
+PASS  2@80 the stat line opens the body
+PASS  2@80 numbered rows share one gutter
+PASS  2@80 removed / added rows keep their diff colours
+PASS  2@80 hunks are separated by ⋯ and keep their numbers
+PASS  2@80 several files: path rows with their stat
+PASS  2@80 CJK lines render whole (wrapped by cells, no half glyph)
+PASS  2@80 a very long line is clipped (bounded rows)
+PASS  2@80 the collapsed body keeps the 8-row cap with its fold hint
+PASS  2@40 the stat line opens the body
+PASS  2@40 numbered rows share one gutter
+PASS  2@40 removed / added rows keep their diff colours
+PASS  2@40 hunks are separated by ⋯ and keep their numbers
+PASS  2@40 several files: path rows with their stat
+PASS  2@40 CJK lines render whole (wrapped by cells, no half glyph)
+PASS  2@40 a very long line is clipped (bounded rows)
+PASS  2@40 the collapsed body keeps the 8-row cap with its fold hint
+PASS  3@80/split a change row numbers each pane with its own side
+PASS  3@80/split an add-only row leaves the old pane unnumbered
+PASS  3@80/split the header separator carries the stat; hunks split by ⋯
+PASS  3@80/split every row fits the width
+PASS  3@80/split several files: move and new-file headers
+PASS  3@80/split mixed new file uses one full-width side
+PASS  3@80/split add patch full-width line retains its real number
+PASS  3@80/split delete patch full-width line retains its real number
+PASS  3@80/split expanded: each pane reaches the tail the collapse clips
+PASS  3@80/split expanded: every wrapped row keeps │ in one column
+PASS  3@80/split expanded: the wide row wraps, numbers once, continuations indented to the text column
+PASS  3@120/auto a change row numbers each pane with its own side
+PASS  3@120/auto an add-only row leaves the old pane unnumbered
+PASS  3@120/auto the header separator carries the stat; hunks split by ⋯
+PASS  3@120/auto every row fits the width
+PASS  3@120/auto several files: move and new-file headers
+PASS  3@120/auto mixed new file uses one full-width side
+PASS  3@120/auto add patch full-width line retains its real number
+PASS  3@120/auto delete patch full-width line retains its real number
+PASS  3@120/auto expanded: each pane reaches the tail the collapse clips
+PASS  3@120/auto expanded: every wrapped row keeps │ in one column
+PASS  3@120/auto expanded: the wide row wraps, numbers once, continuations indented to the text column
+PASS  4@80/unified an old/new card renders deterministically
+PASS  4@80/unified no line numbers or stat on the old branch
+PASS  4@120/split an old/new card renders deterministically
+PASS  4@120/split no line numbers or stat on the old branch
+
+verify-diff-patch OK (61 passed, 0 failed)

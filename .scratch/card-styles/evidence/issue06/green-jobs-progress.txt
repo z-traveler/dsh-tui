@@ -1,0 +1,20 @@
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;[?2026h[0m]8;;[?25h[?2026l[?2026l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS  1a. 最近进度保留
+PASS  1b. 观测时间已记
+PASS  1c. settle 后最近进度仍在（live 契约不变：progress 清空）
+PASS  1d. 时间线含 started→progress→progress→settled
+PASS  1e. settled 事件带终态 detail
+PASS  2a. 每次 drain 一条 output 事件（字节推进）
+PASS  2b. 带 channel 的 drain 记 channel
+PASS  2c. 缺口计数（不估字节）
+PASS  2d. 缺口事件落在输出流位置上
+PASS  3. job_output 镜像也进时间线（字节=文本长度）
+PASS  4a. 时间线封顶 40
+PASS  4b. 丢的是最旧事件
+PASS  5. 消失的存活任务记 killed 收尾
+PASS  6a. 详情渲染最近进度行
+PASS  6b. 保留尾巴如实标注
+PASS  6c. 时间线上屏（含启动与输出增量）
+PASS  6d. 时间线标题带「最近」限定
+PASS  7. 无观测历史的任务标注时间线不可用
+
+ALL PASS

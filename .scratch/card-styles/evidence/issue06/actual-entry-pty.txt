@@ -1,0 +1,34 @@
+# issue 06 真实入口 PTY（card-styles-demo.tsx，隔离 HOME，120x40，无凭据/网络）
+# 自动解码 @xterm/headless 只作终端取证，不是人工视觉验收。
+# 命令（真彩）：TERM=xterm-256color COLORTERM=truecolor FORCE_COLOR=3 DSH_TUI_TMUX_TRUECOLOR=1 \
+#   node --import tsx/esm scripts/downstream/card-styles-demo.tsx
+# 命令（256）：同上去掉 COLORTERM/DSH_TUI_TMUX_TRUECOLOR，FORCE_COLOR=2
+# 流程：启动等待 -> G 滚到底 -> Alt+1 切 legacy -> Ctrl+C 正常退出；退出码 0。
+
+## 真彩 pi-like：split 增删行衬底（顶屏，Edit /tmp/patch.ts）
+row 3:   8 − const a = 1                        │ 8 + const a = 2
+cell x=0   (卡片 gutter/上下文) bg=rgb:000000
+cell x=3   (old pane)           bg=rgb:201214   # 删除豆沙近黑
+cell x=59  (old pane 行尾)      bg=rgb:201214
+cell x=61  (new pane)           bg=rgb:101b13   # 新增灰绿近黑
+cell x=117 (new pane 行尾)      bg=rgb:101b13
+cell x=60  (分栏分隔)           bg=rgb:000000
+changed 删除词 fg=rgb:ba757f / 新增词 fg=rgb:57956b（均为语义色）
+
+## 真彩 pi-like：job 细线（底屏 pwsh-live）
+"● 任务：pwsh-live pwsh ━━─── 3/10   4s 运行中"
+x=23,24 "━" fg=rgb:7da1de（theme accent）
+x=25-27 "─" fg=rgb:8d95a6（dim/弱余段）
+x=29-32 "3/10" fg=rgb:7da1de（原始计数）
+全部单元格 bg=default（无背景填充）
+
+## 真彩 legacy（Alt+1）：原 bar 与原 split 衬底
+"● 任务：pwsh-live pwsh █▌    3/10   8s 运行中"  -> 块状 bar
+split old pane bg=rgb:362b2c（原 diffRemovedDimmed）
+
+## 256 色 pi-like（FORCE_COLOR=2，tmux 无真彩开关）
+split old pane bg=palette:52 / new pane bg=palette:22 / 上下文 bg=palette:16
+job "━" fg=palette:110 / "─" fg=palette:145 / "3/10" fg=palette:110 / bg=default
+
+限制：16 色档没有极淡行衬底（回归断言两侧回到终端底、词色为终端绿/红）；
+分栏/行衬底几何随终端宽度；以上为自动终端取证，字体观感仍需人工确认。

@@ -1,0 +1,46 @@
+[
+  {
+    "mode": "fullscreen-30",
+    "color": "3",
+    "exit": 0,
+    "top_body": true,
+    "middle_body": true,
+    "bottom_body": true,
+    "near_black_rgb": true,
+    "observed_success_sgr": "\u001b[48;2;14;27;20m",
+    "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-zxpu4awk"
+  },
+  {
+    "mode": "fullscreen-80",
+    "color": "3",
+    "exit": 0,
+    "top_body": true,
+    "middle_body": true,
+    "bottom_body": true,
+    "near_black_rgb": true,
+    "observed_success_sgr": "\u001b[48;2;14;27;20m",
+    "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-zxpu4awk"
+  },
+  {
+    "mode": "inline-30",
+    "color": "3",
+    "exit": 0,
+    "top_body": true,
+    "middle_body": true,
+    "bottom_body": true,
+    "near_black_rgb": true,
+    "observed_success_sgr": "\u001b[48;2;14;27;20m",
+    "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-zxpu4awk"
+  },
+  {
+    "mode": "inline-80",
+    "color": "3",
+    "exit": 0,
+    "top_body": true,
+    "middle_body": true,
+    "bottom_body": true,
+    "near_black_rgb": true,
+    "observed_success_sgr": "\u001b[48;2;14;27;20m",
+    "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-zxpu4awk"
+  }
+]

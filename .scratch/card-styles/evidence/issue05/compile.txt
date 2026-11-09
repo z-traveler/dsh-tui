@@ -1,0 +1,9 @@
+$ node scripts/build-vendor.mjs && npm run clean && node --import tsx/esm scripts/gen-backend-index.mjs && tsc -p tsconfig.json && node scripts/gen-settings-json.mjs
+build-vendor: dsh-std is up to date (inputs d90e448d4bb6), skipping build:dsh-std
+build-vendor: mathjax is up to date (inputs 4013a4f95943), skipping build:mathjax
+
+> @deepseek-harness-tui/dsh-tui@0.18.0 clean
+> node scripts/clean-lib.mjs
+
+backend index: 2 entries (claude, codex) -> src/dsh-adapter/backends.generated.ts
+settings.json: 83 settings

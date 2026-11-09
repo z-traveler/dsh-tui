@@ -1,0 +1,5 @@
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS: mixed remeasurement (100 cols, 16 -> 14, real shrink=2)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS: near-bottom growth (100 cols, 9 -> 11, sticky=false)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS: Home header growth (100 cols, header 20 -> 40, scroll=0)
+[?2026h[0m]8;;[?25h[?2026l[?2026l[?1049l[?1006l[?1003l[?1002l[?1000l[>4m[<u[?9001l[?1004l[?2004l[?25h]9;4;0;PASS: large prefix growth (100 cols, growth=32, scroll 12 -> 44)
+PASS: scroll anchor remeasurement

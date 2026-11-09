@@ -1,0 +1,227 @@
+4muPASS  参考采样：三种执行状态在默认主题里两两不同且都不是「不涂底」  (palette:0 / palette:4 / palette:1)
+PASS  参考采样：用户卡面不是悬停/选中高亮  (user=default hover=palette:4 selection=palette:0)
+--- T: the user face follows the provider's terminal background ---
+PASS  T 卡片从 ThemeProvider 的终端底色取用户卡面  (default/default want default)
+PASS  T 浅色终端不会是深色块（16 色档两侧都不填充）  (light=default dark=default chalk.level=1)
+PASS  T 团队消息同样跟随  (default want default)
+4mu--- L: legacy default adds nothing ---
+PASS  L 全部行都在屏上
+PASS  L 没有任何卡片行涂底
+PASS  L 没有卡片边框字形
+PASS  L 用户气泡不做水平内缩（❯ 在第 0 列）  ("❯ hello there")
+PASS  L 工具卡正文仍是「 ⎿ 」缩进  (" ⎿ 1")
+4mu--- L2: legacy keeps the toolBackground tiers ---
+PASS  L2 legacy + toolBackground=subtle：工具卡用旧底色  (got=palette:0 want=palette:0)
+PASS  L2 legacy + toolBackground=subtle：其它卡片不涂底
+PASS  L2 legacy + toolBackground=subtle：不产生状态底色
+4muPASS  L2 legacy + toolBackground=strong：工具卡用旧底色  (got=palette:0 want=palette:0)
+PASS  L2 legacy + toolBackground=strong：其它卡片不涂底
+PASS  L2 legacy + toolBackground=strong：不产生状态底色
+4mu--- P: pi-like faces ---
+PASS  P 用户气泡全宽涂底  (default/default)
+PASS  P 用户卡面随色档：真彩/256 档是淡色实底，16 色档不填充  (chalk.level=1 user=default)
+PASS  P 用户卡面与悬停高亮可分辨（不再借 hover 色）  (user=default hover=palette:4)
+PASS  P 用户气泡上下各留 1 行且同样涂底（paddingY）  (above=default below=default)
+PASS  P 用户气泡水平内缩 1 列  (" ❯ hello there")
+PASS  P 团队消息与用户气泡用同一卡面  (default/default want default)
+PASS  P 团队消息的发送者行也在卡面上  (default want default)
+PASS  P 助手不涂底  (default)
+PASS  P 流式助手不涂底  (default)
+PASS  P 思考不涂底  (default)
+PASS  P 摘要不涂底  (default)
+PASS  P 本地回显不涂底  (default)
+PASS  P 本地输出不涂底  (default)
+PASS  P notice 行不涂底（水平内缩只影响内容）
+4mu--- P2: pi-like block faces ---
+PASS  P2 五张卡片都在屏上
+PASS  P2 三张工具卡都在屏上  ([1,6,14])
+PASS  P2 三张工具卡底色两两不同  (palette:0 / palette:4 / palette:1)
+PASS  P2 running=执行中面 / ok=成功面 / error=失败面  (palette:0/palette:4/palette:1 期望 palette:0/palette:4/palette:1)
+PASS  P2 状态底色覆盖整块（卡头上下 paddingY 行也涂）
+PASS  P2 子代理完成 → 成功面  (palette:4)
+PASS  P2 后台任务完成 → 成功面  (palette:4)
+4mu--- O: overrides ---
+4muPASS  O 自定义色采样成功  (palette:0)
+PASS  O 覆盖的底色画在工具卡上  (got=palette:0 want=palette:0)
+PASS  O 边框画成上下两条  (["╭──────────────────────────────────────────────────────────────────────────────╮","╰──────────────────────────────────────────────────────────────────────────────╯"])
+PASS  O 卡头行两侧有竖边框  ("│  • Bash(seq 6) · 1s                                                          │")
+PASS  O 卡头内容缩进 = 边框 1 + 水平内边距 2  ("│  • Bash(seq 6) · 1s                                                          │")
+PASS  O 上内边距行也涂底  (palette:0)
+4muPASS  O 公共/类型覆盖：用户底色生效  (palette:0 want palette:0)
+PASS  O gap 在两张同类卡片之间多留 1 行空行  (first=1 second=4)
+PASS  O gap 留出的空行不涂底
+4muPASS  O other.gap 同样作用于本地输出
+4mu--- S: status faces and cancelled runs ---
+PASS  S 四行都在屏上
+PASS  S 取消的子代理保持普通块底色  (palette:0 want palette:0)
+PASS  S 取消的子代理保留状态词  ("   🔴 Subagent: Explore repository · default · 4s · 1200 tok · 0 tools · Cancelled        ")
+PASS  S 被终止的后台任务保持普通块底色  (palette:0)
+PASS  S 终止中的后台任务保持普通块底色  (palette:0)
+PASS  S 终止的后台任务保留 ✗ 符号  (" ✗ job: pwsh-2 pwsh 3s exit code: 0 killed                                                ")
+PASS  S 状态未知的子代理保持普通块底色  (palette:0)
+4muPASS  S 成功面上的卡头文字与底色不同色  (fg=palette:6 bg=palette:4)
+4mu--- F: fold defaults and preview lines ---
+PASS  F defaultExpanded=true：工具正文默认展开  (• Bash(seq 6) · 1s| ⎿ 1|   2|   3|   4|   5|   6|)
+PASS  F defaultExpanded=true：点一下（展开集合）＝收起
+PASS  F defaultExpanded=true：再点回来
+PASS  F Ctrl+O 仍强制展开
+4muPASS  F previewLines=1：正文只留 1 行 + 折叠提示  (• Bash(seq 6) · 1s| ⎿ 1|   … +5 lines (ctrl+o to expand)|||)
+4muPASS  F 未配置时沿用既有 3 行预算
+4muPASS  F previewLines 同样覆盖 diff 正文预算  (• Edit /tmp/a.ts · 0s| ⎿ - old1|   - old2|   … +8 lines (ctrl+o to expand)||)
+4muPASS  F 落定思考 defaultExpanded=true：显示全文
+PASS  F 落定思考点击后仍能收起
+4muPASS  F 思考 previewLines=2：流式 ticker 只留 2 行  ( ⠋ Thinking…|  │ …third thought|  │ fourth thought|||)
+4muPASS  F 思考 previewLines=4：ticker 行数跟随配置  ( ⠋ Thinking…|  │ first thought|  │ second thought|  │ third thought|  │ fourth thought|)
+4muPASS  F 未配置：ticker 仍是既有 3 行  ( ⠋ Thinking…|  │ …second thought|  │ third thought|  │ fourth thought||)
+4muPASS  F 摘要 defaultExpanded=true：默认显示全文  (  the compaction summary body|||)
+PASS  F 摘要点击收起
+4muPASS  F 未配置：摘要仍默认折叠
+4muPASS  F 未配置：三张落定任务按 jobGroupFold 折成一行  (▸ 3 background jobs folded · all completed · 3s total · click to expand|||)
+4muPASS  F job defaultExpanded=true：整组默认展开（分组仍在）  (▾ background jobs ×3 · 3 completed · 3s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run job 1|✓ job: pwsh-2 pwsh 3s exit code: 0 completed)
+PASS  F job 组头点击仍可折叠
+4muPASS  F job defaultExpanded 不改变成组与存活规则  (▾ background jobs ×2 · 1 running · 1 completed · 5s total|✓ job: pwsh-1 pwsh 3s exit code: 0 completed|│ ❯ run job 1|● job: pwsh-2 pwsh 5s running)
+4muPASS  O 任务组间隔测试初始折叠头可见
+PASS  O job.gap 同样作用于折叠组头
+4muPASS  F 任务缓存变更前：always + 默认收起
+PASS  F 同次修改分组与展开默认不会命中旧缓存
+4muPASS  F 用户长行 defaultExpanded=true：默认展开原文（无折叠标记）  (chars=2858)
+4muPASS  F 未配置：长行仍按既有折叠（只画 1000 字符 + 折叠标记）  (chars=993)
+4mu--- N: narrow, CJK and emoji ---
+PASS  N 窄屏 CJK 用户气泡换行且内容完整  (| ❯ 这是一个很长的中文提示，用来验证|   卡片内边距收窄之后的换行宽度是否|   正确处理宽字符 🙂||||)
+PASS  N 窄屏下每行都在终端宽度内
+PASS  N 卡面涂到最后一列（内容宽度收窄但底色仍满宽）  (default)
+4muPASS  N emoji 不被截半个（20 个完整码点）  (20)
+4muPASS  N 助手 markdown 表格按内缩后的宽度排版  (   ● ┌────────────┬────────────┐|     │ aaaaaaaaaa │ bbbbbbbbbb │|     ├────────────┼────────────┤|     │ 1          │ 2          │|     └────────────┴────────────┘|||||)
+PASS  N 收窄后没有行超出终端宽度  (longest=32)
+PASS  N 表格边框留在卡片内容区（左内缩 3 + 圆点 2）  ("   ● ┌────────────┬────────────┐")
+4mu--- X: selection stays readable on painted cards ---
+PASS  X 选中的用户气泡用选中色而非卡面  (palette:0 want palette:0)
+PASS  X 选中色与 pi-like 用户卡面可分辨  (palette:0 vs default)
+4muPASS  X 选中的工具卡用选中色而不是状态底色  (palette:0 want palette:0)
+4muPASS  X 选中的团队消息用选中色而非卡面  (palette:0 want palette:0)
+4mu--- A: state faces (theme matrix) ---
+4mu  色档 chalk.level=1
+PASS  dark 三张工具卡都在屏上
+  dark [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  dark 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  dark 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  dark 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  dark 状态符号保留
+4muPASS  dark-ansi 三张工具卡都在屏上
+  dark-ansi [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  dark-ansi 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  dark-ansi 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  dark-ansi 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  dark-ansi 状态符号保留
+4muPASS  light 三张工具卡都在屏上
+  light [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  light 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  light 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  light 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  light 状态符号保留
+4muPASS  pink-night 三张工具卡都在屏上
+  pink-night [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  pink-night 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  pink-night 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  pink-night 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  pink-night 状态符号保留
+4muPASS  pink-ansi 三张工具卡都在屏上
+  pink-ansi [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  pink-ansi 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  pink-ansi 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  pink-ansi 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  pink-ansi 状态符号保留
+4muPASS  pink-day 三张工具卡都在屏上
+  pink-day [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  pink-day 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  pink-day 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  pink-day 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  pink-day 状态符号保留
+4muPASS  claude-dark 三张工具卡都在屏上
+  claude-dark [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  claude-dark 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  claude-dark 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  claude-dark 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  claude-dark 状态符号保留
+4muPASS  claude-paper 三张工具卡都在屏上
+  claude-paper [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  claude-paper 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  claude-paper 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  claude-paper 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  claude-paper 状态符号保留
+4muPASS  codex-lavender 三张工具卡都在屏上
+  codex-lavender [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  codex-lavender 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  codex-lavender 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  codex-lavender 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  codex-lavender 状态符号保留
+4muPASS  codex-paper 三张工具卡都在屏上
+  codex-paper [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  codex-paper 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  codex-paper 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  codex-paper 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  codex-paper 状态符号保留
+4muPASS  主题矩阵覆盖了内置主题与两个 ANSI 盘  ({"themes":10,"ansiThemes":2})
+--- 16 colours: the whole built-in matrix ---
+PASS  dark 三张工具卡都在屏上
+  dark [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  dark 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  dark 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  dark 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  dark 状态符号保留
+4muPASS  dark-ansi 三张工具卡都在屏上
+  dark-ansi [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  dark-ansi 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  dark-ansi 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  dark-ansi 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  dark-ansi 状态符号保留
+4muPASS  light 三张工具卡都在屏上
+  light [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  light 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  light 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  light 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  light 状态符号保留
+4muPASS  pink-night 三张工具卡都在屏上
+  pink-night [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  pink-night 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  pink-night 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  pink-night 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  pink-night 状态符号保留
+4muPASS  pink-ansi 三张工具卡都在屏上
+  pink-ansi [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  pink-ansi 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  pink-ansi 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  pink-ansi 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  pink-ansi 状态符号保留
+4muPASS  pink-day 三张工具卡都在屏上
+  pink-day [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  pink-day 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  pink-day 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  pink-day 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  pink-day 状态符号保留
+4muPASS  claude-dark 三张工具卡都在屏上
+  claude-dark [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  claude-dark 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  claude-dark 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  claude-dark 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  claude-dark 状态符号保留
+4muPASS  claude-paper 三张工具卡都在屏上
+  claude-paper [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  claude-paper 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  claude-paper 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  claude-paper 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  claude-paper 状态符号保留
+4muPASS  codex-lavender 三张工具卡都在屏上
+  codex-lavender [ansi16]: ansi:black | ansi:blue | ansi:red -> running=palette:0(21.00:1) success=palette:4(9.40:1) failure=palette:1(5.84:1)
+PASS  codex-lavender 三态卡面两两不同  (palette:0 / palette:4 / palette:1)
+PASS  codex-lavender 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.84:1)
+PASS  codex-lavender 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:0 / palette:4 / palette:1 want palette:0 / palette:4 / palette:1)
+PASS  codex-lavender 状态符号保留
+4muPASS  codex-paper 三张工具卡都在屏上
+  codex-paper [ansi16]: ansi:white | ansi:green | ansi:redBright -> running=palette:7(16.67:1) success=palette:2(9.73:1) failure=palette:9(5.25:1)
+PASS  codex-paper 三态卡面两两不同  (palette:7 / palette:2 / palette:9)
+PASS  codex-paper 三态卡面上的默认正文读得清（≥ 4.5:1）  (worst=5.25:1)
+PASS  codex-paper 状态面走可读槽位（不依赖终端自己的 ANSI 盘）  (palette:7 / palette:2 / palette:9 want palette:7 / palette:2 / palette:9)
+PASS  codex-paper 状态符号保留
+4mu
+ALL PASS

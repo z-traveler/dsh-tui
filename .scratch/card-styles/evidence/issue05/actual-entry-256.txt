@@ -1,0 +1,5 @@
+{"mode": "fullscreen-30", "color": "2", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "near_black_rgb": false, "observed_success_sgr": null, "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-eix0pbrp"}
+{"mode": "fullscreen-80", "color": "2", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "near_black_rgb": false, "observed_success_sgr": null, "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-eix0pbrp"}
+{"mode": "inline-30", "color": "2", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "near_black_rgb": false, "observed_success_sgr": null, "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-eix0pbrp"}
+{"mode": "inline-80", "color": "2", "exit": 0, "top_body": true, "middle_body": true, "bottom_body": true, "near_black_rgb": false, "observed_success_sgr": null, "raw": "/home/liyihang/.tmp/card-styles-issue05-entry-eix0pbrp"}
+real entry body checks: 4 passed

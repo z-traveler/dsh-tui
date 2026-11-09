@@ -1,0 +1,2 @@
+$ node scripts/verify-source-hygiene.mjs
+source hygiene passed (2612 files; provider IDs and documented migration aliases remain supported)
