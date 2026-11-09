@@ -14,6 +14,7 @@ import { readBoundedRegularFile } from '../../../utils/pastedImagePath.js'
 import { getHostCommandTrees, type TuiCommandTreeRuntime } from '../../command-trees.js'
 import { runForegroundShell, type ForegroundShell } from '../../compat/shell.js'
 import { getHostGrantStore } from '../../host-grants.js'
+import { getHostIntegration, type TuiIntegrationRuntime } from '../../integration.js'
 import { getHostRenderers, type TuiRendererRuntime } from '../../renderers.js'
 import { getHostSceneRuntime, type TuiSceneRuntime } from '../../scenes.js'
 import { getHostSettingsSections, type TuiSettingsSectionsRuntime } from '../../settings-sections.js'
@@ -37,6 +38,9 @@ export interface CoreHost {
   readonly sceneRuntime: ReturnType<typeof getHostSceneRuntime>
   readonly settingsSectionsRuntime: ReturnType<typeof getHostSettingsSections>
   readonly rendererRuntime: ReturnType<typeof getHostRenderers>
+  /** External-plugin integration seam (the foreground binding the channel
+   *  publishes into); absent without the extensions row. */
+  readonly integration: ReturnType<typeof getHostIntegration>
   /** The live grant store: the host-owned one when the plugin-host row is
    *  mounted, else this channel's private fallback (re-read per operation). */
   currentGrantStore(): ReturnType<typeof readGrantStore>
@@ -90,6 +94,9 @@ export function resolveCoreHost(ctx: ChannelHost, owner: Pick<ChannelOwner, 'own
     // Custom-entry text renderers (optional, dsh-tui-extensions row): absent
     // the row, unknown plugin event types stay invisible in the transcript.
     get rendererRuntime() { return getHostRenderers(ctx.get('tuiRenderers') as TuiRendererRuntime | undefined) },
+    // External-plugin integration seam (optional, dsh-tui-extensions row):
+    // absent the row, the foreground binding is simply not published.
+    get integration() { return getHostIntegration(ctx.get('tuiIntegration') as TuiIntegrationRuntime | undefined) },
     currentGrantStore,
   }
 }

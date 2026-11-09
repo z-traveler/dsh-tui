@@ -39,13 +39,18 @@ await runtime
 assert.throws(() => root.tuiSessions.current(), /plugin|activation|root/iu)
 assert.throws(() => root.tuiSessions.subscribe(() => {}), /plugin|activation|root/iu)
 let ctx: InstanceType<typeof Context> | undefined
-const plugin = root.plugin({ name: 'sessions-probe', inject: ['tuiSessions'], apply(c) { ctx = c } })
+const plugin = root.plugin({ name: 'sessions-probe', inject: ['tuiSessions', 'tuiIntegration'], apply(c) { ctx = c } })
 await plugin
 assert.ok(ctx)
 const seen: unknown[] = []
 const off = ctx.tuiSessions.subscribe(value => seen.push(value))
 assert.deepEqual(seen, [{ sessionId: 'first', backend: 'fake' }])
 assert.deepEqual(ctx.tuiSessions.current(), seen[0])
+// Both released seams must coexist on the same extensions activation.
+const integration = ctx.tuiIntegration
+assert.ok(integration)
+assert.ok(await settled(() => integration.getForeground()?.sessionId === 'first'))
+assert.equal(integration.getForeground()?.cwd, home)
 const derived: unknown[] = []
 ctx.tuiSessions.onDerived(value => derived.push(value))
 ctx.tuiSessions.onDerived(() => { throw new Error('listener failure') })
@@ -59,6 +64,7 @@ assert.deepEqual(derived.at(-1), { kind: 'rewind', sourceSessionId: 'first', ses
 assert.deepEqual(seen.at(-1), { sessionId: 'rewound', backend: 'fake' })
 assert.equal(await channel.newSession(), true)
 assert.deepEqual(seen.at(-1), { sessionId: 'new-1', backend: 'fake' })
+assert.ok(await settled(() => integration.getForeground()?.sessionId === ctx!.tuiSessions.current()?.sessionId))
 off()
 assert.equal(await channel.newSession(), true)
 assert.equal(seen.length, 3)
@@ -74,6 +80,7 @@ assert.equal(await channel.newSession(), true)
 assert.equal(disposed.length, 1)
 detach()
 channel.releaseContributions()
+assert.equal(integration.getForeground(), undefined, 'channel release clears the coexisting foreground seam')
 await runtime.dispose()
 
 // A channel can mount before its session or this service. The next activation

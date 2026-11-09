@@ -17,6 +17,7 @@ import TuiSceneRuntime, { getHostSceneRuntime } from '../src/dsh-adapter/scenes.
 import TuiSettingsSectionsRuntime, { getHostSettingsSections } from '../src/dsh-adapter/settings-sections.js'
 import TuiWorkspaceRuntime, { getHostWorkspaceRuntime } from '../src/dsh-adapter/workspaces.js'
 import TuiCommandTreeRuntime, { getHostCommandTrees } from '../src/dsh-adapter/command-trees.js'
+import TuiIntegrationRuntime, { getHostIntegration } from '../src/dsh-adapter/integration.js'
 
 let failures = 0
 let checks = 0
@@ -65,6 +66,7 @@ await root.plugin(TuiSceneRuntime)
 await root.plugin(TuiSettingsSectionsRuntime)
 await root.plugin(TuiWorkspaceRuntime)
 await root.plugin(TuiCommandTreeRuntime)
+await root.plugin(TuiIntegrationRuntime)
 
 const dialogs = getHostDialogStore(root.get('tuiDialogs'))
 const status = getHostStatusStore(root.get('tuiStatus'))
@@ -75,6 +77,17 @@ const scenes = getHostSceneRuntime(root.get('tuiScenes'))
 const sections = getHostSettingsSections(root.get('tuiSettingsSections'))
 const workspaces = getHostWorkspaceRuntime(root.get('tuiWorkspaces'))
 const commandTrees = getHostCommandTrees(root.get('tuiCommandTrees'))
+const integration = getHostIntegration(root.get('tuiIntegration'))
+if (integration === undefined) throw new Error('lifecycle battery could not resolve integration')
+const leakedIntegration = { changes: 0, editors: 0 }
+const liveIntegration = { changes: 0, editors: 0 }
+let retainedIntegration: TuiIntegrationRuntime | undefined
+const checkIntegrationLeak = async (label: string): Promise<void> => {
+  integration.publishForeground({ sessionId: label, cwd: process.cwd() })
+  await integration.prepareEditor({ sessionId: label, file: 'unused-draft.md', argv: ['nvim'] })
+  integration.publishForeground(undefined)
+  check(`${label} leaves no foreground listener or editor provider`, leakedIntegration.changes === 0 && leakedIntegration.editors === 0)
+}
 if (dialogs === undefined || status === undefined || shortcuts === undefined || renderers === undefined || themes === undefined || scenes === undefined || sections === undefined || workspaces === undefined || commandTrees === undefined) {
   throw new Error('lifecycle battery could not resolve host accessors')
 }
@@ -98,7 +111,7 @@ let foreignTreeDescription: unknown
 let foreignSceneOpened = false
 let foreignSceneActive: unknown
 const rootProbe = root.inject(
-  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiThemes', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees'],
+  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiThemes', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees', 'tuiIntegration'],
   (pluginCtx) => {
     const rootCtx = pluginCtx.root
     rootCtx.get('tuiStatus')?.set('root-leak', 'must not persist')
@@ -106,6 +119,8 @@ const rootProbe = root.inject(
     rootCtx.get('tuiShortcuts')?.register('alt+z', { description: 'root leak', handler: () => {} })
     rootCtx.get('tuiRenderers')?.register('root/leak', () => ({ lines: ['must not persist'] }))
     rootCtx.get('tuiThemes')?.register({ name: 'root:leak', base: 'dark' })
+    rootCtx.get('tuiIntegration')?.onChange(() => { leakedIntegration.changes += 1 })
+    rootCtx.get('tuiIntegration')?.registerEditor(() => { leakedIntegration.editors += 1; return undefined })
     const canonicalRoot = rootCtx.root
     const rootBoundStatus = rootCtx.get('tuiStatus')
     rootCtx.root = new Context()
@@ -153,6 +168,7 @@ const rootProbe = root.inject(
   },
 )
 await rootProbe
+await checkIntegrationLeak('root caller')
 check('root status call leaves no contribution', status.getSnapshot().length === 0)
 check('root rich-status call leaves no contribution', status.getViewSnapshot().length === 0)
 check('root shortcut call leaves no binding', shortcuts.dispatch('z', { meta: true }) === false)
@@ -191,6 +207,9 @@ const foreignFiber = foreignRoot.plugin({
     trace('tuiStatus')?.registerView({ key: 'foreign-view-leak', component: () => null })
     trace('tuiShortcuts')?.register('alt+y', { description: 'foreign leak', handler: () => {} })
     trace('tuiRenderers')?.register('foreign/leak', () => ({ lines: ['must not persist'] }))
+    const tracedIntegration = foreignCtx.reflect.trace(root.get('tuiIntegration'))
+    tracedIntegration?.onChange(() => { leakedIntegration.changes += 1 })
+    tracedIntegration?.registerEditor(() => { leakedIntegration.editors += 1; return undefined })
     foreignDialog = trace('tuiDialogs')?.confirm({ title: 'must not queue' })
     try {
       trace('tuiScenes')?.register({ id: 'foreign-leak', component: () => null })
@@ -220,6 +239,7 @@ const foreignFiber = foreignRoot.plugin({
   },
 })
 await foreignFiber
+await checkIntegrationLeak('foreign composition')
 check('cross-composition plugin cannot create a child on the host root', foreignRootRejected)
 check('cross-composition scene registration is rejected', foreignSceneRejected)
 check('cross-composition settings registration is rejected', foreignSettingsRejected)
@@ -237,11 +257,14 @@ await foreignRoot.fiber.dispose()
 
 let pluginDialog: Promise<boolean> | undefined
 const pluginFiber = root.inject(
-  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiThemes', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees'],
+  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiThemes', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees', 'tuiIntegration'],
   (pluginCtx) => {
     retainedStatus = pluginCtx.get('tuiStatus')
     retainedThemes = pluginCtx.get('tuiThemes')
     retainedWorkspace = pluginCtx.get('tuiWorkspaces')
+    retainedIntegration = pluginCtx.get('tuiIntegration')
+    pluginCtx.tuiIntegration.onChange(() => { liveIntegration.changes += 1 })
+    pluginCtx.tuiIntegration.registerEditor(() => { liveIntegration.editors += 1; return undefined })
     pluginCtx.tuiStatus.set('lifecycle', 'active')
     pluginCtx.tuiStatus.registerView({ key: 'lifecycle-view', maxRows: 2, component: () => null })
     pluginCtx.tuiShortcuts.register('alt+x', { description: 'lifecycle', handler: () => {} })
@@ -262,6 +285,10 @@ const pluginFiber = root.inject(
   },
 )
 await pluginFiber
+integration.publishForeground({ sessionId: 'live', cwd: process.cwd() })
+await integration.prepareEditor({ sessionId: 'live', file: 'unused-draft.md', argv: ['nvim'] })
+integration.publishForeground(undefined)
+check('live plugin owns its foreground listener and editor', liveIntegration.changes === 2 && liveIntegration.editors === 1)
 check('live plugin effects are visible before dispose',
   status.getSnapshot().some(entry => entry.key === 'lifecycle')
   && status.getViewSnapshot().some(entry => entry.key === 'lifecycle-view' && entry.maxRows === 2)
@@ -321,6 +348,10 @@ check('foreign plugin cannot overwrite another activation rich status',
 await foreignStatusFiber.dispose()
 
 await pluginFiber.dispose()
+retainedIntegration?.onChange(() => { leakedIntegration.changes += 1 })
+retainedIntegration?.registerEditor(() => { leakedIntegration.editors += 1; return undefined })
+await checkIntegrationLeak('disposed activation')
+check('unload releases the live foreground listener and editor', liveIntegration.changes === 2 && liveIntegration.editors === 1)
 check('plugin dialog is cancelled on its fiber dispose', (await pluginDialog) === false)
 retainedStatus?.set('retained-after-dispose', 'must not persist')
 retainedThemes?.register({ name: 'retained:theme', base: 'dark' })
@@ -430,7 +461,7 @@ let forgedSettingsRejected = false
 let forgedWorkspaceRejected = false
 let forgedTreeRejected = false
 const forgedFiber = root.inject(
-  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees'],
+  ['tuiDialogs', 'tuiStatus', 'tuiShortcuts', 'tuiRenderers', 'tuiScenes', 'tuiSettingsSections', 'tuiWorkspaces', 'tuiCommandTrees', 'tuiIntegration'],
   (pluginCtx) => {
     const fakeFiber = { uid: 999, state: 2, runtime: null, ctx: root, effect: (execute: () => unknown) => execute() }
     const forged = pluginCtx.extend({ fiber: fakeFiber })
@@ -438,6 +469,8 @@ const forgedFiber = root.inject(
     forged.get('tuiStatus')?.registerView({ key: 'forged-view', component: () => null })
     forged.get('tuiShortcuts')?.register('alt+f', { description: 'forged', handler: () => {} })
     forged.get('tuiRenderers')?.register('forged/leak', () => ({ lines: ['must not persist'] }))
+    forged.get('tuiIntegration')?.onChange(() => { leakedIntegration.changes += 1 })
+    forged.get('tuiIntegration')?.registerEditor(() => { leakedIntegration.editors += 1; return undefined })
     forgedDialog = forged.get('tuiDialogs')?.confirm({ title: 'must not queue' })
     try {
       forged.get('tuiScenes')?.register({ id: 'forged-leak', component: () => null })
@@ -462,6 +495,7 @@ const forgedFiber = root.inject(
   },
 )
 await forgedFiber
+await checkIntegrationLeak('forged fiber')
 check('forged caller leaves no status', status.getSnapshot().length === 0)
 check('forged caller leaves no rich status', status.getViewSnapshot().length === 0)
 check('forged caller leaves no shortcut', shortcuts.dispatch('f', { alt: true, meta: true }) === false)
