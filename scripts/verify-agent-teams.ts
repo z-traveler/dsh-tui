@@ -193,7 +193,7 @@ const deps = { tools: () => undefined, scope: () => ({}), attachments: () => und
   const typed = { ...relayed, data: { ...relayed.data, source: { kind: 'user' } } }
   const own = createDshTranslator(deps).translateEvent(typed as never).find(event => event.type === 'user.message')
   assert.ok(own?.type === 'user.message' && own.source === 'user')
-  // Other injected sources stay hidden.
+  // Settlement context is never a human bubble. With cards on it is a notice.
   const injected = { ...relayed, data: { ...relayed.data, source: { kind: 'subagent-settled', form: 'notice', summary: 's', senderSessionId: MATE } } }
   const hidden = createProjectorHarness()
   hidden.apply(createDshTranslator(deps).translateEvent(injected as never))
@@ -204,7 +204,7 @@ const deps = { tools: () => undefined, scope: () => ({}), attachments: () => und
   store.onSessionEvent(MATE, { ...relayed, data: { ...relayed.data, content: [{ type: 'text', text: 'Team message from lead:' }, { type: 'text', text: 'check src/ too' }], source: { ...relayed.data.source, senderSessionId: LEAD } } })
   assert.deepEqual(store.get(MATE)?.outputEvents, [], 'a team message adds no line to the child')
 }
-console.log('PASS team message (live + replay → sender bubble from the framing name, not the last prompt; legacy relay, typed framing and other injected stay hidden; the child leaves it to the agent-message feed)')
+console.log('PASS team message (live + replay → sender bubble from the framing name, not the last prompt; legacy relay stays hidden, typed framing remains human text and notices never become human bubbles; the child leaves it to the agent-message feed)')
 
 // ── tool cards ───────────────────────────────────────────────────────────
 assert.equal(isSubagentToolName('spawn_teammate'), true, 'spawn_teammate renders as the subagent row')

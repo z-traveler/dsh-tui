@@ -21,12 +21,15 @@ const CONTEXT_NOTICE_SUMMARY_CELLS = 240
  * never re-derives it from the summary.
  */
 export function ContextNoticeCardRow({
+  source,
   summary,
   body,
   expanded,
   background,
   onClick,
 }: {
+  /** Producer identity, shown as provenance without inferring severity. */
+  source: string
   /** The producer's one-line account (untrusted render-path text). */
   summary: string
   /** The complete saved message body (the exact text the model received). */
@@ -48,6 +51,7 @@ export function ContextNoticeCardRow({
           clipping the summary away. */}
       <Text>
         <Text color="suggestion">{`[${t('context-notice-label')}]`}</Text>
+        {source !== '' ? <Text dimColor>{` ${cleanRenderText(source, 60)} ·`}</Text> : null}
         {` ${headline}`}
         {expanded || content === ''
           ? null

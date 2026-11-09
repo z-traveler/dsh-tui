@@ -590,6 +590,8 @@ questionnaire, or tool-card changes also need the matching regression scripts.
 
 Plugin development: [admission & development guide](tui-profile/docs/plugin-admission-and-development.md) · [plugin-template](https://github.com/dsh-tui-ecosystem/plugin-template) · [dsh-tui-ecosystem](https://github.com/dsh-tui-ecosystem). Reference implementation: `dsh-working-activity`.
 
+Downstream plugin input completions use [`ctx.tuiInputCompletions`](docs/downstream/input-completions.md): async, prioritized multi-source suggestions with source labels and activation-owned cleanup. Enter/Tab replace only the current token; they do not submit or load skills. Generic context notices share the default-on [`sessionCards`](docs/downstream/session-cards.md) switch with command and explicit skill cards; their saved bodies expand without a model request.
+
 Exported plugin subcomponents are admitted using the nearest package manifest of their ESM entry, including import-only and conditional exports; they do not inherit an outer package's identity.
 
 A backend plugin (the `tui.dsh/v1alpha1` `Backend` contribution family) is in the kernel picker after a restart: the boot scans the bundles the profile declares, admits and registers each package-root `dsh-plugin.json` declaration, and reads the implementation from the package's `backend` export — importing that module only when the backend is actually selected.

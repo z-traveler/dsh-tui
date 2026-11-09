@@ -201,8 +201,9 @@ export function restoreRowFromEvent(row: ChatRow, event: SessionEvent): void {
       // A skill/context-notice card's saved body is the user/message content
       // at the row's own seq.
       if (event.type !== 'user/message') break
-      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('').trim()
-      if (body) row.text = body
+      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
+      if (row.kind === 'context-notice') row.text = body
+      else if (body.trim()) row.text = body.trim()
       break
     }
     default:

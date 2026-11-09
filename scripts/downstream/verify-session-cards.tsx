@@ -319,6 +319,19 @@ const noticeRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filte
   channel.releaseContributions()
 }
 
+// Producer provenance and exact whitespace are durable, not inferred render text.
+{
+  const body = '\n  INDENTED-NOTICE-BODY\n\n'
+  const [event] = translateNotices([noticeMessage({ seq: 39, body })])
+  check('通知卡：保留来源标识和正文的首尾空白',
+    event?.type === 'context.notice' && 'source' in event && event.source === 'acme-context' && event.body === body)
+  const session = fakeSession('cards-notice-provenance')
+  const channel = open(session, { history: [event!] })
+  check('通知卡：投影保留实际来源而不是仅有形态标签',
+    JSON.stringify(noticeRows(channel)[0]?.contextNotice).includes('acme-context'))
+  channel.releaseContributions()
+}
+
 // 同来源多条独立；replacement 副本隐藏；实时与恢复同形。
 {
   const live = translateNotices([
@@ -360,6 +373,15 @@ const noticeRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filte
   channel.releaseContributions()
 }
 
+// A first-party producer follows exactly the same generic form contract.
+{
+  const session = fakeSession('cards-subagent-settled')
+  const channel = open(session, { history: translateNotices([noticeMessage({ seq: 38, kind: 'subagent-settled', summary: 'Child settled' })]) })
+  check('通知卡：核心 subagent-settled 也按 form 显示，不生成人工气泡',
+    noticeRows(channel).length === 1 && channel.rows.every(row => row.kind !== 'user'))
+  channel.releaseContributions()
+}
+
 // ── 7. 内存约束：窗口折叠 + 按持久锚点从日志恢复 ─────────────────────────
 {
   const rows: ChatRow[] = [
@@ -376,7 +398,7 @@ const noticeRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filte
 
 {
   const rows: ChatRow[] = [
-    { id: 0, kind: 'context-notice', text: NOTICE_BODY, seq: 35, time: 1_700_000_000_035, contextNotice: { messageId: 'msg-notice-35', summary: NOTICE_SUMMARY } },
+    { id: 0, kind: 'context-notice', text: NOTICE_BODY, seq: 35, time: 1_700_000_000_035, contextNotice: { messageId: 'msg-notice-35', source: 'acme-context', summary: NOTICE_SUMMARY } },
     { id: 1, kind: 'user', text: 'after', seq: 36, anchor: '36' },
   ]
   check('内存：通知卡超出窗口时正文降为预览，摘要/消息身份/序号保留',
@@ -503,7 +525,7 @@ for (const { columns, fullscreen } of [
   const rowCount = channel.rows.length
   try {
     check(`${label}：默认折叠只显示中性标签与摘要（正文末尾不在屏上）`,
-      await settled(() => h.screen().includes('[通知]') && h.screen().includes('CONTEXT-NOTICE-SUMMARY'))
+      await settled(() => h.screen().includes('[通知]') && h.screen().includes('acme-context') && h.screen().includes('CONTEXT-NOTICE-SUMMARY'))
         && !h.screen().includes('END-OF-NOTICE-BODY') && !h.screen().includes('\u001b[31m'),
       h.screen().split('\n').filter(line => line.includes('[通知]') || line.includes('CONTEXT-NOTICE')).join(' | '))
     h.input.write('\x0f')

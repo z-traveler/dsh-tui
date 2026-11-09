@@ -13,6 +13,7 @@
 `dsh-tui-extensions` 行挂载 `ctx.tuiInputCompletions`。在插件的 `apply` 中注册：
 
 ```ts
+import type { Context } from '@deepseek-ai/cordis'
 import type { TuiInputCompletionProvider } from '@deepseek-harness-tui/dsh-tui/input-completions'
 
 const skills: TuiInputCompletionProvider = {
@@ -36,7 +37,9 @@ const skills: TuiInputCompletionProvider = {
   },
 }
 
-export function apply(ctx) {
+export const inject = ['tuiInputCompletions']
+
+export function apply(ctx: Context) {
   ctx.tuiInputCompletions.register(skills)
 }
 ```
@@ -49,7 +52,7 @@ export function apply(ctx) {
 ### 契约
 
 - `trigger(token)` 只收到宿主算出的**当前空白分隔 token**和其内的光标
-  (`{ text, cursor }`)，拿不到完整草稿；`[Image #N]` 原子占位覆盖的 token 不会
+  (`{ text, cursor }`)，拿不到完整草稿；任何 `[Image #N]` 形状的文字覆盖的 token（包括手打占位文本）都不会
   触发任何来源。provider 在 token 内决定自己的触发前缀并返回
   `{ query }`（触发符到光标之间的片段）。
 - `query({ query, context }, signal)` 可同步或异步返回候选。`context` 是冻结的
@@ -60,7 +63,7 @@ export function apply(ctx) {
 - 同一次查询等待所有匹配来源返回后共同呈现，因此慢来源会延迟菜单；目前不设查询超时。取消、来源变化或卸载会立即结束宿主等待并发出 abort，即使某来源忽略 signal；宿主不能强制停止不配合的插件代码。
 - 所有匹配来源共同呈现：优先级数值降序，同级按注册顺序，同一来源保持返回顺序。
   多于一个来源有候选时，每一行显示来源 `label`；不同来源的同名文案不合并。
-- 宿主只替换 `start`/`end` 覆盖的 token。接受候选不会发送、排队或加载技能；
+- 宿主只替换 token 起点到光标之间的查询片段，光标后剩余文字（即使仍在同一单词内）也不删除。接受候选不会发送、排队或加载技能；
   `/`、`@` 内建菜单优先于插件菜单。
 - 草稿、光标、会话/绑定 generation 或来源集合变化时，即使 query 字符串相同，
   旧异步结果也被拒绝；新结果按稳定 `source + id` 保持选中项身份，迟到的更高优先级
@@ -90,7 +93,7 @@ the calling Cordis activation, so disabling/unloading the plugin unregisters the
 source, closes its menu and aborts host-side queries. No grant file is involved.
 
 `trigger(token)` sees only the host-computed whitespace token and token-local caret
-(`{ text, cursor }`); a token intersecting an atomic `[Image #N]` span never
+(`{ text, cursor }`); a token intersecting any `[Image #N]`-shaped text (including a typed literal) never
 triggers. It returns `{ query }`, the fragment between its trigger and the caret.
 `query({ query, context }, signal)` receives a frozen `{ backendId, sessionId, cwd }`
 and an abort signal, and returns `{ id, name, description?, replacement }[]` or a
@@ -105,7 +108,8 @@ provider ignores it. The host cannot forcibly stop non-cooperative plugin code.
 All matching sources contribute, ordered by numeric priority descending (default 0),
 ties in registration order, candidate order preserved per source. Every row carries
 its source `label` once more than one source contributes; equal text from different
-sources is never merged. Only the token bounds are replaced — surrounding text,
+sources is never merged. Only the token prefix through the caret is replaced; text after the caret is
+preserved even inside the same word. Surrounding text,
 `@path#L12` and `[Image #1]` survive. `/` and `@` menus keep priority. Enter/Tab
 accept without submit/steer/queue (even while busy); Escape only closes the menu;
 click, arrow keys, wheel and the window follow the built-in menus. Draft, caret,
@@ -115,4 +119,5 @@ key.
 
 Verification: `node --import tsx/esm scripts/verify-input-completions.tsx` (real
 Cordis activation + mounted `PromptInput`); `scripts/verify-adapter-shadow.ts`
-checks the host capability matrix.
+checks the host capability matrix. The default startup launchpad and the chat
+composer consume the same host facade, query lifecycle and menu component.

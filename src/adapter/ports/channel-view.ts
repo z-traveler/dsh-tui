@@ -211,6 +211,8 @@ export interface SkillRow {
  * card without asking the producer again.
  */
 export interface ContextNoticeRow {
+  /** Producer identity for provenance, never a severity or renderer selector. */
+  readonly source: string
   /** The durable message id the notice came from. */
   readonly messageId: string
   /** The producer's one-line account of what happened. */

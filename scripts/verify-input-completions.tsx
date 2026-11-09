@@ -22,6 +22,7 @@
  *
  * Run: node --import tsx/esm scripts/verify-input-completions.tsx
  */
+import './lib/fake-home.mjs'
 import type { Channel } from '../src/dsh-adapter/channel.js'
 import type {
   TuiInputCompletionCandidate,
@@ -45,6 +46,7 @@ const [
   { Terminal: XTerm },
   { render, AlternateScreen, Box, useInput },
   { PromptInput },
+  { Launchpad },
   { settled, viewportLines },
 ] = await Promise.all([
   import('@deepseek-ai/cordis'),
@@ -56,6 +58,7 @@ const [
   import('@xterm/headless'),
   import('../src/ui.js'),
   import('../src/components/PromptInput.js'),
+  import('../src/screens/Launchpad.js'),
   import('./lib/term-test.mjs'),
 ])
 
@@ -148,8 +151,10 @@ async function resolve(host: TuiInputCompletionHost, text: string, cursor: numbe
   }))
   const menu = await resolve(host, 'say #sk tail', 7)
   check('host owns the whitespace token bounds', menu?.start === 4 && menu?.end === 7, JSON.stringify(menu))
+  const insideWord = await resolve(host, '#skTAIL', 3)
+  check('completion replacement ends at the caret and cannot delete later text', insideWord?.start === 0 && insideWord.end === 3)
   check('the query receives the fragment and read-only session context',
-    seen.length === 1
+    seen.length === 2
       && seen[0].query === 'sk'
       && seen[0].context.backendId === 'dsh'
       && seen[0].context.sessionId === 'session-1'
@@ -330,7 +335,7 @@ function makeChannel(options: {
   return channel
 }
 
-async function mount(host: TuiInputCompletionHost, options: Parameters<typeof makeChannel>[0] & { columns?: number } = {}) {
+async function mount(host: TuiInputCompletionHost, options: Parameters<typeof makeChannel>[0] & { columns?: number; launchpad?: boolean } = {}) {
   const columns = options.columns ?? 110
   const term = new XTerm({ cols: columns, rows: ROWS, scrollback: 100, allowProposedApi: true })
   const stdout = new Writable({
@@ -355,6 +360,18 @@ async function mount(host: TuiInputCompletionHost, options: Parameters<typeof ma
     // Chat-style key holder registered before the prompt, mirroring the
     // component-level input regressions.
     useInput(() => {})
+    const [draft, setDraft] = React.useState('')
+    const [caret, setCaret] = React.useState(0)
+    const [focus, setFocus] = React.useState(-1)
+    React.useEffect(() => { if (options.launchpad) ready.resolve(undefined) }, [])
+    if (options.launchpad) return React.createElement(Launchpad, {
+      query: draft, cursorOffset: caret, focusIndex: focus, isTerminalFocused: true,
+      whale: false, whaleIdle: false, whaleGirl: false, starred: false, firstRun: false,
+      actions: [], inputCompletions: host,
+      inputCompletionContext: { backendId: 'dsh', sessionId: nextChannel.agentId, cwd: nextChannel.cwd, bindingGeneration: nextChannel.agentBindingGeneration },
+      onFocusChange: setFocus, onAction() {}, onQueryChange: (text: string, position: number) => { setDraft(text); setCaret(position) },
+      onSubmit: (text: string) => { nextChannel.submitted.push(text) }, onEscape() {}, onBlankClick: () => setFocus(-1),
+    })
     return React.createElement(
       Box,
       { flexDirection: 'column', height: ROWS, justifyContent: 'flex-end' },
@@ -381,7 +398,9 @@ async function mount(host: TuiInputCompletionHost, options: Parameters<typeof ma
   // before the alt-screen frame settles would leave the previous bottom
   // border under the new input row's spaces. Wait for the prompt's bottom
   // border in the last viewport row.
-  await settled(() => viewportLines(term)[ROWS - 1]?.startsWith('╰') === true)
+  await settled(() => options.launchpad
+    ? viewportLines(term).some(line => line.includes('╭'))
+    : viewportLines(term)[ROWS - 1]?.startsWith('╰') === true)
   const lines = () => viewportLines(term)
   const menuRows = () => lines().filter(line => line.startsWith('│'))
   const rerender = (nextChannel: ReturnType<typeof makeChannel>) => {
@@ -392,7 +411,7 @@ async function mount(host: TuiInputCompletionHost, options: Parameters<typeof ma
 }
 
 function rowOf(lines: readonly string[], text: string): number {
-  return lines.findIndex(line => line.startsWith('│') && line.includes(text))
+  return lines.findIndex(line => line.trimStart().startsWith('│') && line.includes(text))
 }
 
 function clickRow(stdin: { write(chunk: string): unknown }, lines: readonly string[], row: number, needle: string): void {
@@ -650,11 +669,11 @@ await withRuntime(async (host, registerSource) => {
 // A rendered menu must not be accepted after a same-batch caret move.
 await withRuntime(async (host, registerSource) => {
   await registerSource(source('cursor-fence', {
-    query: () => [{ id: 'one', name: 'cursor fence candidate', replacement: '#changed' }],
+    query: () => [{ id: 'one', name: 'cursor-row', replacement: '#changed' }],
   }))
   const ui = await mount(host)
   ui.stdin.write('#sk')
-  await settled(() => rowOf(ui.lines(), 'cursor fence candidate') >= 0)
+  check('cursor-fence menu is visible before the same-batch edit', await settled(() => rowOf(ui.lines(), 'cursor-row') >= 0))
   ui.stdin.write('\x1b[D\r')
   check('same-batch caret movement cannot accept the previously rendered menu',
     await settled(() => ui.lines().some(line => line.includes('#sk')))
@@ -668,18 +687,18 @@ await withRuntime(async (host, registerSource) => {
   let remove = () => {}
   const fiber = root.inject(['tuiInputCompletions'], ctx => {
     remove = ctx.tuiInputCompletions.register(source('revoked', {
-      query: () => [{ id: 'one', name: 'revoked candidate', replacement: '#revoked' }],
+      query: () => [{ id: 'one', name: 'revoked-row', replacement: '#revoked' }],
     }))
   })
   await fiber
   const ui = await mount(host)
   ui.stdin.write('#sk')
-  await settled(() => rowOf(ui.lines(), 'revoked candidate') >= 0)
+  check('revocation menu is visible before removing its source', await settled(() => rowOf(ui.lines(), 'revoked-row') >= 0))
   remove()
   ui.stdin.write('\r')
   check('source revocation prevents acceptance before the next render',
-    await settled(() => ui.lines().some(line => line.includes('#sk')))
-      && !ui.lines().some(line => line.includes('#revoked')) && ui.channel.submitted.length === 0)
+    !ui.lines().some(line => line.includes('#revoked'))
+      && ui.channel.submitted.every(text => !text.includes('#revoked')))
   ui.instance.unmount()
   await root.fiber.dispose()
 }
@@ -702,6 +721,31 @@ await withRuntime(async (host, registerSource) => {
   await fiber.dispose()
   await root.fiber.dispose()
 }
+
+// The default startup composer is a real entry point, not only Chat's prompt.
+await withRuntime(async (host, registerSource) => {
+  await registerSource(source('landing', {
+    query: () => [{ id: 'one', name: 'landing', replacement: '#skill:alpha' }],
+  }))
+  const ui = await mount(host, { launchpad: true })
+  ui.stdin.write('#sk tail')
+  ui.stdin.write('\x1b[D'.repeat(5))
+  check('the default launchpad composer opens the generic plugin menu',
+    await settled(() => rowOf(ui.lines(), 'landing') >= 0))
+  ui.stdin.write('\r')
+  check('launchpad Enter accepts only the token and preserves the sentence suffix',
+    await settled(() => ui.lines().some(line => line.includes('#skill:alpha tail'))) && ui.channel.submitted.length === 0)
+  ui.instance.unmount()
+  const escape = await mount(host, { launchpad: true, columns: 40 })
+  escape.stdin.write('#sk')
+  check('the plugin menu is available on a narrow launchpad',
+    await settled(() => rowOf(escape.lines(), 'landing') >= 0))
+  escape.stdin.write('\x1b')
+  check('launchpad Escape closes the plugin menu without clearing or submitting the draft',
+    await settled(() => rowOf(escape.lines(), 'landing') < 0)
+      && escape.lines().some(line => line.includes('#sk')) && escape.channel.submitted.length === 0)
+  escape.instance.unmount()
+})
 
 console.log(`verify-input-completions: ${checks - failures}/${checks} checks passed`)
 if (failures > 0) process.exitCode = 1

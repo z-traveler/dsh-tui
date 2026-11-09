@@ -1279,6 +1279,7 @@ export function PromptInput({
   // clicks read, and the default selection stays the first normal-region row.
   // The region is marked by colour only — it costs no display row.
   const completionInput = value
+  const completionCursor = cursor
   const completions = value.startsWith('/') ? channel.commandCompletions(value) : []
   const holdOf = (commandLine: string): boolean =>
     workingHoldOf(commandLine, channel.commandList.find(
@@ -1613,7 +1614,7 @@ export function PromptInput({
   const acceptInputCompletion = (item: TuiInputCompletionItem): void => {
     const menu = pluginCompletions.menu
     const current = valueRef.current
-    if (menu === undefined || current !== completionInput) return
+    if (menu === undefined || current !== completionInput || cursorRef.current !== completionCursor) return
     const next = current.slice(0, menu.start) + item.replacement + current.slice(menu.end)
     setInput(next, menu.start + item.replacement.length, 'step')
     pluginCompletions.dismissAccepted(menu.start, inputEditSequenceRef.current)

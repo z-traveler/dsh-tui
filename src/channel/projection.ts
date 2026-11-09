@@ -85,10 +85,10 @@ export interface ChannelProjectionDeps {
    *  id the durable event carries), for the user row's indicator line. */
   selectionAttached(messageId: string): SelectionAttachment | undefined
   /**
-   * Whether a settled command result and a user-explicit skill load render as
-   * transcript cards — the `sessionCards` deployment switch. Absent/false
-   * keeps the upstream shape: no command card (the caller's own report path
-   * owns that text) and no skill card (the injected body stays model-facing).
+   * Whether command results, explicit skill loads and generic context notices
+   * render as cards — the `sessionCards` deployment switch. Absent/false keeps
+   * local command reports and leaves injected skill/notice bodies model-facing
+   * only, preserving the upstream transcript shape.
    */
   sessionCards?: boolean
   /**
@@ -1197,7 +1197,7 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
           text: event.body,
           seq: event.seq,
           time: event.time,
-          contextNotice: { messageId: event.id, summary: event.summary },
+          contextNotice: { messageId: event.id, source: event.source, summary: event.summary },
         })
         deps.rowIds.value += 1
         return

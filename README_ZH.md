@@ -498,6 +498,8 @@ pnpm smoke
 
 插件开发：[准入与开发指南](tui-profile/docs/plugin-admission-and-development.md) · [plugin-template](https://github.com/dsh-tui-ecosystem/plugin-template) · [dsh-tui-ecosystem](https://github.com/dsh-tui-ecosystem)。参考实现：`dsh-working-activity`。
 
+下游插件可通过 [`ctx.tuiInputCompletions`](docs/downstream/input-completions.md) 提供异步、多来源、按优先级排序的候选，多来源时逐项标注来源，注册随插件卸载清理。Enter/Tab 只替换当前 token，不提交消息或加载技能。通用上下文通知与命令、显式技能卡共同受默认开启的 [`sessionCards`](docs/downstream/session-cards.md) 控制，展开已存正文不请求模型。
+
 通过包子路径导出的插件组件，按实际 ESM 入口最近的包清单准入（含 import-only 与条件导出），不继承外层包的身份。
 
 后端插件（`tui.dsh/v1alpha1` 的 `Backend` 贡献族）装了就会在重启后进内核选择器：启动时扫 profile 声明的已装 bundle，按包根的 `dsh-plugin.json` 校验、准入并注册，后端实现从包里导出 `backend`（模块只在真的选中时才加载）。

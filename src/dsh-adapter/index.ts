@@ -110,9 +110,9 @@ export interface Config {
    *  `ctx used/window` readout) in the status footer; off hides that row
    *  while the status/mode lines stay (issue #29). */
   contextBar?: boolean
-  /** Fold command results and explicit skill loads into collapsible
-   *  transcript cards (default true). Set false to keep local command reports
-   *  and hide injected skill bodies from the transcript. */
+  /** Fold command results, explicit skill loads and generic context notices
+   *  into transcript cards (default true). Set false to keep local command
+   *  reports and hide injected skill/notice bodies from the transcript. */
   sessionCards?: boolean
   /** Run in the terminal's alternate screen (full-screen terminal layout).
    *  Defaults to true — the fullscreen surface is the more complete one
@@ -345,7 +345,7 @@ export const Config: Schema<Config, RuntimeConfig<Config>> = editableConfig<Conf
   activity: Schema.boolean().default(true),
   activityFrames: Schema.string().required(false),
   contextBar: Schema.boolean().default(true),
-  // Command/skill transcript cards are enabled by default; an explicit false
+  // Command/skill/context-notice cards are enabled by default; an explicit false
   // keeps the upstream transcript.
   sessionCards: Schema.boolean().default(true),
   fullscreen: Schema.boolean().default(true),

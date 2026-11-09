@@ -396,8 +396,9 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
           id: data.id,
           seq: event.seq,
           time: event.time,
+          source: data.source.kind,
           summary: noticeSummary,
-          body: textOf(data.content),
+          body: data.content.map(block => block.type === 'text' ? block.text : '').join(''),
         }]
       }
       return [{ type: 'user.message', ...base, source: 'injected', text: '' }]

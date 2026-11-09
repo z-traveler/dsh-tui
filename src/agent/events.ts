@@ -256,7 +256,7 @@ export type AgentEvent =
    * never becomes a user bubble. Only an appended (or legacy unmarked) record
    * is such a fact — a replacement copy is model-only.
    */
-  | { readonly type: 'context.notice'; readonly id: string; readonly seq: number; readonly time: number; readonly summary: string; readonly body: string }
+  | { readonly type: 'context.notice'; readonly id: string; readonly seq: number; readonly time: number; readonly source: string; readonly summary: string; readonly body: string }
   /**
    * Snapshot of the backend's queue of unclaimed user inputs (replaces the
    * previous one). `claimed`/`discarded` name the ids that left the queue in

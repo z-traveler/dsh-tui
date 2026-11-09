@@ -5,6 +5,10 @@ import { Box, Text, useInput, useTerminalSize, useNativeCursor } from '../ui.js'
 import { SearchBox } from '../components/SearchBox.js'
 import { OverlayAbove } from '../components/OverlayAbove.js'
 import { CommandSuggestions } from '../components/CommandSuggestions.js'
+import { InputCompletionSuggestions } from '../components/InputCompletionSuggestions.js'
+import { useInputCompletions } from '../components/useInputCompletions.js'
+import type { TuiInputCompletionHost, TuiInputCompletionContext } from '../dsh-adapter/input-completions.js'
+import { mentionAtCaret } from '../utils/mentions.js'
 import type { CommandCompletion } from '../commands.js'
 import { LogoV2 } from '../components/LogoV2.js'
 import type { Brand } from '../branding.js'
@@ -433,6 +437,8 @@ export function Launchpad({
   onCommandPick,
   clipboardReader = readClipboard,
   imageComposer,
+  inputCompletions,
+  inputCompletionContext,
   /** Tips 自动轮换间隔（第七版；测试缝：无头回归注入短间隔确定性驱动相位）。 */
   tipRotateMs = TIP_ROTATE_MS,
   notice,
@@ -538,6 +544,9 @@ export function Launchpad({
   clipboardReader?: () => Promise<ClipboardRead>
   /** Chat owns the bindings so attachments survive a full-screen round trip. */
   imageComposer?: { channel: ChannelUi; bindings: Map<string, string> }
+  /** The same host completion facade and session identity used by Chat's composer. */
+  inputCompletions?: TuiInputCompletionHost
+  inputCompletionContext?: TuiInputCompletionContext & { readonly bindingGeneration: number }
   /** Tips 自动轮换间隔（第七版；测试缝，生产用默认 10s）。 */
   tipRotateMs?: number
   /** Chat 的最近一条 channel 通知：落地页没有 toast 区，借 Tips 行显示（粘贴提示优先）；过期由 channel 负责。 */
@@ -627,7 +636,9 @@ export function Launchpad({
   queryRef.current = query
   const caretRef = React.useRef(caret)
   caretRef.current = caret
+  const completionRevisionRef = React.useRef(0)
   const changeQuery = (text: string, offset: number): void => {
+    if (text !== queryRef.current) completionRevisionRef.current += 1
     const nextCaret = snapOffImageToken(boundImageSpans(text), offset,
       offset < caretRef.current ? 'start' : offset > caretRef.current ? 'end' : 'nearest')
     queryRef.current = text
@@ -643,6 +654,25 @@ export function Launchpad({
   const pasteRevisionRef = React.useRef(0)
   const mountedRef = React.useRef(true)
   const imageChainRef = React.useRef<Promise<void>>(Promise.resolve())
+  const pluginCompletions = useInputCompletions({
+    host: inputCompletions,
+    enabled: inputFocused && !inputPaused && !paletteOpen && !query.startsWith('/')
+      && mentionAtCaret(query, caret) === undefined && inputCompletionContext !== undefined,
+    text: query,
+    cursor: caret,
+    backendId: inputCompletionContext?.backendId ?? '',
+    sessionId: inputCompletionContext?.sessionId ?? '',
+    cwd: inputCompletionContext?.cwd ?? '',
+    bindingGeneration: inputCompletionContext?.bindingGeneration ?? 0,
+    revision: completionRevisionRef.current,
+  })
+  const acceptPluginCompletion = (index = pluginCompletions.selected): void => {
+    const menu = pluginCompletions.menu
+    const item = menu?.items[index]
+    if (menu === undefined || item === undefined || queryRef.current !== query || caretRef.current !== caret) return
+    changeQuery(query.slice(0, menu.start) + item.replacement + query.slice(menu.end), menu.start + item.replacement.length)
+    pluginCompletions.dismissAccepted(menu.start, completionRevisionRef.current)
+  }
   React.useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
@@ -1001,6 +1031,14 @@ export function Launchpad({
         return
       }
     }
+    if (pluginCompletions.open && (key.upArrow || key.downArrow || key.tab || isPlainReturn(key) || key.escape)) {
+      if (key.upArrow || key.downArrow) pluginCompletions.move(key.downArrow ? 1 : -1)
+      else if (key.tab) { if (!key.shift) acceptPluginCompletion() }
+      else if (isPlainReturn(key)) acceptPluginCompletion()
+      else pluginCompletions.dismiss()
+      event.stopImmediatePropagation()
+      return
+    }
     if (key.escape) {
       pasteRevisionRef.current += 1
       // 空输入时 Esc 去看会话（首屏最常见的下一步）；已经有字就只清空它,
@@ -1260,6 +1298,20 @@ export function Launchpad({
                       pickCommand(command.commandLine)
                     }
                   }}
+                />
+              </Box>
+            </OverlayAbove>
+          )}
+          {overlayPanel === undefined && pluginCompletions.open && pluginCompletions.menu !== undefined && (
+            <OverlayAbove maxHeight={Math.max(rows - 8, 1)} transparent>
+              <Box onClick={(event: ClickEvent) => { event.stopImmediatePropagation() }}>
+                <InputCompletionSuggestions
+                  items={pluginCompletions.menu.items}
+                  multiSource={pluginCompletions.menu.multiSource}
+                  selectedIndex={pluginCompletions.selected}
+                  columns={cardWidth}
+                  onPick={acceptPluginCompletion}
+                  onWheelStep={pluginCompletions.move}
                 />
               </Box>
             </OverlayAbove>

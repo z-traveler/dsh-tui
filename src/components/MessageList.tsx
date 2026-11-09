@@ -347,7 +347,7 @@ function signatureParts(
     case 'context-notice':
       // One collapsed line (summary) vs the revealed saved body; the summary
       // and both expansion switches are height inputs.
-      signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.summary ?? '')
+      signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.source ?? '', row.contextNotice?.summary ?? '')
       break
     case 'compact':
       // Folded one-liner vs full summary text.
@@ -1623,6 +1623,7 @@ export function MessageList({
               commandArgs={row.kind === 'command' ? row.command?.args : undefined}
               commandStatus={row.kind === 'command' ? row.command?.status : undefined}
               skillName={row.kind === 'skill' ? row.skill?.name : undefined}
+              contextSource={row.kind === 'context-notice' ? row.contextNotice?.source : undefined}
               contextSummary={row.kind === 'context-notice' ? row.contextNotice?.summary : undefined}
               toolCallId={tool?.callId}
               toolName={tool?.name}
@@ -1722,6 +1723,8 @@ type MemoRowProps = {
   commandStatus: 'success' | 'error' | undefined
   /** Skill rows: the loaded skill's name. */
   skillName: string | undefined
+  /** Context-notice rows: durable producer identity, not a renderer selector. */
+  contextSource: string | undefined
   /** Context-notice rows: the durable summary shown while folded. */
   contextSummary: string | undefined
   // ToolRow, flattened: the channel writes status/result fields in place,
@@ -1827,6 +1830,7 @@ function TranscriptRow({
   commandArgs,
   commandStatus,
   skillName,
+  contextSource,
   contextSummary,
   toolCallId,
   toolName,
@@ -2156,6 +2160,7 @@ function TranscriptRow({
       return (
         <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
           <ContextNoticeCardRow
+            source={contextSource ?? ''}
             summary={contextSummary}
             body={text}
             expanded={expanded || isExpanded}

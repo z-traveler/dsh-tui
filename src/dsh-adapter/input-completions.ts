@@ -124,7 +124,7 @@ export interface TuiInputCompletionItem {
 export interface TuiInputCompletionMenu {
   /** First character of the replaceable token. */
   readonly start: number
-  /** One past the last character of the replaceable token. */
+  /** The caret: text after it is never part of a completion replacement. */
   readonly end: number
   readonly items: readonly TuiInputCompletionItem[]
   /** True when more than one source contributed at least one candidate. */
@@ -382,7 +382,7 @@ async function resolveInputCompletions(
     if (items.length === 0) return undefined
     return Object.freeze({
       start: token.start,
-      end: token.end,
+      end: request.cursor,
       items: Object.freeze(items),
       multiSource: contributing > 1,
     })

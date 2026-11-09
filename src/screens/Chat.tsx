@@ -6922,6 +6922,8 @@ export function Chat({
       <Launchpad
         query={launchpadDraft}
         imageComposer={{ channel, bindings: launchpadImagesRef.current }}
+        inputCompletions={inputCompletions}
+        inputCompletionContext={inputCompletions === undefined ? undefined : { backendId: channel.backendCapabilities?.backendId ?? '', sessionId: String(channel.sessionId ?? channel.agentId), cwd: channel.cwd, bindingGeneration: launchpadBindingGeneration }}
         cursorOffset={launchpadCaret}
         focusIndex={launchpadFocus}
         isTerminalFocused={terminalFocused}

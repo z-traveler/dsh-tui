@@ -47,8 +47,6 @@ export interface InputCompletions {
   readonly selected: number
   /** Move selection with wrap-around (arrow keys/wheel). */
   move(step: 1 | -1): void
-  /** Select an absolute row (click). */
-  select(index: number): void
   /** Esc: hide this token's menu until the next draft edit. */
   dismiss(): void
   /**
@@ -100,6 +98,7 @@ export function useInputCompletions(options: UseInputCompletionsOptions): InputC
     cwd,
     bindingGeneration,
     sourceVersion,
+    revision,
   ])
   const live = host === undefined || entry === undefined || entry.key !== requestKey
     ? undefined
@@ -156,10 +155,6 @@ export function useInputCompletions(options: UseInputCompletionsOptions): InputC
         if (step > 0) return base >= max ? 0 : base + 1
         return base <= 0 ? max : base - 1
       })
-    },
-    select: (index) => {
-      if (live === undefined || live.items.length === 0) return
-      setSelected(Math.min(Math.max(index, 0), live.items.length - 1))
     },
     dismiss: () => {
       if (live === undefined) return
