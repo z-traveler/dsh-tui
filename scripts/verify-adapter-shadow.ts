@@ -180,6 +180,9 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
     children: { kind: 'capability', capability: 'host.command-trees.children' },
     descriptions: { kind: 'capability', capability: 'host.command-trees.descriptions' },
   },
+  TuiInputCompletionRuntime: {
+    register: { kind: 'capability', capability: 'host.input-completions.register' },
+  },
   TuiToastRuntime: {
     show: { kind: 'capability', capability: 'host.toast.show' },
   },

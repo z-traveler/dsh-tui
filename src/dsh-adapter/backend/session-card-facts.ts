@@ -1,11 +1,81 @@
 /**
- * Session fact cards (downstream): pairs the DSH command lifecycle records
- * behind command cards into neutral events. Called from the DSH translator
- * (`translate.ts`), whose `command/run` / `command/done` cases go through
+ * Session fact cards (downstream): decodes the DSH records behind command,
+ * skill and context notice cards into neutral events. Called from the DSH
+ * translator (`translate.ts`): user messages ask `skillInvocationEvents` and
+ * `contextNoticeEvents`, the command lifecycle goes through
  * `createCommandResults`.
  */
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { NO_EVENTS, type AgentEvent } from '../../agent/events.js'
+import { NO_EVENTS, type AgentEvent, type AgentEventOf } from '../../agent/events.js'
+import { skillInvocationName } from '../compat/messages.js'
+
+/**
+ * A user-explicit skill load: core records ONE durable source kind for both
+ * gestures (`/name` and `#skill:name` are the same claim), and the message
+ * body is the canonical rendered content the model received. The card shows
+ * that saved text, so nothing here re-reads the skill file or re-scans the
+ * user's line — and the generic injected message is replaced, never added.
+ * Only an APPENDED injection is transcript material: a replacement copy
+ * (`surfaceOp` replace) is model-only, and a pre-V4 record without the
+ * marker is the legacy append. Undefined: not a skill load card.
+ */
+export function skillInvocationEvents(
+  event: SessionEvent<'user/message'>,
+  data: SessionEvent<'user/message'>['data'],
+  textOf: (content: readonly ContentBlock[] | undefined) => string,
+): readonly AgentEvent[] | undefined {
+  const skillName = skillInvocationName(data.source)
+  if (skillName === undefined) return undefined
+  const surfaceOp = event.surfaceOp
+  if (surfaceOp !== undefined && surfaceOp !== 'append') return undefined
+  return [{ type: 'skill.invocation', seq: event.seq, time: event.time, name: skillName, body: textOf(data.content) }]
+}
+
+/**
+ * The summary of a generic context notice — a producer-declared
+ * `source.form: 'notice'` with a usable one-line account. The producer kind,
+ * `name` and plugin-private `message` are deliberately not inspected: any
+ * producer's notice gets the same transcript contract, while a malformed
+ * notice (no summary) keeps the opaque injected fallback. Only the form and
+ * summary decide, exactly as the shared vocabulary documents.
+ */
+const contextNoticeSummary = (source: unknown): string | undefined => {
+  if (source === null || typeof source !== 'object') return undefined
+  const { form, summary } = source as { form?: unknown; summary?: unknown }
+  return form === 'notice' && typeof summary === 'string' && summary.trim() !== '' ? summary : undefined
+}
+
+/**
+ * A generic context notice: the producer declared ONE of the shared context
+ * forms (`notice`) plus its summary, so the card needs no plugin name and no
+ * `name`/`message` extension. The neutral event keeps the durable message
+ * identity, summary and complete body; only an appended (or legacy unmarked)
+ * record is transcript material. A replacement copy is model-only, like every
+ * other replaced surface node: it stays the opaque injected message built from
+ * `base`. Undefined: not a context notice.
+ */
+export function contextNoticeEvents(
+  event: SessionEvent<'user/message'>,
+  data: SessionEvent<'user/message'>['data'],
+  base: Omit<AgentEventOf<'user.message'>, 'type' | 'source' | 'text'>,
+): readonly AgentEvent[] | undefined {
+  const noticeSummary = contextNoticeSummary(data.source)
+  if (noticeSummary === undefined) return undefined
+  const surfaceOp = event.surfaceOp
+  if (surfaceOp === undefined || surfaceOp === 'append') {
+    return [{
+      type: 'context.notice',
+      id: data.id,
+      seq: event.seq,
+      time: event.time,
+      source: data.source.kind,
+      summary: noticeSummary,
+      body: data.content.map(block => block.type === 'text' ? block.text : '').join(''),
+    }]
+  }
+  return [{ type: 'user.message', ...base, source: 'injected', text: '' }]
+}
 
 /**
  * One durable command result: core pairs `command/run` with `command/done` by

@@ -76,6 +76,9 @@ export function claudeEmits(type: AgentEventType): boolean {
     // user-typed slash command never reaches the durable log.
     case 'skill.invocation':
     case 'command.result':
+    // Claude has no DSH context-form notices: its notices are rendered from
+    // their own message shapes, not a `form: 'notice'` source.
+    case 'context.notice':
     case 'custom':
       return false
     default: {

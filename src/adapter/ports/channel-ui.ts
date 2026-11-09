@@ -333,11 +333,10 @@ export interface ChannelUi {
   /** Whether the segmented context bar row shows in the status footer
    *  (config.contextBar; the status/mode lines are unaffected). */
   readonly contextBarEnabled: boolean
-  /** Whether settled command results and user-explicit skill loads render as
-   *  transcript cards (config.sessionCards, on by default). With it off the
-   *  transcript keeps the upstream shape: a registry command's result is the
-   *  dispatcher's local report, and an injected skill body stays model-facing
-   *  only. */
+  /** Whether command results, explicit skill loads and generic context notices
+   *  render as cards (config.sessionCards, on by default). With it off the
+   *  transcript keeps the upstream shape: registry commands use local reports,
+   *  and injected skill/notice bodies stay model-facing only. */
   readonly sessionCardsEnabled: boolean
   /**
    * Current same-session goal projection, when a goal exists. Derived live

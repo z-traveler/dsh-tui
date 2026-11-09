@@ -14,6 +14,8 @@
  * - `ctx.tuiToast`     — transient fire-and-forget notifications
  * - `ctx.tuiThemes`    — runtime theme declarations (host-readable)
  * - `ctx.tuiMentions`  — plugin rows in the composer's `@` completion
+ * - `ctx.tuiInputCompletions` — plugin input-completion sources (host-owned
+ *   token bounds, menu, keys and replacement; see `input-completions.ts`)
  *
  * The decision-point events (`tui/input`, `tui/rewind-prompt`, …) need no
  * separate service — they are fired by the channel and answered through the
@@ -28,8 +30,8 @@
  *
  * Every consumer (`channel.ts`, `Chat.tsx`) reads these with `ctx.get`
  * softly: without this row the TUI degrades to no dialogs/status/shortcuts/
- * renderers/themes/plugin mentions, and plugin.ts logs the skew warning once
- * for profile launches.
+ * renderers/themes/plugin mentions or plugin input completions, and plugin.ts
+ * logs the skew warning once for profile launches.
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -40,6 +42,7 @@ import TuiRendererRuntime from './renderers.js'
 import TuiToastRuntime from './toast.js'
 import TuiThemeRuntime from './themes.js'
 import TuiMentionRuntime from './mention-providers.js'
+import TuiInputCompletionRuntime from './input-completions.js'
 import { installDecisionGuard } from './decision-guard.js'
 import { readGrantStore } from '../adapter/standard/grants.js'
 import { adapterRuntimeFor } from '../adapter/kernel/runtime-context.js'
@@ -55,4 +58,5 @@ export function apply(ctx: Context): void {
   ctx.plugin(TuiToastRuntime)
   ctx.plugin(TuiThemeRuntime)
   ctx.plugin(TuiMentionRuntime)
+  ctx.plugin(TuiInputCompletionRuntime)
 }
