@@ -1,0 +1,34 @@
+
+    Skill "#skill:unreadable" could not be loaded; its instructions are not available in this
+    turn.
+
+    [技能] beta · 已加载指令
+    <skill_content name="beta">
+    <skill_resources>
+    Base directory for this skill: /home/liyihang/projects/dsh-src/.worktree/dsh-tui/context-notic
+    es/.scratch/skill-mention-tui/acceptance/state/workspace/.agents/skills/beta
+    Resolve relative paths mentioned by this skill against the base directory before using them.
+    Load referenced resources only as needed.
+    </skill_resources>
+                                                                                                   ▴
+    <skill_instructions>                                                                           ─
+    # Beta synthetic instructions                                                                 ━━
+    BETA_INSTRUCTIONS_END                                                                          ▾
+    </skill_instructions>
+    </skill_content>
+
+                                                                      02:16 PM · deepseek-v4-flash
+
+  ● 本地合成响应，没有调用外部模型。
+
+    ⏵ /demo-evidence
+    LOCAL_REQUESTS=2
+    ALPHA_BODY_PRESENT=true
+    BETA_BODY_PRESENT=true
+    FAILURE_CONTEXT_PRESENT=true
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  ⌸ ❯                                                                                            ⛶
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+                                                                                     24/1.0M 0.0%
+   deepseek-v4-flash · off · 缓存 0.0% · workspace                             ctx 0.0% (24/1.0m)

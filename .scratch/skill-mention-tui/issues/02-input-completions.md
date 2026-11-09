@@ -1,7 +1,7 @@
 # 02 通用输入补全插件接缝
 
 Type: implementation
-Status: claimed
+Status: resolved
 Blocked by: none
 
 ## Scope
@@ -14,4 +14,4 @@ Blocked by: none
 
 ## Answer
 
-待实现、独立审查和整合。
+已整合6e9c6c61与7ccd7345，默认Launchpad和Chat共用补全facade/hook/菜单。独立工单及整体验收审查无阻断；53项真实activation/双输入入口测试、既有启动页279项、正常公开包导出及生命周期通过。真实CLI安装/删除/恢复可安装fixture，100列fullscreen及40列inline验证来源标签与接受/提交隔离。source错误、取消、会话/草稿/光标/注册变化、同词光标后文及原子图片保护覆盖。证据见 ../evidence/verification.md。

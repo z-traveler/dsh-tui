@@ -1,0 +1,34 @@
+
+    ███  ███  ███  ███  ███  ███  ████ ███  ███       ███       ███
+    ███▀▀███  ███▀▀███  ███▄▄▀▀▀  ███ ████  ███▀▀▀▀    ▀▀▀▀▀▀▄   ▀▀▀▀▀▀▄
+    ███  ███  ███  ███  ███ ███   ███  ███  ███            ███       ███
+    ███  ███  ███  ███  ███  ███  ███  ███  ███▄▄▄▄▄  ███▄▄▄▄▀  ███▄▄▄▄▀
+  deepseek-v4-flash · Off effort
+  /home/liyihang/projects/dsh-src/.worktree/dsh-tui/context-notices/.scratch/skill-mention-tui/ac…
+  提示：拖选转录文字时悬浮详情卡不会弹出，免得盖住要复制的格子 · /tips 更多技巧
+
+    探索未至之境！
+
+  ❯ #skill:alpha
+                                                                                                   ▴
+    [技能] alpha · 已加载指令 （ctrl+o 展开）                                                     ━━
+                                                                                                   ─
+  ● 本地合成响应，没有调用外部模型。                                                               ▾
+
+    ⏵ /demo-count
+    LOCAL_REQUESTS=1 · 1 行 （ctrl+o 展开）
+
+  ❯ #skill:beta #skill:unreadable
+
+    [通知] skill-mention-error · Skill "#skill:unreadable" could not be loaded; its instructions
+    are not available in this turn. （ctrl+o 展开）
+
+    [技能] beta · 已加载指令 （ctrl+o 展开）
+
+  ● 本地合成响应，没有调用外部模型。
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  ⌸ ❯                                                                                            ⛶
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+                                                                                     24/1.0M 0.0%
+   deepseek-v4-flash · off · 缓存 0.0% · workspace                             ctx 0.0% (24/1.0m)

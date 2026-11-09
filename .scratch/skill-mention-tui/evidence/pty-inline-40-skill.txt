@@ -1,0 +1,30 @@
+
+
+  ✦ dsh-TUI  v0.18.0
+  DeepSeek Harness
+  deepseek-v4-flash · Off effort
+  /home/liyihang/projects/dsh-src/.work…
+  提示：主题：~/.dsh-tui/themes/<名>.js…
+
+    探索未至之境！
+
+  ❯ #skill:beta
+
+    [技能] beta · 已加载指令 （ctrl+o
+    展开）
+
+  ● 本地合成响应，没有调用外部模型。
+
+
+
+
+
+
+
+
+
+  ╭──────────────────────────────────╮
+  ⌸ ❯                                ⛶
+  ╰──────────────────────────────────╯
+                         24/1.0M 0.0%
+   deepseek-v4-f…  ctx 0.0% (24/1.0m)

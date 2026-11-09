@@ -1,7 +1,7 @@
 # 01 通用上下文通知卡
 
 Type: implementation
-Status: claimed
+Status: resolved
 Blocked by: none
 
 ## Scope
@@ -14,4 +14,4 @@ Blocked by: none
 
 ## Answer
 
-待实现、独立审查和整合。
+已整合通知实现 e4c48443 与修复7ccd7345。独立工单及整体验收审查无阻断；来源/id/seq/time/完整首尾空白、正文、foldBack、append/replacement、关闭开关和默认中性呈现均验证。整合会话卡回归79项通过，真实220行通知末尾可见，恢复进程零模型请求。证据见 ../evidence/verification.md 与 ../delivery.md。

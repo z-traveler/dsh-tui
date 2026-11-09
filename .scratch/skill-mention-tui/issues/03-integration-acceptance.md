@@ -1,7 +1,7 @@
 # 03 整合、审查与隔离体验
 
 Type: integration
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01, 02
 
 ## Scope
@@ -14,4 +14,4 @@ Blocked by: 01, 02
 
 ## Answer
 
-等待 01、02 整合。
+01/02已整合至7ccd7345，必要编译/包/边界/输入/呈现/共享UI回归通过；整体验收审查OK with notes。审查要求的忙碌多技能覆盖已增至79项卡片，恢复零请求证据、核心subagent-settled可见性说明和vendor借用软链现场已处理。整体验收及跟进复核均无阻断，五项审查意见已逐项关闭，最终报告与隔离入口已准备。开发 node_modules 软链保留但不暂存，vendor借用软链已清理。未做稳定分支合入或发布。

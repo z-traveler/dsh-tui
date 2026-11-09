@@ -152,12 +152,12 @@ interface FakeSession extends AgentSession {
   emit(events: readonly AgentEvent[]): void
 }
 
-function fakeSession(sessionId: string, capabilities: Omit<SessionCapabilities, 'native'> = {}): FakeSession {
+function fakeSession(sessionId: string, capabilities: Omit<SessionCapabilities, 'native'> = {}, status: AgentSession['status'] = 'idle'): FakeSession {
   const listeners = new Set<(batch: readonly AgentEvent[], meta: { replay: boolean; wake: 'sync' }) => void>()
   const session: FakeSession = {
     ref: { backendId: 'fixture', sessionId },
     cwd: '/fixture',
-    status: 'idle',
+    status,
     capabilities: { ...capabilities, native: {} },
     submits: [],
     history: () => Promise.resolve([]),
@@ -283,6 +283,24 @@ const noticeRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filte
     channel.lastUserText === '/alpha', channel.lastUserText)
   check('技能卡：不产生模型输入，也不生成助手消息之外的模型事实',
     session.submits.length === 0 && channel.rows.filter(row => row.kind === 'assistant').length === 1)
+  channel.releaseContributions()
+}
+
+// One busy input still owns one backend submission, not one per skill fact.
+{
+  const session = fakeSession('cards-running-multiple', {}, 'running')
+  const channel = open(session)
+  session.emit([{ type: 'turn.start', turn: 1, origin: 'user', time: 1_700_000_000_000 }])
+  check('运行中多技能：场景开始时 channel 确实 working', channel.working === true)
+  channel.submit('#skill:alpha #skill:beta')
+  check('运行中多技能：一条输入只投递一次', await settled(() => session.submits.length === 1)
+    && session.submits[0]?.text === '#skill:alpha #skill:beta')
+  session.emit([skillLoad(60, 'alpha'), skillLoad(61, 'beta', 'BETA-RUNNING-INSTRUCTIONS-END')])
+  check('运行中多技能：逐条持久加载事实分别出卡，保留顺序且不追加投递',
+    await settled(() => skillRows(channel).length === 2)
+      && skillRows(channel).map(row => row.skill?.name).join(',') === 'alpha,beta'
+      && skillRows(channel)[1]?.text === 'BETA-RUNNING-INSTRUCTIONS-END'
+      && session.submits.length === 1 && channel.working === true)
   channel.releaseContributions()
 }
 
