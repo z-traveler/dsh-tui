@@ -232,5 +232,48 @@ for (const fullscreen of [false, true]) {
   await app.unmount()
   io.term.dispose()
 }
+// A mid-turn fold is a display choice the idle press must undo before it
+// hides anything: folded while working, the first idle Ctrl+Q unfolds the
+// list, the next one hides the footer, and revealing is never stuck folded.
+{
+  const io = makeTerm(72, 26)
+  const channel = makeChannel()
+  channel.todos = [
+    { content: 'PENDING_TODO', status: 'pending' },
+    { content: 'IN_PROGRESS_TODO', status: 'in_progress' },
+  ]
+  const domainTodos = channel.todos
+  const app = await mount(io, channel, false)
+  await settle(() => io.screen().includes('Ready.'))
+  channel.working = true
+  channel.emit()
+  check('fold: the running footer lists both tasks',
+    await settled(() => io.screen().includes('PENDING_TODO') && io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  io.stdin.write('\x11')
+  // Collapsed the list is gone, but the header previews the live task.
+  check('fold: Ctrl+Q still folds the running list to its header',
+    await settled(() => !io.screen().includes('PENDING_TODO') && io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  io.stdin.write('\x11')
+  check('fold: Ctrl+Q unfolds the running list again', await settled(() => io.screen().includes('PENDING_TODO')), io.screen())
+  io.stdin.write('\x11')
+  await settle(() => !io.screen().includes('PENDING_TODO'))
+  channel.working = false
+  channel.emit()
+  check('fold: the idle footer keeps the mid-turn fold',
+    await settled(() => !io.screen().includes('PENDING_TODO') && io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  io.stdin.write('\x11')
+  check('fold: the first idle Ctrl+Q expands the folded list (footer stays)',
+    await settled(() => io.screen().includes('PENDING_TODO') && io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  io.stdin.write('\x11')
+  check('fold: the next Ctrl+Q hides the idle footer',
+    await settled(() => !io.screen().includes('PENDING_TODO') && !io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  io.stdin.write('\x11')
+  check('fold: revealing again shows the list, not a stuck fold',
+    await settled(() => io.screen().includes('PENDING_TODO') && io.screen().includes('IN_PROGRESS_TODO')), io.screen())
+  check('fold: folding and hiding never touched the domain',
+    channel.todos === domainTodos && channel.todos[0].status === 'pending' && channel.todos[1].status === 'in_progress')
+  await app.unmount()
+  io.term.dispose()
+}
 
 process.exitCode = failed ? 1 : 0

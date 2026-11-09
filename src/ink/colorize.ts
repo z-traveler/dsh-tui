@@ -1,5 +1,6 @@
 import chalk from 'chalk'
 import type { Color, TextStyles } from './styles.js'
+import { tmuxClientsSupportTruecolor } from '../terminal-utils/tmuxTruecolor.js'
 
 /**
  * xterm.js (VS Code, Cursor, code-server, Coder) has supported truecolor
@@ -58,6 +59,9 @@ function clampChalkLevelForTmux(): boolean {
   // configured their tmux correctly.
   if (process.env.DSH_TUI_TMUX_TRUECOLOR) return false
   if (process.env.TMUX && chalk.level > 2) {
+    // Keep truecolor when every client attached to this pane's session
+    // reports RGB (tmuxTruecolor.ts); anything else keeps the clamp below.
+    if (tmuxClientsSupportTruecolor()) return false
     chalk.level = 2
     return true
   }

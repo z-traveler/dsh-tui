@@ -93,7 +93,7 @@ import { agentComposeTargetOf, type AgentComposeTarget, type AgentMessageView, t
 import { resolveBindingGeneration, type PromptDraftCache } from '../components/promptDraftCache.js'
 import type { InjectController } from '../dsh-adapter/inject-channel.js'
 import { PromptEditorLayer, usePromptEditorOpen } from '../components/PromptEditor.js'
-import { GoalTodoPanel } from '../components/GoalTodoPanel.js'
+import { GoalTodoPanel, goalTodoSectionShown } from '../components/GoalTodoPanel.js'
 import { useSidePanel } from '../components/sidePanel/useSidePanel.js'
 import { jobsFocusStore } from '../components/sidePanel/jobsFocusStore.js'
 import { SidePanelLayout } from '../components/sidePanel/SidePanelLayout.js'
@@ -1578,6 +1578,9 @@ export function Chat({
   const todoFooterHidden = todoFooterOverrideMatches ? todoFooterOverride!.hidden : completedTodoFooter
   const toggleTodoFooter = (): void => {
     if (channel.working) setTodoCollapsed(previous => !previous)
+    // A fold made mid-turn survives into idle; that press must undo it, not
+    // hide the whole footer — hiding would leave the list unopenable.
+    else if (todoCollapsed && !todoFooterHidden && goalTodoSectionShown(channel)) setTodoCollapsed(false)
     else setTodoFooterOverride({
       hidden: !todoFooterHidden,
       agentId: channel.agentId, goal: channel.goal, todos: channel.todos,

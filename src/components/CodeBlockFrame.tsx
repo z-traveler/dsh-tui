@@ -7,7 +7,8 @@ import type { Color, TextDecoration } from '../ink/styles.js'
 import { getTheme } from '../theme.js'
 import { useTheme } from './design-system/ThemeProvider.js'
 import { codeLanguageTag, formatCodeBody, formatToken } from '../terminal-utils/markdown.js'
-import { getCodeFrameStyle, subscribeCodeFrameStyle } from '../tuiDisplayPrefs.js'
+import { getCodeFrameStyleOverride, subscribeCodeFrameStyle } from '../tuiDisplayPrefs.js'
+import { cardStylePreset, getCardStyleConfig, subscribeCardStyles } from '../cardStyles.js'
 import type { CliHighlight } from '../terminal-utils/cliHighlight.js'
 
 /**
@@ -70,8 +71,17 @@ export function CodeBlockFrame({ token, highlight, dimColor = false, forceWidth 
   const { columns } = useTerminalSize()
   // Live setting (settings `dsh-tui.codeFrameStyle`): read at render
   // time so settled blocks re-render when the style flips; the store
-  // mirrors both the /settings edit and cordis.yml.
-  const frameStyle = React.useSyncExternalStore(subscribeCodeFrameStyle, getCodeFrameStyle)
+  // mirrors both the /settings edit and cordis.yml. An unset setting keeps
+  // no value here, so it can follow the card-style preset below instead of
+  // latching the `light` an explicit choice would mean.
+  const frameOverride = React.useSyncExternalStore(subscribeCodeFrameStyle, getCodeFrameStyleOverride)
+  // Card-style preset (cardStyles.ts): `pi-like` closes fenced code by
+  // default, `legacy` keeps the open rail. Explicit light/full outranks it.
+  const preset = React.useSyncExternalStore(
+    subscribeCardStyles,
+    () => cardStylePreset(getCardStyleConfig()),
+  )
+  const frameStyle = frameOverride ?? (preset === 'pi-like' ? 'full' : 'light')
   const [themeName] = useTheme()
   const theme = getTheme(themeName)
   // Theme values are raw color strings; the ink-level border props take the

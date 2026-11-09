@@ -74,6 +74,7 @@ import { LAUNCH_PROMPT_SENT_ENV, beginRestartAttempt, blockedUpdateMessages, che
 import { getLang, isLang, resolveStartupLang, setLang, t, writeLangPref } from '../i18n.js'
 import { statusBarOrderSetting } from './powerline-settings.js'
 import { parsePowerlineOptions } from '../powerline/config.js'
+import { applyCardStyles, cardStyleConfigFrom, type CardStyleConfig } from '../cardStyles.js'
 import { applyBtwContextBudget, applyBtwContextTurns, applyCodeFrameStyle, applyCompanionSkin, applyImageBacking, applyMathImageBacking, applyMathImageScale, applyMathRendering, applyMermaidDiagrams, applyPageMargin, applySidePanelOpen, applySidePanelPanels, applySidePanelRatio, applySidePanelSplitEnabled, ALL_SIDE_PANELS, BTW_CONTEXT_BUDGET_MAX, BTW_CONTEXT_BUDGET_MIN, BTW_CONTEXT_TURNS_MAX, BTW_CONTEXT_TURNS_MIN, DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, isPageMarginMode, normalizeJobGroupFold, normalizePageMargin, normalizeScrollGutter, normalizeSidePanelPanels, normalizeSidePanelRatio, normalizePluginFieldsOrder, normalizeStatusBar, normalizeToolBackground, parsePageMarginSpec, parsePluginFieldsOrder, parseSidePanelPanels, resolveMathRendering, type CodeFrameStyle, type ImageBacking, type MathImageBacking, type MathImageScale, type MathRendering, type PageMarginSetting, type ScrollGutterMode, type StatusBarConfig, type ToolBackground } from '../tuiDisplayPrefs.js'
 import {
   draftComboConflicts,
@@ -2061,6 +2062,10 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         thinkingFold: Schema.union(['preview', 'full']).default('preview'),
         jobGroupFold: Schema.union(['auto', 'always', 'never']).default('auto'),
         toolBackground: Schema.union(['none', 'subtle', 'strong']).default('none'),
+        // Downstream card styles. `any` on purpose: cardStyles.ts normalizes the
+        // shape at the apply site, so junk can only ever fall back to the
+        // defaults (the settings document must never fail to load over it).
+        cardStyles: Schema.any(),
         scrollGutter: Schema.union(['timeline', 'scrollbar', 'hidden']).default('timeline'),
         // Preset names AND custom `NxM` specs (the settings field's parse
         // gate keeps junk out of the user layer; the transform normalizes
@@ -2096,7 +2101,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         jumpBack: Schema.boolean(),
         // Same no-default rule: applyDisplay resolves `?? config.mermaidDiagrams ?? true`.
         mermaidDiagrams: Schema.boolean(),
-        // Code-frame shape; unset keeps the light rail frame.
+        // Code-frame shape; no default, so an unset setting follows the
+        // card-style preset (CodeBlockFrame resolves it).
         codeFrameStyle: Schema.union(['light', 'full']),
         // Same no-default rule: resolveMathRendering falls back to cordis.yml.
         mathRendering: Schema.union(['auto', 'image', 'unicode', 'source']),
@@ -2231,6 +2237,9 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       jobGroupFold?: 'auto' | 'always' | 'never'
       effortDefault?: string
       toolBackground?: ToolBackground
+      /** Conversation card styles (settings `dsh-tui.cardStyles`, deployment
+       *  block in cordis.yml); normalized at the apply site. */
+      cardStyles?: CardStyleConfig
       scrollGutter?: ScrollGutterMode
       pageMargin?: PageMarginSetting
       foldTerminalCommand?: boolean
@@ -2332,6 +2341,10 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       channel.setThinkingFold(value.thinkingFold ?? config.thinkingFold ?? 'preview')
       channel.setJobGroupFold(normalizeJobGroupFold(value.jobGroupFold ?? config.jobGroupFold))
       channel.setToolBackground(normalizeToolBackground(value.toolBackground ?? config.toolBackground))
+      // Card styles: the settings user layer outranks the cordis.yml block, and
+      // the store normalizes both (see cardStyles.ts). Cards that consume it sit
+      // above the channel's version bump, hence the module-level store.
+      applyCardStyles(cardStyleConfigFrom(value.cardStyles, config.cardStyles))
       channel.setScrollGutter(normalizeScrollGutter(value.scrollGutter ?? config.scrollGutter))
       // Page margin: the channel carries the mode (tests observe it), the
       // module store drives the actual inset box above Chat — keep both in
