@@ -14,6 +14,7 @@ import { interpolateColor } from '../Spinner/spinnerUtils.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
 import { primaryComboString } from '../../utils/keymap.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
 
 /** Preview body rows — a FIXED row count (kimicode-style constant-height
  *  ticker). Ink's truncate slices the whole string across newlines as one
@@ -76,6 +77,10 @@ export function AssistantThinkingMessage({
   isSelected = false,
   onClick,
 }: Props): React.ReactNode {
+  const card = useCardSurface('thinking')
+  // 配置的 previewLines 只改这条流式 ticker 的行数（固定高度是它的契约），
+  // 静态折叠仍是只留表头。
+  const previewRows = card.style.fold?.previewLines ?? PREVIEW_ROWS
   if (!thinking) {
     if (reasoningTokens === undefined) return null
     return (
@@ -143,48 +148,54 @@ export function AssistantThinkingMessage({
     // at the line's end — stay visible while the line is longer than the
     // width.
     const lines = tickerText.split('\n')
-    const visible = lines.slice(-PREVIEW_ROWS)
+    const visible = lines.slice(-previewRows)
     const clipped = lines.length > visible.length
     // Pad with single spaces — an empty-string Text renders with zero
     // height in ink, so '' padding would not hold the row open.
     const rows = Array.from(
-      { length: PREVIEW_ROWS },
+      { length: previewRows },
       (_, i) => visible[i] ?? ' ',
     )
     return (
       <Box
         flexDirection="column"
-        marginTop={marginTopOnTurn ? 1 : 0}
-        backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
+        marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+        backgroundColor={isSelected ? 'messageActionsBackground' : card.box.backgroundColor}
+        borderStyle={card.box.borderStyle}
+        borderColor={card.box.borderColor}
+        paddingX={card.box.paddingX}
+        paddingY={card.box.paddingY}
         onClick={onClick}
         {...hoverProps}
       >
-        {header}
-        <Box
-          flexDirection="column"
-          paddingLeft={2}
-          height={PREVIEW_ROWS}
-          flexShrink={0}
-          overflow="hidden"
-        >
-          {rows.map((line, i) => (
-            <Box key={i} flexDirection="row" height={1}>
-              {/* The bar is a fixed-width column OUTSIDE the truncating text:
-                * ink's truncate-start rewrites the text's leading columns, so
-                * a bar inside the text would be eaten by the ellipsis. */}
-              <Text dimColor italic>{'│ '}</Text>
-              <Box flexDirection="row" flexGrow={1}>
-                <Text
-                  dimColor
-                  italic
-                  wrap={i === rows.length - 1 ? 'truncate-start' : 'truncate'}
-                >
-                  {i === 0 && clipped ? `…${line}` : line}
-                </Text>
+        <CardContent surface={card}>
+          {header}
+          <Box
+            flexDirection="column"
+            paddingLeft={2}
+            height={previewRows}
+            flexShrink={0}
+            overflow="hidden"
+          >
+            {rows.map((line, i) => (
+              <Box key={i} flexDirection="row" height={1}>
+                {/* The bar is a fixed-width column OUTSIDE the truncating text:
+                  * ink's truncate-start rewrites the text's leading columns, so
+                  * a bar inside the text would be eaten by the ellipsis. */}
+                <Text dimColor italic>{'│ '}</Text>
+                <Box flexDirection="row" flexGrow={1}>
+                  <Text
+                    dimColor
+                    italic
+                    wrap={i === rows.length - 1 ? 'truncate-start' : 'truncate'}
+                  >
+                    {i === 0 && clipped ? `…${line}` : line}
+                  </Text>
+                </Box>
               </Box>
-            </Box>
-          ))}
-        </Box>
+            ))}
+          </Box>
+        </CardContent>
       </Box>
     )
   }
@@ -192,12 +203,16 @@ export function AssistantThinkingMessage({
   if (!verbose) {
     return (
       <Box
-        marginTop={marginTopOnTurn ? 1 : 0}
-        backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
+        marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+        backgroundColor={isSelected ? 'messageActionsBackground' : card.box.backgroundColor}
+        borderStyle={card.box.borderStyle}
+        borderColor={card.box.borderColor}
+        paddingX={card.box.paddingX}
+        paddingY={card.box.paddingY}
         onClick={onClick}
         {...hoverProps}
       >
-        {header}
+        <CardContent surface={card}>{header}</CardContent>
       </Box>
     )
   }
@@ -206,19 +221,25 @@ export function AssistantThinkingMessage({
     <Box
       flexDirection="column"
       gap={1}
-      marginTop={marginTopOnTurn ? 1 : 0}
+      marginTop={cardMarginTop(marginTopOnTurn, card.style)}
       width="100%"
-      backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
+      backgroundColor={isSelected ? 'messageActionsBackground' : card.box.backgroundColor}
+      borderStyle={card.box.borderStyle}
+      borderColor={card.box.borderColor}
+      paddingX={card.box.paddingX}
+      paddingY={card.box.paddingY}
       onClick={onClick}
       {...hoverProps}
     >
-      {header}
-      <Box paddingLeft={2}>
-        {/* StreamingMarkdown: the live thinking text grows per token — the
-          incremental stable-prefix + tail budget keeps the per-frame layout
-          cost at O(new content) instead of re-laying out the whole block. */}
-        <StreamingMarkdown dimColor>{thinking}</StreamingMarkdown>
-      </Box>
+      <CardContent surface={card}>
+        {header}
+        <Box paddingLeft={2}>
+          {/* StreamingMarkdown: the live thinking text grows per token — the
+            incremental stable-prefix + tail budget keeps the per-frame layout
+            cost at O(new content) instead of re-laying out the whole block. */}
+          <StreamingMarkdown dimColor>{thinking}</StreamingMarkdown>
+        </Box>
+      </CardContent>
     </Box>
   )
 }
@@ -249,6 +270,7 @@ function ThinkingTokensHeader({
     return () => clearInterval(interval)
   }, [streaming])
   const minimalUi = isMinimalUiMode()
+  const card = useCardSurface('thinking')
   const n = formatTokens(tokens)
   const pulse = (Math.sin(frame * 0.9) + 1) / 2
   const pulseColor = interpolateColor(BRAND, ICE, pulse)
@@ -256,18 +278,24 @@ function ThinkingTokensHeader({
   return (
     <Box
       flexDirection="row"
-      marginTop={marginTopOnTurn ? 1 : 0}
-      backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
+      marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+      backgroundColor={isSelected ? 'messageActionsBackground' : card.box.backgroundColor}
+      borderStyle={card.box.borderStyle}
+      borderColor={card.box.borderColor}
+      paddingX={card.box.paddingX}
+      paddingY={card.box.paddingY}
       onClick={onClick}
     >
-      {streaming ? (
-        <>
-          <Text>{minimalUi ? frameText : chalk.rgb(pulseColor.r, pulseColor.g, pulseColor.b).bold(frameText)}</Text>
-          <Text dimColor italic>{` ${t('thinking-tokens-live', { n })}`}</Text>
-        </>
-      ) : (
-        <Text dimColor italic>{`${minimalUi ? '*' : THINKING_SETTLED_MARKER} ${t('thinking-tokens-done', { n })}`}</Text>
-      )}
+      <CardContent surface={card}>
+        {streaming ? (
+          <>
+            <Text>{minimalUi ? frameText : chalk.rgb(pulseColor.r, pulseColor.g, pulseColor.b).bold(frameText)}</Text>
+            <Text dimColor italic>{` ${t('thinking-tokens-live', { n })}`}</Text>
+          </>
+        ) : (
+          <Text dimColor italic>{`${minimalUi ? '*' : THINKING_SETTLED_MARKER} ${t('thinking-tokens-done', { n })}`}</Text>
+        )}
+      </CardContent>
     </Box>
   )
 }

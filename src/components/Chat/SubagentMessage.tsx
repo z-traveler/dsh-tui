@@ -1,5 +1,5 @@
 import React from 'react'
-import { Box, Text, useAnimationFrame, useTerminalSize } from '../../ui.js'
+import { Box, Text, useAnimationFrame } from '../../ui.js'
 import type { SubagentRow } from '../../dsh-adapter/channel.js'
 import type { Theme } from '../../theme.js'
 import { t } from '../../i18n.js'
@@ -8,10 +8,13 @@ import { toolNameColor } from '../messages/AssistantToolUseMessage.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
 
 /** The waterfall window is a Kimi Code style constant-height region. */
 const WATERFALL_ROWS = 3
-/** Card left padding + the `│ ` gutter prefix. */
+/** Card's own left indent (on top of the configured horizontal padding). */
+const CARD_INDENT = 2
+/** The `│ ` gutter prefix inside the content area. */
 const WATERFALL_GUTTER = 4
 
 function duration(ms = 0): string {
@@ -75,7 +78,10 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   // React commit。viewportRef 必须挂到根节点——useTerminalViewport 初始
   // isVisible:true，ref 不挂就永远不修正（虚拟化滚出视口的卡片继续动画）。
   const [viewportRef, time] = useAnimationFrame(settled ? null : 120)
-  const { columns } = useTerminalSize()
+  // The card's face follows the reported status: a cancel/unknown run keeps the
+  // ordinary face and its own glyph (cardStatusOf maps neither).
+  const card = useCardSurface('subagent', { status: subagent.status })
+  const columns = card.columns
   const info = status(subagent)
   const [hovered, setHovered] = React.useState(false)
   const clickable = onClick !== undefined
@@ -87,90 +93,122 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   const preset = React.useMemo(() => resolvePreset(activityFrames), [activityFrames])
   const activity = settled ? [] : subagent.outputLines.slice(-WATERFALL_ROWS)
   const runningGlyph = preset.frames[Math.floor(time / preset.intervalMs) % preset.frames.length] ?? '·'
-  const rowWidth = Math.max(20, (columns ?? 80) - WATERFALL_GUTTER)
+  // `card.columns` is already net of the border and configured padding; the
+  // +2 indent below eats into it too, so a card whose content is indented
+  // must subtract it or the constant-height rows ask the renderer for two
+  // columns it doesn't have (its truncate then silently drops the tail).
+  // Legacy (no border, no padding, no indent beyond its own) keeps its old
+  // budget byte-for-byte; pi-like cards keep their own 2-column indent inside
+  // the (padding-less) content box, so their budget is the net one.
+  const indented = card.narrowed || card.preset === 'pi-like'
+  const rowWidth = Math.max(20, (columns ?? 80) - (indented ? CARD_INDENT : 0) - WATERFALL_GUTTER)
+  // Card chrome reduces the header budget; keep the task title instead of
+  // letting every metadata column wrap vertically. pi-like keeps the compact
+  // header even without padding (its preset is what the layout belongs to);
+  // legacy without chrome keeps its original tree/budget. `narrowed` stays the
+  // size contract — the preset flag is not a substitute for it.
+  const compact = card.preset === 'pi-like' || card.narrowed
+  const headerWrap = compact ? 'truncate' : undefined
+  const showStatus = !compact || columns >= 60
+  const showModel = !compact || columns >= 90
+  const showCounts = !compact || columns >= 110
+  const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : ` ${runningGlyph}`}</Text>
 
   // 点击打开详情场景；hover 不刷整行背景（转录视觉保持安静），只把状态
   // glyph 提亮为品牌色作为可点指示。
   return <Box
     flexDirection="column"
-    marginTop={marginTopOnTurn ? 1 : 0}
-    paddingLeft={2}
+    marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+    // The card's own indent is content, not surface: it rides on top of the
+    // configured horizontal padding (which already narrowed `columns`).
+    paddingLeft={card.box.paddingX + CARD_INDENT}
+    backgroundColor={card.box.backgroundColor}
+    borderStyle={card.box.borderStyle}
+    borderColor={card.box.borderColor}
+    paddingX={card.box.paddingX}
+    paddingY={card.box.paddingY}
     ref={viewportRef}
     onClick={onClick}
     onMouseEnter={clickable ? () => setHovered(true) : undefined}
     onMouseLeave={clickable ? () => setHovered(false) : undefined}
   >
-    <Box flexDirection="row" gap={1}>
-      <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : ` ${runningGlyph}`}</Text>
-      <Text bold color={hovered && clickable ? 'accent' : undefined}>{`${t('subagent-card-prefix')}${subagent.description}`}</Text>
-      <Text dimColor>·</Text><Text>{subagent.model ?? subagent.provider ?? 'default'}</Text>
-      {subagent.effort && <><Text dimColor>·</Text><Text dimColor>{subagent.effort}</Text></>}
-      <Text dimColor>·</Text><Text dimColor>{duration(elapsed)}</Text>
-      <Text dimColor>·</Text><Text dimColor>{tokens(subagent)}</Text>
-      <Text dimColor>·</Text><Text dimColor>{subagent.toolCalls.length} tools</Text>
-      <Text dimColor>·</Text><Text color={info.color}>{info.label}</Text>
-      {onOpenView !== undefined && (
-        <Box
-          flexShrink={0}
-          marginLeft={1}
-          onClick={(event: ClickEvent) => {
-            // 拦截冒泡：这一格是「主屏查看」，不是卡片点击（→详情）。
-            event.stopImmediatePropagation()
-            onOpenView()
-          }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          {/* 字形位（与面板 ⤢ 全屏同一词汇）：卡片行是恒定高度的水流行，
-              长标签会把状态列顶折行；完整名称留给 Dashboard/Detail 入口。 */}
-          <Text color={hovered ? 'accent' : 'subtle'}>{'⤢'}</Text>
-        </Box>
-      )}
-    </Box>
-    {!settled && (lastRunning ?? previousDone) !== undefined && (
-      <Text wrap="truncate">
-        {lastRunning !== undefined ? (
-          <>
-            {previousDone !== undefined && (
+    <CardContent surface={card}>
+      <Box flexDirection="row" gap={1} height={compact ? 1 : undefined}>
+        {compact ? <Box flexShrink={0}>{statusGlyph}</Box> : statusGlyph}
+        <Text wrap={headerWrap} bold color={hovered && clickable ? 'accent' : undefined}>{`${t('subagent-card-prefix')}${subagent.description}`}</Text>
+        {showModel && <>
+          <Text dimColor>·</Text><Text wrap={headerWrap}>{subagent.model ?? subagent.provider ?? 'default'}</Text>
+          {subagent.effort && <><Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.effort}</Text></>}
+          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{duration(elapsed)}</Text>
+        </>}
+        {showCounts && <>
+          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{tokens(subagent)}</Text>
+          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.toolCalls.length} tools</Text>
+        </>}
+        {showStatus && <><Text dimColor>·</Text><Text wrap={headerWrap} color={info.color}>{info.label}</Text></>}
+        {onOpenView !== undefined && (
+          <Box
+            flexShrink={0}
+            marginLeft={1}
+            onClick={(event: ClickEvent) => {
+              // 拦截冒泡：这一格是「主屏查看」，不是卡片点击（→详情）。
+              event.stopImmediatePropagation()
+              onOpenView()
+            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+          >
+            {/* 字形位（与面板 ⤢ 全屏同一词汇）：卡片行是恒定高度的水流行，
+                长标签会把状态列顶折行；完整名称留给 Dashboard/Detail 入口。 */}
+            <Text color={hovered ? 'accent' : 'subtle'}>{'⤢'}</Text>
+          </Box>
+        )}
+      </Box>
+      {!settled && (lastRunning ?? previousDone) !== undefined && (
+        <Text wrap="truncate">
+          {lastRunning !== undefined ? (
+            <>
+              {previousDone !== undefined && (
+                <>
+                  <Text dimColor>{'  · '}</Text>
+                  <Text color="success">✓</Text>
+                  <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
+                  <Text dimColor>{' · '}</Text>
+                </>
+              )}
+              {lastRunning.argsPreview === undefined && (
+                <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
+              )}
+              {lastRunning.argsPreview !== undefined && (
+                <>
+                  <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
+                  <Text dimColor>{` (${clipLine(lastRunning.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - lastRunning.name.length - 6))})`}</Text>
+                </>
+              )}
+            </>
+          ) : (
+            previousDone !== undefined && (
               <>
                 <Text dimColor>{'  · '}</Text>
                 <Text color="success">✓</Text>
                 <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
-                <Text dimColor>{' · '}</Text>
+                {previousDone.argsPreview !== undefined && (
+                  <Text dimColor>{` (${clipLine(previousDone.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - previousDone.name.length - 6))})`}</Text>
+                )}
               </>
-            )}
-            {lastRunning.argsPreview === undefined && (
-              <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
-            )}
-            {lastRunning.argsPreview !== undefined && (
-              <>
-                <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
-                <Text dimColor>{` (${clipLine(lastRunning.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - lastRunning.name.length - 6))})`}</Text>
-              </>
-            )}
-          </>
-        ) : (
-          previousDone !== undefined && (
-            <>
-              <Text dimColor>{'  · '}</Text>
-              <Text color="success">✓</Text>
-              <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
-              {previousDone.argsPreview !== undefined && (
-                <Text dimColor>{` (${clipLine(previousDone.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - previousDone.name.length - 6))})`}</Text>
-              )}
-            </>
-          )
-        )}
-      </Text>
-    )}
-    {!settled && Array.from({ length: WATERFALL_ROWS }, (_, index) => (
-      // key 不含 time：含 time 的 key 让每个 animation tick 都变成
-      // unmount+mount，DOMElement/Yoga node churn 且 nodeCache 失配扩大
-      // terminal damage。内容更新走 in-place diff。
-      <Text key={`${subagent.agentId}-wf-${index}`} dimColor wrap="truncate">{`  │ ${clipLine(activity[index] ?? '', rowWidth)}`}</Text>
-    ))}
-    {settled && subagent.status === 'failed' && subagent.error && (
-      <Text color="error" wrap="truncate">{`  └ ${clipLine(subagent.error, rowWidth)}`}</Text>
-    )}
+            )
+          )}
+        </Text>
+      )}
+      {!settled && Array.from({ length: WATERFALL_ROWS }, (_, index) => (
+        // key 不含 time：含 time 的 key 让每个 animation tick 都变成
+        // unmount+mount，DOMElement/Yoga node churn 且 nodeCache 失配扩大
+        // terminal damage。内容更新走 in-place diff。
+        <Text key={`${subagent.agentId}-wf-${index}`} dimColor wrap="truncate">{`  │ ${clipLine(activity[index] ?? '', rowWidth)}`}</Text>
+      ))}
+      {settled && subagent.status === 'failed' && subagent.error && (
+        <Text color="error" wrap="truncate">{`  └ ${clipLine(subagent.error, rowWidth)}`}</Text>
+      )}
+    </CardContent>
   </Box>
 }

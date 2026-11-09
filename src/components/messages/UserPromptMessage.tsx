@@ -1,9 +1,10 @@
 import React from 'react'
-import { Box, Text, useTerminalSize } from '../../ui.js'
+import { Box, Text } from '../../ui.js'
 import { POINTER } from '../../terminal-utils/figures.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { wrapWidth } from '../../sessions/format.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
 
 type Props = {
   text: string
@@ -16,9 +17,10 @@ type Props = {
 
 /**
  * User prompt bubble: `❯ text` in bold userPromptLabel tint with no background
- * fill (Kimi Code style: the user turn gets a distinct bold tint — the
- * kernel-rotated brand colour of the active theme — so it reads apart from
- * assistant text; only selection mode paints a highlight).
+ * fill by default (Kimi Code style: the user turn gets a distinct bold tint —
+ * the kernel-rotated brand colour of the active theme — so it reads apart from
+ * assistant text; only selection mode paints a highlight). The card style
+ * may add a face/border/padding (the `pi-like` preset paints the bubble).
  */
 export function UserPromptMessage({
   text,
@@ -26,7 +28,10 @@ export function UserPromptMessage({
   isSelected = false,
   onClick,
 }: Props): React.ReactNode {
-  const { columns } = useTerminalSize()
+  const card = useCardSurface('user')
+  // The card's own border/padding is chrome: the terminal width it reports is
+  // already deducted, so this pre-wrap math only budgets the pointer prefix.
+  const columns = card.columns
   const promptPrefix = `${POINTER} `
   const prefixWidth = stringWidth(promptPrefix)
   // Wrap here instead of letting Ink wrap the whole Text node. Ink starts an
@@ -45,17 +50,23 @@ export function UserPromptMessage({
   return (
     <Box
       flexDirection="column"
-      marginTop={marginTopOnTurn ? 1 : 0}
-      backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
+      marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+      backgroundColor={isSelected ? 'messageActionsBackground' : card.box.backgroundColor}
+      borderStyle={card.box.borderStyle}
+      borderColor={card.box.borderColor}
+      paddingX={card.box.paddingX}
+      paddingY={card.box.paddingY}
       paddingRight={1}
       onClick={onClick}
     >
-      {lines.map((line, index) => (
-        <Text key={index} color="userPromptLabel" bold wrap="truncate-end">
-          {index === 0 ? `${POINTER} ` : continuationIndent}
-          {line}
-        </Text>
-      ))}
+      <CardContent surface={card}>
+        {lines.map((line, index) => (
+          <Text key={index} color="userPromptLabel" bold wrap="truncate-end">
+            {index === 0 ? `${POINTER} ` : continuationIndent}
+            {line}
+          </Text>
+        ))}
+      </CardContent>
     </Box>
   )
 }

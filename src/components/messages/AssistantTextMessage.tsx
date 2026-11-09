@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, NoSelect, Text } from '../../ui.js'
 import { BLACK_CIRCLE } from '../../terminal-utils/figures.js'
 import { Markdown } from '../Markdown.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
 
 type Props = {
   text: string
@@ -26,29 +27,36 @@ export function AssistantTextMessage({
   isSelected = false,
   isExpanded = false,
 }: Props): React.ReactNode {
+  const card = useCardSurface('assistant')
   return (
     <Box
       alignItems="flex-start"
       flexDirection="row"
       justifyContent="space-between"
-      marginTop={marginTopOnTurn ? 1 : 0}
+      marginTop={cardMarginTop(marginTopOnTurn, card.style)}
       width="100%"
       backgroundColor={
         isSelected
           ? 'messageActionsBackground'
           : isExpanded
             ? 'userMessageBackgroundHover'
-            : undefined
+            : card.box.backgroundColor
       }
+      borderStyle={card.box.borderStyle}
+      borderColor={card.box.borderColor}
+      paddingX={card.box.paddingX}
+      paddingY={card.box.paddingY}
     >
-      <Box flexDirection="row">
-        <NoSelect fromLeftEdge minWidth={2}>
-          <Text color={isSelected ? 'suggestion' : 'text'}>{BLACK_CIRCLE}</Text>
-        </NoSelect>
-        <Box flexDirection="column">
-          <Markdown>{text}</Markdown>
+      <CardContent surface={card}>
+        <Box flexDirection="row">
+          <NoSelect fromLeftEdge minWidth={2}>
+            <Text color={isSelected ? 'suggestion' : 'text'}>{BLACK_CIRCLE}</Text>
+          </NoSelect>
+          <Box flexDirection="column">
+            <Markdown>{text}</Markdown>
+          </Box>
         </Box>
-      </Box>
+      </CardContent>
     </Box>
   )
 }

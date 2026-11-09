@@ -1,5 +1,5 @@
 import React from 'react'
-import { Box, Text, useAnimationFrame, useTerminalSize } from '../../ui.js'
+import { Box, Text, useAnimationFrame } from '../../ui.js'
 import { formatJobDuration, type BackgroundJobStatus } from '../../dsh-adapter/jobs.js'
 import type { JobRow } from '../../dsh-adapter/channel.js'
 import type { BackgroundJobOutputLine } from '../../adapter/ports/channel-view.js'
@@ -8,9 +8,14 @@ import { t } from '../../i18n.js'
 import { wrapTextLines } from '../../ink/wrap-text.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import { ProgressBar } from '../design-system/ProgressBar.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
+import type { JobProgressStyle } from '../../cardStyles.js'
+import { JobLineProgress } from './JobLineProgress.js'
 
 /** The waterfall window mirrors the subagent card: a constant-height region. */
 const WATERFALL_ROWS = 2
+/** Fixed header slot for live progress: a line/bar plus the raw counter. */
+const JOB_PROGRESS_WIDTH = 12
 const COMMAND_MARK = process.platform === 'win32' ? '>' : '❯'
 
 /** Static status marker — deliberately NOT the animated activity-indicator
@@ -36,12 +41,20 @@ function statusInfo(status: BackgroundJobStatus): { glyph: string; label: string
 }
 
 /**
- * Producer progress as the design system's bar: `n/m` draws a 5-cell
- * sub-cell-accurate `ProgressBar` (same primitive the rest of the TUI uses)
- * plus the raw counter; any other shape passes through verbatim. Exported for
- * the /jobs panel so both surfaces read the same.
+ * Producer progress in the card header. The default `bar` keeps the original
+ * design-system `ProgressBar` (the /jobs panel passes no style and stays on
+ * it); `line` is the downstream pi-like default, delegating the thin-line
+ * rendering to `JobLineProgress`. Both consume the producer's raw `n/m` text;
+ * any other shape passes through verbatim.
  */
-export function JobProgress({ progress }: { progress: string }): React.ReactNode {
+export function JobProgress({ progress, style = 'bar', width }: {
+  readonly progress: string
+  readonly style?: JobProgressStyle
+  /** Fixed header slot width in terminal columns (line mode uses it to shrink
+   *  the line before it drops it in favour of the counter). */
+  readonly width?: number
+}): React.ReactNode {
+  if (style === 'line') return <JobLineProgress progress={progress} width={width} />
   const match = /^(\d+)\s*\/\s*(\d+)$/.exec(progress.trim())
   const current = match === null ? Number.NaN : Number(match[1])
   const total = match === null ? Number.NaN : Number(match[2])
@@ -130,10 +143,13 @@ export function JobCard({ job, marginTopOnTurn, onClick, onWatchOutput, expanded
   const settled = job.status === 'completed' || job.status === 'failed' || job.status === 'killed'
   React.useEffect(() => (settled || onWatchOutput === undefined ? undefined : onWatchOutput(job.id)), [settled, onWatchOutput, job.id])
   const [viewportRef] = useAnimationFrame(settled ? null : 1000)
-  const { columns } = useTerminalSize()
+  // Killed/stopping runs report no face (cardStatusOf): they keep the ordinary
+  // card face and their own ✗/● marker.
+  const card = useCardSurface('job', { status: job.status })
   const info = statusInfo(job.status)
   const [hovered, setHovered] = React.useState(false)
-  const contentWidth = Math.max(1, columns - 2)
+  // `columns` is already net of the card's border and horizontal padding.
+  const contentWidth = Math.max(1, card.columns - 2)
   const commandRows = jobCommandRows(job.label, contentWidth, expanded)
   const output = jobOutputRows(job.outputLines, Math.max(1, contentWidth - 1), WATERFALL_ROWS)
   const outputRows = output.map((entry, index) => (index === 0 ? '≡ ' : '') + (entry.gap === true ? t('jobs-output-gap') : entry.text))
@@ -141,24 +157,31 @@ export function JobCard({ job, marginTopOnTurn, onClick, onWatchOutput, expanded
   const headerName = `${t('jobs-card-prefix')}${job.id}`
   const duration = formatJobDuration(job)
   const liveProgress = settled || job.progress === undefined || job.progress === '' ? undefined : job.progress
-  return <Box flexDirection="column" marginTop={marginTopOnTurn ? 1 : 0} ref={viewportRef}
+  return <Box flexDirection="column" marginTop={cardMarginTop(marginTopOnTurn, card.style)} ref={viewportRef}
+    backgroundColor={card.box.backgroundColor}
+    borderStyle={card.box.borderStyle}
+    borderColor={card.box.borderColor}
+    paddingX={card.box.paddingX}
+    paddingY={card.box.paddingY}
     onClick={onToggle === undefined ? undefined : event => { event.stopImmediatePropagation(); onToggle() }}
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-    <Box flexDirection="row" gap={1} height={1} overflow="hidden"
-      onClick={onClick === undefined ? undefined : event => { event.stopImmediatePropagation(); onClick() }}>
-      <Box flexShrink={0}>
-        <Text color={hovered ? 'accent' : info.color}>{info.glyph}</Text>
+    <CardContent surface={card}>
+      <Box flexDirection="row" gap={1} height={1} overflow="hidden"
+        onClick={onClick === undefined ? undefined : event => { event.stopImmediatePropagation(); onClick() }}>
+        <Box flexShrink={0}>
+          <Text color={hovered ? 'accent' : info.color}>{info.glyph}</Text>
+        </Box>
+        <Box flexShrink={0}>
+          <Text bold color={hovered ? 'accent' : undefined}>{headerName}</Text>
+        </Box>
+        <Box flexShrink={0}><Text dimColor>{job.kind}</Text></Box>
+        {liveProgress !== undefined && <Box width={JOB_PROGRESS_WIDTH} flexShrink={0}><JobProgress progress={liveProgress} style={card.style.progressStyle} width={JOB_PROGRESS_WIDTH} /></Box>}
+        <Box flexShrink={0}><Text dimColor>{duration}</Text></Box>
+        {headerDetail !== undefined && <Box flexShrink={0}><Text dimColor wrap="truncate-end">{headerDetail}</Text></Box>}
+        <Box flexShrink={0}><Text color={info.color}>{info.label}</Text></Box>
       </Box>
-      <Box flexShrink={0}>
-        <Text bold color={hovered ? 'accent' : undefined}>{headerName}</Text>
-      </Box>
-      <Box flexShrink={0}><Text dimColor>{job.kind}</Text></Box>
-      {liveProgress !== undefined && <Box width={12} flexShrink={0}><JobProgress progress={liveProgress} /></Box>}
-      <Box flexShrink={0}><Text dimColor>{duration}</Text></Box>
-      {headerDetail !== undefined && <Box flexShrink={0}><Text dimColor wrap="truncate-end">{headerDetail}</Text></Box>}
-      <Box flexShrink={0}><Text color={info.color}>{info.label}</Text></Box>
-    </Box>
-    <JobSection rows={commandRows} color="accent" />
-    <JobSection rows={outputRows} color="success" />
+      <JobSection rows={commandRows} color="accent" />
+      <JobSection rows={outputRows} color="success" />
+    </CardContent>
   </Box>
 }

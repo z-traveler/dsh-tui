@@ -73,6 +73,25 @@
     # auto 在 Windows 本地会话用此档，SSH 改走客户端终端；仅 DSH 会话且 cc-dsh-notifier 已启用、正在运行时让位。
     # 回复中 LaTeX 公式的显示方式：auto（默认，目前为 Unicode）/ image（支持图形的终端里块级公式显示为图片）/ unicode / source（保留源码）。/settings 可实时改。
     # mathRendering: auto
+    # 对话卡片样式（下游私有，只有文件配置，/settings 没有对应项）：preset 为
+    # legacy（缺省，现有外观，工具卡仍由 toolBackground 决定）或 pi-like（无边框、
+    # 水平/上下内边距 0，用户极淡底、工具/子代理近黑状态底；后台任务透明且组内
+    # 紧贴，其余卡片保留一行不着色呼吸空间）。common
+    # 与 kinds.<类型> 提供覆盖：background（无状态时的底色）/ states（工具、子
+    # 代理、后台任务的执行中、成功、失败底色，值可为主题键、显式颜色或 none）/
+    # border / borderColor / paddingX / paddingY / gap；支持折叠的类型另有
+    # defaultExpanded 与 previewLines：不写就沿用各视图自己的折叠（工具正文 3 行、
+    # diff 8 行、思考流式预览 3 行；思考的静态折叠仍是只留表头）。previewLines 只对
+    # tool（文本 / diff 正文预算）与 thinking（流式 ticker 行数）生效，其余类型配了
+    # 也不变（user/assistant 按字符数折叠，summary/job 没有行数预算）；defaultExpanded
+    # 对 user/assistant/thinking/tool/job/summary 都可用。job 另有 progressStyle:
+    # line（pi-like 默认的细线）/ bar（legacy 默认的块状进度，/jobs 面板始终用它）。
+    # ~/.dsh-tui/settings.json 的 values.cardStyles 整体优先于本块（同 statusBar，
+    # 不做深合并）；改用户层即时生效，只改这里需要重启。
+    # cardStyles:
+    #   preset: pi-like
+    #   kinds:
+    #     tool: { previewLines: 6 }
     # Reasoning effort applied to every request, validated against the live
     # route's adapter levels. An unlisted level falls back to the adapter
     # default. This is the deployment DEFAULT for sessions that carry no

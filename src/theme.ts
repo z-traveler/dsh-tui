@@ -1387,7 +1387,7 @@ export function cursorGlyphColor(theme: Theme): 'text' | 'inverseText' {
  * Reading only three/six-digit hex made `#000000` and `#000000ff` — the same
  * background on screen — take opposite contrast branches.
  */
-function parseFixedColor(color: string | undefined): readonly [number, number, number] | undefined {
+export function parseFixedColor(color: string | undefined): readonly [number, number, number] | undefined {
   if (typeof color !== 'string') return undefined
   const trimmed = color.trim()
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(trimmed)
@@ -1409,7 +1409,7 @@ function parseFixedColor(color: string | undefined): readonly [number, number, n
 }
 
 /** WCAG contrast ratio between two sRGB colors, for glyph-on-fill choices. */
-function contrastRatio(
+export function contrastRatio(
   a: readonly [number, number, number],
   b: readonly [number, number, number],
 ): number {

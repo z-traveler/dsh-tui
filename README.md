@@ -497,6 +497,8 @@ Full commands: [Interaction and commands](docs/interaction.en.md).
 
 Agent presets, themes, MCP servers, environment variables: [Configuration](docs/configuration.en.md) · [Themes](docs/themes.en.md).
 
+Downstream: [conversation card styles](docs/downstream/card-styles.en.md) provide opt-in `pi-like` surfaces and per-kind appearance/folding overrides through configuration files; `legacy` remains the default. No new `/settings` controls.
+
 With the DeepSeek brand, Companion skins `deepy` and `whaleGirl` replace the maid portrait; choose `whale` and enable Maid portrait to use it. Claude uses its own artwork; Codex uses its own raster portrait or the maid character-art fallback. Both brands ignore these settings for splash artwork. See [Configuration](docs/configuration.en.md).
 
 DSH profiles inherit official reporting defaults: DeepSeek API requests carry plugin package identities and incremental Session logs to the configured `baseURL`, including third-party gateways, while OpenTelemetry uploads a Session-log prefix only after explicit feedback. User overrides remain supported; see [reporting settings](docs/configuration.en.md#official-request-metadata-and-feedback-reporting).

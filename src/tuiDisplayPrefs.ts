@@ -305,16 +305,21 @@ export function resolvePageMargin(setting: PageMarginSetting): { readonly x: num
 // settings watch mirrors each applied value into its store; the plugin
 // seeds the stores from config before the tree mounts.
 
-type LiveSetting<T> = {
+export type LiveSetting<T> = {
   /** Subscribe to changes; returns the unsubscribe fn. */
   subscribe: (listener: () => void) => () => void
-  /** Current applied value (normalized; a primitive, so its identity is stable). */
+  /** Current applied value (normalized). `useSyncExternalStore` compares by
+   *  identity, so a normalizer that builds objects must reuse the previous
+   *  reference while the input is unchanged. */
   get: () => T
   /** Apply a new value (normalized, no-op when unchanged); returns what was applied. */
   apply: (value: unknown) => T
 }
 
-function createLiveSetting<T>(initial: T, normalize: (value: unknown) => T): LiveSetting<T> {
+/** A module-level preference store components read with `useSyncExternalStore`
+ *  (see the note above). Shared with the downstream card-style store so a
+ *  second implementation of the same subscription contract does not exist. */
+export function createLiveSetting<T>(initial: T, normalize: (value: unknown) => T): LiveSetting<T> {
   const listeners = new Set<() => void>()
   let state = initial
   return {
