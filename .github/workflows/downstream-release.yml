@@ -117,6 +117,7 @@ jobs:
           for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts verify-session-cards.tsx; do
             node --import tsx/esm "scripts/downstream/$script" || exit "$?"
           done
+          node --import tsx/esm scripts/verify-input-completions.tsx
       - name: Package tested source
         id: package
         run: |

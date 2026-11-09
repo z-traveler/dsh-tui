@@ -226,6 +226,65 @@ check('goal round 0 snapshot + top-level goal/change → goal.change', goals.som
   console.log('PASS model selection → visible info notice on live and replay; injected context stays hidden')
 }
 
+// Generic context notices: any producer kind that declares `form: 'notice'`
+// with a summary is one durable transcript fact. The neutral event keeps the
+// message id, seq, time, the producer's summary and the complete content; a
+// replacement copy is model-only, and model-selection keeps its specialized
+// projection instead of becoming a generic card.
+{
+  const deps = { tools: () => undefined, scope: () => ({}), attachments: () => undefined }
+  const body = 'CONTEXT-NOTICE-BODY\n中文😀\nEND-OF-CONTEXT-NOTICE'
+  const summary = 'context fallback: acme cache unavailable'
+  const notice = (options: {
+    seq: number
+    id?: string
+    kind?: string
+    form?: string
+    summary?: unknown
+    omitSummary?: boolean
+    body?: string
+    surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
+  }) => ({
+    type: 'user/message',
+    seq: options.seq,
+    time: 7_000 + options.seq,
+    ...(options.surfaceOp === undefined ? {} : { surfaceOp: options.surfaceOp }),
+    data: {
+      id: options.id ?? `msg-notice-${options.seq}`,
+      role: 'user',
+      source: {
+        kind: options.kind ?? 'acme-context',
+        form: options.form ?? 'notice',
+        ...(options.omitSummary === true ? {} : { summary: options.summary ?? summary }),
+      },
+      content: [{ type: 'text', text: options.body ?? body }],
+    },
+  }) as unknown as Parameters<Translator['translateEvent']>[0]
+  const translate = (event: ReturnType<typeof notice>) => createDshTranslator(deps).translateEvent(event)
+
+  const [first] = translate(notice({ seq: 9101, surfaceOp: 'append' }))
+  check('generic notice (unknown producer, no name/message) → context.notice carrying id/seq/time/summary/body',
+    first?.type === 'context.notice' && first.id === 'msg-notice-9101' && first.seq === 9101
+      && first.time === 7_000 + 9_101 && first.summary === summary && first.body === body,
+    JSON.stringify(first))
+  const [legacy] = translate(notice({ seq: 9102 }))
+  check('legacy notice without a surface marker is still a transcript fact', legacy?.type === 'context.notice' && legacy.seq === 9102)
+  const [replaced] = translate(notice({ seq: 9103, surfaceOp: { op: 'replace', startSeq: 1, endSeq: 2 } }))
+  check('a replacement notice copy stays model-only (no context notice)', replaced?.type === 'user.message' && replaced.source === 'injected' && replaced.text === '')
+  const [malformed] = translate(notice({ seq: 9104, omitSummary: true }))
+  check('a notice without a valid summary keeps the opaque injected fallback', malformed?.type === 'user.message' && malformed.source === 'injected' && malformed.text === '')
+  const multiple = [notice({ seq: 9106, surfaceOp: 'append' }), notice({ seq: 9105, id: 'msg-notice-second', summary: 'second notice' })]
+  const multipleLive = multiple.flatMap(event => translate(event))
+  const multipleReplay = createDshTranslator(deps).translateReplay(multiple)
+  const noticeShapes = multipleLive.map(event => event.type === 'context.notice'
+    ? { type: event.type, id: event.id, seq: event.seq }
+    : { type: event.type })
+  check('same-producer notices stay independent facts',
+    noticeShapes.length === 2 && noticeShapes.every(shape => shape.type === 'context.notice') && noticeShapes[0]?.seq !== noticeShapes[1]?.seq,
+    JSON.stringify(noticeShapes))
+  check('live and replay produce the same notice facts', JSON.stringify(multipleReplay) === JSON.stringify(multipleLive))
+}
+
 // assistant stream
 check('stream start frame → assistant.attempt.start', of(live, 'assistant.attempt.start').some(event => event.attemptId === 'attempt-b' && event.turn === 5 && event.step === 1))
 const ends = of(live, 'assistant.attempt.end')

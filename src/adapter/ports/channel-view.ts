@@ -103,7 +103,7 @@ export interface WorkingActivityView {
  */
 export interface ChatRow {
   id: number
-  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'command' | 'skill' | 'subagent' | 'job' | 'turn-summary'
+  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'command' | 'skill' | 'context-notice' | 'subagent' | 'job' | 'turn-summary'
   /** Extra label for non-human user rows (e.g. `steering`). */
   label?: string
   /** `user` rows another agent sent (an Agent Teams peer message): its name. */
@@ -130,6 +130,9 @@ export interface ChatRow {
   command?: CommandRow
   /** Present on `skill` rows; the user-explicit load this card stands for. */
   skill?: SkillRow
+  /** Present on `context-notice` rows; the durable notice identity and its
+   *  one-line summary. The row's `text` is the complete saved body. */
+  contextNotice?: ContextNoticeRow
   /** Present on `subagent` rows; the subagent state snapshot. */
   subagent?: SubagentRow
   /** Present on `job` rows; the background-job state snapshot. */
@@ -201,6 +204,22 @@ export interface CommandRow {
 export interface SkillRow {
   /** Skill name exactly as the user's gesture spelled it. */
   readonly name: string
+}
+
+/**
+ * One generic context notice in the transcript (a message whose producer
+ * declared `source.form: 'notice'`, independent of its kind). The row's
+ * `text` is the complete saved body; `summary` is shown while folded. Both
+ * are durable record fields, so replay and "load earlier" restore the same
+ * card without asking the producer again.
+ */
+export interface ContextNoticeRow {
+  /** Producer identity for provenance, never a severity or renderer selector. */
+  readonly source: string
+  /** The durable message id the notice came from. */
+  readonly messageId: string
+  /** The producer's one-line account of what happened. */
+  readonly summary: string
 }
 
 /** Tool-call card state: the presentation of one tool invocation. */

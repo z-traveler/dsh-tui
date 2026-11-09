@@ -66,6 +66,10 @@
       "types": "./lib/types/command-trees.d.ts",
       "import": "./lib/types/command-trees.js"
     },
+    "./input-completions": {
+      "types": "./lib/types/input-completions.d.ts",
+      "import": "./lib/types/input-completions.js"
+    },
     "./preset-patch": {
       "types": "./lib/types/preset-patch.d.ts",
       "import": "./lib/types/preset-patch.js"
