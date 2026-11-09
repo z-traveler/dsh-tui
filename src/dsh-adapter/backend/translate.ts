@@ -72,6 +72,7 @@ export function dshEmits(type: AgentEventType): boolean {
     case 'step.end':
     case 'user.message':
     case 'skill.invocation':
+    case 'context.notice':
     case 'command.result':
     case 'pending.changed':
     case 'assistant.attempt.start':
@@ -179,6 +180,20 @@ type OpenCommand = { readonly name: string; readonly args?: string }
 // skipped (v1 renders text blocks only) — never crashes.
 const textOf = (content: readonly ContentBlock[] | undefined): string =>
   (content ?? []).map(block => (block.type === 'text' ? block.text : '')).join('').trim()
+
+/**
+ * The summary of a generic context notice — a producer-declared
+ * `source.form: 'notice'` with a usable one-line account. The producer kind,
+ * `name` and plugin-private `message` are deliberately not inspected: any
+ * producer's notice gets the same transcript contract, while a malformed
+ * notice (no summary) keeps the opaque injected fallback. Only the form and
+ * summary decide, exactly as the shared vocabulary documents.
+ */
+const contextNoticeSummary = (source: unknown): string | undefined => {
+  if (source === null || typeof source !== 'object') return undefined
+  const { form, summary } = source as { form?: unknown; summary?: unknown }
+  return form === 'notice' && typeof summary === 'string' && summary.trim() !== '' ? summary : undefined
+}
 
 /**
  * Transcript-facing text of a user message: the first text block only.
@@ -365,6 +380,27 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
       if (surfaceOp === undefined || surfaceOp === 'append') {
         return [{ type: 'skill.invocation', seq: event.seq, time: event.time, name: skillName, body: textOf(data.content) }]
       }
+    }
+    // A generic context notice: the producer declared ONE of the shared
+    // context forms (`notice`) plus its summary, so the card needs no plugin
+    // name and no `name`/`message` extension. The neutral event keeps the
+    // durable message identity, summary and complete body; only an appended
+    // (or legacy unmarked) record is transcript material. A replacement copy
+    // is model-only, like every other replaced surface node.
+    const noticeSummary = contextNoticeSummary(data.source)
+    if (noticeSummary !== undefined) {
+      const surfaceOp = event.surfaceOp
+      if (surfaceOp === undefined || surfaceOp === 'append') {
+        return [{
+          type: 'context.notice',
+          id: data.id,
+          seq: event.seq,
+          time: event.time,
+          summary: noticeSummary,
+          body: textOf(data.content),
+        }]
+      }
+      return [{ type: 'user.message', ...base, source: 'injected', text: '' }]
     }
     // Injected context (plugin/skill source) is model-facing only; it has no
     // transcript-facing text.

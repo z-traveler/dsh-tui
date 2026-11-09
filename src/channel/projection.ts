@@ -1184,6 +1184,24 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
         deps.rowIds.value += 1
         return
       }
+      case 'context.notice': {
+        // A generic context notice (any producer's `form: 'notice'`). One row
+        // per durable message, default-folded: summary while folded, the
+        // complete saved body when expanded. It is transcript material only,
+        // so it adds no toast and never joins the human/user bubble path; the
+        // switch keeps the upstream model-only injection when off.
+        if (deps.sessionCards !== true) return
+        appendRow({
+          id: deps.rowIds.value,
+          kind: 'context-notice',
+          text: event.body,
+          seq: event.seq,
+          time: event.time,
+          contextNotice: { messageId: event.id, summary: event.summary },
+        })
+        deps.rowIds.value += 1
+        return
+      }
       case 'step.start':
         openStep = { turn: event.turn, step: event.step }
         if (tpsTurn === event.turn) {

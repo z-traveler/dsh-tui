@@ -12,6 +12,7 @@ import { Divider } from './design-system/Divider.js'
 import { UserPromptMessage } from './messages/UserPromptMessage.js'
 import { CommandCardRow } from './messages/CommandCardRow.js'
 import { SkillCardRow } from './messages/SkillCardRow.js'
+import { ContextNoticeCardRow } from './messages/ContextNoticeCardRow.js'
 import { TeamMessageBubble } from './messages/TeamMessageBubble.js'
 import { AssistantTextLeafRow, ThinkingLeafRow, ToolLeafRow } from './messages/TranscriptLeaves.js'
 import { liveOutputMaxLines, liveOutputRows } from './messages/liveOutputLines.js'
@@ -342,6 +343,11 @@ function signatureParts(
     case 'skill':
       // One collapsed line vs the revealed saved body.
       signatureScratch.push(expanded, expandedRows.has(row.id), row.skill?.name ?? '')
+      break
+    case 'context-notice':
+      // One collapsed line (summary) vs the revealed saved body; the summary
+      // and both expansion switches are height inputs.
+      signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.summary ?? '')
       break
     case 'compact':
       // Folded one-liner vs full summary text.
@@ -1617,6 +1623,7 @@ export function MessageList({
               commandArgs={row.kind === 'command' ? row.command?.args : undefined}
               commandStatus={row.kind === 'command' ? row.command?.status : undefined}
               skillName={row.kind === 'skill' ? row.skill?.name : undefined}
+              contextSummary={row.kind === 'context-notice' ? row.contextNotice?.summary : undefined}
               toolCallId={tool?.callId}
               toolName={tool?.name}
               toolArgsText={tool?.argsText}
@@ -1715,6 +1722,8 @@ type MemoRowProps = {
   commandStatus: 'success' | 'error' | undefined
   /** Skill rows: the loaded skill's name. */
   skillName: string | undefined
+  /** Context-notice rows: the durable summary shown while folded. */
+  contextSummary: string | undefined
   // ToolRow, flattened: the channel writes status/result fields in place,
   // so passing the object itself would make mutations invisible to memo.
   toolCallId: string | undefined
@@ -1818,6 +1827,7 @@ function TranscriptRow({
   commandArgs,
   commandStatus,
   skillName,
+  contextSummary,
   toolCallId,
   toolName,
   toolArgsText,
@@ -1895,7 +1905,7 @@ function TranscriptRow({
   // `lang` is a dependency because the fold marker is localized: a row that
   // re-renders unchanged after /lang must not keep the previous language.
   const lang = getLang()
-  const foldable = kind !== 'reasoning' && kind !== 'tool' && kind !== 'command' && kind !== 'skill'
+  const foldable = kind !== 'reasoning' && kind !== 'tool' && kind !== 'command' && kind !== 'skill' && kind !== 'context-notice'
   const folded = React.useMemo(
     () => (foldable ? foldLongLines(text) : { text, hiddenChars: 0, foldedLines: 0 }),
     [foldable, text, lang],
@@ -2132,6 +2142,21 @@ function TranscriptRow({
         <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
           <SkillCardRow
             name={skillName}
+            body={text}
+            expanded={expanded || isExpanded}
+            background={background}
+            onClick={foldOnClick}
+          />
+        </Box>
+      )
+    case 'context-notice':
+      if (contextSummary === undefined) return null
+      // A generic context notice: one line while it stays folded, the saved
+      // complete body once expanded. No severity styling is inferred.
+      return (
+        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
+          <ContextNoticeCardRow
+            summary={contextSummary}
             body={text}
             expanded={expanded || isExpanded}
             background={background}

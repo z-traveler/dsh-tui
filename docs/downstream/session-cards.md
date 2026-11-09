@@ -2,11 +2,12 @@
 
 ## 中文
 
-`sessionCards` 是一个**默认开启**的展示开关，把两类**持久会话事实**做成转录卡片：
-DSH 注册表命令的结算结果，以及显式技能加载注入的正文。两者的模型面各自不变——
+`sessionCards` 是一个**默认开启**的展示开关，把三类**持久会话事实**做成转录卡片：
+DSH 注册表命令的结算结果、显式技能加载注入的正文，以及生产者声明为
+`source.form: 'notice'` 的通用上下文通知。三者的模型面各自不变——
 命令的 `command/run` / `command/done` 是 log-only 记录（从不进入模型消息），技能正文
-则**继续供模型使用**，卡片只是给同一份已保存的正文补一个可见投影；因此开关不新增
-命令、不请求模型、不改写持久化事件，也不改变模型看到的 surface。
+与通知消息则**继续供模型使用**，卡片只是给同一份已保存的正文补一个可见投影；因此开关
+不新增命令、不请求模型、不改写持久化事件，也不改变模型看到的 surface。
 
 ### 命令结果卡片
 
@@ -54,11 +55,27 @@ canonical 文本。开启开关后，这条记录投影成一张独立技能卡�
 - 只有 append 的注入才是转录材料：`surfaceOp` 为 `replace` 的替换副本只对模型可见，
   不额外生成卡片；旧版日志缺少 `surfaceOp` 时按 append 处理。
 
+### 通用上下文通知卡
+
+任何生产者只要在持久 `user/message` 上声明通用的 `source.form: 'notice'` 与
+`summary`，就投影成一张独立通知卡；不要求插件名、`name` 或插件的 `message` 字段，
+换任意 `source.kind` 都走同一路径。折叠摘要取 `source.summary`，完整正文取消息
+`content`：
+
+- 默认一行：`[通知] 摘要`，中性标签不推断严重级别；不新增 toast、系统通知或响铃。
+- 展开（同上交互）显示持久消息的完整正文，长 CJK/emoji/ANSI 内容按渲染安全规则
+  清理后完整呈现，不分页、不静默截断。
+- 卡片保留原消息 `id`、事件 `seq` 与 `time`；它不是用户气泡，也不改变
+  `lastUserText`、回退锚点或模型消息。
+- 只有 append（或旧日志缺少 `surfaceOp` 标记）的消息才是转录材料：`replace`
+  替换副本只对模型可见，不重复生成卡片。
+- 既有专属分支（如 `model-selection`）优先于通用通知卡，保留原有提示口径。
+
 ### 恢复、分页与内存
 
-两类卡片都来自持久化记录，因此实时、`/resume` 重放和“加载更早”分页得到同一行；
+三类卡片都来自持久化记录，因此实时、`/resume` 重放和“加载更早”分页得到同一行；
 卡片正文保持会话窗口的内存约束——行超出转录窗口时正文降为预览，`loadOlder` 按
-`commandId`（命令）或该记录的 `seq`（技能）从日志恢复完整正文。
+`commandId`（命令）或该记录的 `seq`（技能与通知）从日志恢复完整正文。
 
 ### 配置
 
@@ -70,18 +87,18 @@ config:
 ```
 
 关闭时转录保持上游形态：注册表命令结果走 dispatcher 的本地报告路径，注入的技能
-正文只对模型可见。
+正文与全部合法 notice 消息只对模型可见。
 
 ## English
 
-`sessionCards` is an **enabled-by-default** display switch that turns two **durable session
-facts** into transcript cards: a DSH registry command's settled result, and the
-body an explicit skill load injected. Neither model surface changes — the
-command's `command/run` / `command/done` are log-only records (they never become
-model messages), while the skill body **stays model-facing**: the card only adds
-a visible projection of the same saved text. So the switch adds no command,
-requests no model turn, rewrites no durable event and leaves the model surface
-exactly as it was.
+`sessionCards` is an **enabled-by-default** display switch that turns three **durable session
+facts** into transcript cards: a DSH registry command's settled result, the body an
+explicit skill load injected, and a generic context notice — a message whose producer
+declared `source.form: 'notice'`. None of the model surfaces changes — the command's
+`command/run` / `command/done` are log-only records (they never become model messages),
+while skill bodies and notice messages **stay model-facing**: a card only adds a visible
+projection of the same saved text. So the switch adds no command, requests no model turn,
+rewrites no durable event and leaves the model surface exactly as it was.
 
 ### Command result cards
 
@@ -145,12 +162,31 @@ With the switch on that record becomes one card:
   is model-only and yields no card, while a legacy record without the marker is
   an append.
 
+### Generic context notice cards
+
+Any producer that declares the shared `source.form: 'notice'` and a `summary` on a
+durable `user/message` becomes one notice card. No plugin name, `name` or plugin-private
+`message` field is required, and any `source.kind` takes the same path. The folded
+summary comes from `source.summary`; the complete body comes from the message `content`:
+
+- One line by default: `[notice] summary`, with a neutral tag that infers no severity;
+  no toast, OS notification or bell is added.
+- Expanding (same gestures) shows the durable message's complete body. Long
+  CJK/emoji/ANSI content is sanitized for rendering and then shown whole, with no
+  paging and no silent truncation.
+- The card keeps the original message `id`, event `seq` and `time`; it is not a user
+  bubble and leaves `lastUserText`, the rewind anchor and model messages untouched.
+- Only an appended message (or a legacy record without the `surfaceOp` marker) is
+  transcript material: a `replace` copy is model-only and yields no duplicate card.
+- Existing specialized branches (for example `model-selection`) take precedence over
+  the generic notice card and keep their wording.
+
 ### Restore, paging and memory
 
-Both cards come from the durable record, so live, `/resume` replay and "load
+All three cards come from the durable record, so live, `/resume` replay and "load
 earlier" paging produce the same row. Retention follows the existing transcript
 window: beyond it the body drops to a preview, and `loadOlder` restores it from
-the log by `commandId` (commands) or the record's `seq` (skills).
+the log by `commandId` (commands) or the record's `seq` (skills and notices).
 
 ### Configuration
 
@@ -163,5 +199,5 @@ config:
 ```
 
 With the switch off the transcript keeps the upstream shape: a registry command's
-result goes through the dispatcher's local report, and an injected skill body
-stays model-facing only.
+result goes through the dispatcher's local report, and injected skill bodies and every
+valid notice message stay model-facing only.

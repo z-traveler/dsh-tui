@@ -247,6 +247,17 @@ export type AgentEvent =
    */
   | { readonly type: 'skill.invocation'; readonly seq: number; readonly time: number; readonly name: string; readonly body: string }
   /**
+   * A one-off context notice a backend recorded with the generic
+   * `source.form: 'notice'` contract. It is a transcript fact, separate from
+   * the ephemeral `notice` event (which also drives toasts): this one carries
+   * the durable message identity, the producer's one-line `summary` and the
+   * complete message body. The card shows the summary while folded and the
+   * saved body when expanded; it never infers a severity from either and
+   * never becomes a user bubble. Only an appended (or legacy unmarked) record
+   * is such a fact — a replacement copy is model-only.
+   */
+  | { readonly type: 'context.notice'; readonly id: string; readonly seq: number; readonly time: number; readonly summary: string; readonly body: string }
+  /**
    * Snapshot of the backend's queue of unclaimed user inputs (replaces the
    * previous one). `claimed`/`discarded` name the ids that left the queue in
    * this change: a claimed input became part of a turn, a discarded one never
