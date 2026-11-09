@@ -12,7 +12,7 @@ export { ARGS_PREVIEW_LIMIT, LOCAL_OUTPUT_LIMIT, MAX_ROWS, preview, previewInden
 /**
  * Fold the oldest rows beyond the transcript window cap: drop each row's
  * full-text fields (assistant/reasoning text, tool args/results, a command
- * result's or a skill body's text) and keep only its preview text, kind, id,
+ * result's, skill body's or context notice's text) and keep only its preview text, kind, id,
  * and seq. Bounds the TUI's retained text
  * without touching the session log (the source of truth for /export and
  * loadOlder). Small local/notice/interrupt rows are left intact (they hold
@@ -55,7 +55,7 @@ export function foldRows(
   let folded = 0
   for (const row of rows.slice(from, excess)) {
     if (row.folded || row.restored) continue
-    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool' && row.kind !== 'command' && row.kind !== 'skill') continue
+    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool' && row.kind !== 'command' && row.kind !== 'skill' && row.kind !== 'context-notice') continue
     if (restorable !== undefined && !restorable(row)) continue
     row.folded = true
     folded += 1
@@ -150,6 +150,19 @@ export function foldBack(rows: ChatRow[], events: readonly SessionEvent[], views
       restored += 1
       continue
     }
+    if (row.kind === 'context-notice') {
+      // The durable notice message at the row's own seq owns the full body;
+      // its message id and summary stay on the row (the log only restores the
+      // text the folded window dropped).
+      const notice = restoreEvents.find(event => event.seq === rowSeq && event.type === 'user/message')
+      if (notice === undefined || notice.type !== 'user/message') continue
+      restoreRowFromEvent(row, notice)
+      row.folded = false
+      markChannelReadDirty(row)
+      markChannelReadDirty(rows)
+      restored += 1
+      continue
+    }
     // Text rows are anchored on their first delta chunk; the settled
     // assistant/message at or after that seq carries the full text.
     const message = restoreEvents.find(event => event.seq >= rowSeq && event.type === 'assistant/message')
@@ -192,10 +205,14 @@ export function restoreRowFromEvent(row: ChatRow, event: SessionEvent): void {
       row.tool.argsFull = event.data.arguments
       break
     }
-    case 'skill': {
+    case 'skill':
+    case 'context-notice': {
+      // A skill/context-notice card's saved body is the user/message content
+      // at the row's own seq.
       if (event.type !== 'user/message') break
-      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('').trim()
-      if (body) row.text = body
+      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
+      if (row.kind === 'context-notice') row.text = body
+      else if (body.trim()) row.text = body.trim()
       break
     }
     default:

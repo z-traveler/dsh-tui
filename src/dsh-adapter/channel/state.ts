@@ -117,7 +117,7 @@ export interface ChannelLaunchOptions {
    *  purely a decoration switch. NOT the kernel agent preset `minimal`. */
   minimalUi?: boolean
   contextBar?: boolean
-  /** Command result / explicit skill-load cards (`sessionCards`, on by
+  /** Command / skill-load / context-notice cards (`sessionCards`, on by
    *  default): set false to restore the upstream transcript shape. */
   sessionCards?: boolean
   configuredPreset?: string

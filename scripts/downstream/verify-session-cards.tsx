@@ -1,11 +1,11 @@
 /**
- * 工单 01：通用命令结果卡片与显式技能加载卡片的端到端回归（真实 channel +
- * 真实渲染）。
+ * 工单 01：通用命令结果、显式技能加载与通用上下文通知的端到端回归（真实
+ * translator + channel + 渲染）。
  *
  * 观察面从持久化事实开始：`sessionCards` 开启时，DSH 的 `command/run` +
  * `command/done` 形成同一命令实体（按 commandId 配对），投影出一张默认折叠、
- * 可展开读到完整正文的命令卡；显式技能加载（`skill-invocation` 来源）投影出
- * 一张独立的技能卡，正文是当时实际注入的文本。关闭开关时转录保持上游形态。
+ * 可展开读到完整正文的命令卡；显式技能加载（`skill-invocation` 来源）与
+ * `form: 'notice'` 的通用上下文通知各自投影出独立卡片。关闭开关时转录保持上游形态。
  *
  * 覆盖：
  *   1. 命令卡：一条 success 记录一张卡，完整正文（>200 行、>65536 码元、
@@ -16,9 +16,10 @@
  *   3. 恢复：durable 日志重放（initialHistory）得到同样的行，实时与恢复一致；
  *   4. 技能卡：独立记录（不是用户气泡、不改 lastUserText、不产生模型消息），
  *      用户原文那行单独保留；
- *   5. 关闭开关：两类记录都不出卡片；
- *   6. 内存约束：窗口折叠把正文降到预览、`loadOlder` 按 commandId 从日志恢复；
- *   7. 渲染（Chat 真实按键）：折叠只显示标题 + 摘要，Ctrl+O 展开后能读到正文
+ *   5. 通用通知卡：任意生产者 kind、无 name/message 仍出卡，保留消息 id/seq/time、
+ *      摘要与完整正文；同来源多条独立，replacement 隐藏，关闭开关不出卡；
+ *   6. 内存约束：窗口折叠把正文降到预览、`loadOlder` 按 commandId/seq 从日志恢复；
+ *   7. 渲染（Chat 真实按键）：折叠只显示标签 + 摘要，Ctrl+O 展开后能读到正文
  *      末尾，点击行同样展开，40/100 列不越界；
  *   8. 展开/折叠不执行命令、不新增行、不请求模型。
  *
@@ -49,6 +50,7 @@ const [
   { settled, settle, sleep, viewportLines },
   { foldRows, foldBack },
   { Config },
+  { createDshTranslator },
 ] = await Promise.all([
   import('react'),
   import('@xterm/headless'),
@@ -60,6 +62,7 @@ const [
   import('../lib/term-test.mjs'),
   import('../../src/dsh-adapter/channel/transcript.js'),
   import('../../src/dsh-adapter/index.js'),
+  import('../../src/dsh-adapter/backend/translate.js'),
 ])
 
 let failed = 0
@@ -101,6 +104,45 @@ const commandResult = (
 const SKILL_BODY = '<skill_content name="alpha">\n<skill_instructions>\nALPHA-MARKER: follow the alpha guide.\n</skill_instructions>\n</skill_content>'
 const skillLoad = (seq: number, name = 'alpha', body = SKILL_BODY): AgentEvent => ({ type: 'skill.invocation', seq, time: 1_700_000_000_000 + seq, name, body })
 
+/** 一条通用上下文通知：任意生产者的 DSH `user/message` + `form: 'notice'`。 */
+const NOTICE_SUMMARY = '\u001b[31mCONTEXT-NOTICE-SUMMARY\u001b[0m: fallback context unavailable 中文😀'
+const NOTICE_BODY = [
+  'NOTICE-HEAD 中文😀',
+  'ANSI: \u001b[31mRED-CONTEXT-MARKER\u001b[0m',
+  '通知😀'.repeat(120),
+  'END-OF-NOTICE-BODY',
+].join('\n')
+const noticeMessage = (options: {
+  seq: number
+  id?: string
+  kind?: string
+  form?: string
+  summary?: unknown
+  omitSummary?: boolean
+  body?: string
+  surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
+}): SessionEvent => ({
+  type: 'user/message',
+  seq: options.seq,
+  time: 1_700_000_000_000 + options.seq,
+  ...(options.surfaceOp === undefined ? {} : { surfaceOp: options.surfaceOp }),
+  data: {
+    id: options.id ?? `msg-notice-${options.seq}`,
+    role: 'user',
+    source: {
+      kind: options.kind ?? 'acme-context',
+      form: options.form ?? 'notice',
+      ...(options.omitSummary === true ? {} : { summary: options.summary ?? NOTICE_SUMMARY }),
+    },
+    content: [{ type: 'text', text: options.body ?? NOTICE_BODY }],
+  },
+} as unknown as SessionEvent)
+const noticeTranslatorDeps = { tools: () => undefined, scope: () => ({}), attachments: () => undefined }
+const translateNotices = (events: readonly SessionEvent[]): AgentEvent[] => {
+  const translator = createDshTranslator(noticeTranslatorDeps)
+  return events.flatMap(event => translator.translateEvent(event))
+}
+
 const prompt = (id: string, text: string, seq: number): AgentEvent => ({
   type: 'user.message', id, anchor: String(seq), seq, time: 1_700_000_000_000 + seq, source: 'user', text, blocks: [{ type: 'text', text }],
 })
@@ -110,12 +152,12 @@ interface FakeSession extends AgentSession {
   emit(events: readonly AgentEvent[]): void
 }
 
-function fakeSession(sessionId: string, capabilities: Omit<SessionCapabilities, 'native'> = {}): FakeSession {
+function fakeSession(sessionId: string, capabilities: Omit<SessionCapabilities, 'native'> = {}, status: AgentSession['status'] = 'idle'): FakeSession {
   const listeners = new Set<(batch: readonly AgentEvent[], meta: { replay: boolean; wake: 'sync' }) => void>()
   const session: FakeSession = {
     ref: { backendId: 'fixture', sessionId },
     cwd: '/fixture',
-    status: 'idle',
+    status,
     capabilities: { ...capabilities, native: {} },
     submits: [],
     history: () => Promise.resolve([]),
@@ -158,6 +200,7 @@ function open(session: AgentSession, options: { sessionCards?: boolean; history?
 
 const commandRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter(row => row.kind === 'command')
 const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter(row => row.kind === 'skill')
+const noticeRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter(row => row.kind === 'context-notice')
 
 // ── 1. 命令卡：完整正文、命令事实与锚点 ─────────────────────────────────
 {
@@ -243,6 +286,24 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
   channel.releaseContributions()
 }
 
+// One busy input still owns one backend submission, not one per skill fact.
+{
+  const session = fakeSession('cards-running-multiple', {}, 'running')
+  const channel = open(session)
+  session.emit([{ type: 'turn.start', turn: 1, origin: 'user', time: 1_700_000_000_000 }])
+  check('运行中多技能：场景开始时 channel 确实 working', channel.working === true)
+  channel.submit('#skill:alpha #skill:beta')
+  check('运行中多技能：一条输入只投递一次', await settled(() => session.submits.length === 1)
+    && session.submits[0]?.text === '#skill:alpha #skill:beta')
+  session.emit([skillLoad(60, 'alpha'), skillLoad(61, 'beta', 'BETA-RUNNING-INSTRUCTIONS-END')])
+  check('运行中多技能：逐条持久加载事实分别出卡，保留顺序且不追加投递',
+    await settled(() => skillRows(channel).length === 2)
+      && skillRows(channel).map(row => row.skill?.name).join(',') === 'alpha,beta'
+      && skillRows(channel)[1]?.text === 'BETA-RUNNING-INSTRUCTIONS-END'
+      && session.submits.length === 1 && channel.working === true)
+  channel.releaseContributions()
+}
+
 // ── 5. 开关关闭：保持上游形态 ───────────────────────────────────────────
 {
   const session = fakeSession('cards-off')
@@ -255,7 +316,91 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
   channel.releaseContributions()
 }
 
-// ── 6. 内存约束：窗口折叠 + 按 commandId 从日志恢复 ─────────────────────
+// ── 6. 通用上下文通知卡：任意生产者、完整正文、身份与恢复 ─────────────────
+{
+  const [event] = translateNotices([noticeMessage({ seq: 30, surfaceOp: 'append' })])
+  check('通知卡：DSH 合法 notice（未知生产者、无 name/message）→ context.notice，保留 id/seq/time/摘要/完整正文',
+    event?.type === 'context.notice' && event.id === 'msg-notice-30' && event.seq === 30
+      && event.time === 1_700_000_000_030 && event.summary === NOTICE_SUMMARY && event.body === NOTICE_BODY,
+    JSON.stringify(event))
+  const session = fakeSession('cards-notice-live')
+  const channel = open(session)
+  session.emit([event!])
+  const rows = noticeRows(channel)
+  check('通知卡：投影为独立卡行，正文完整、摘要与消息身份/序号/时间保留，不是用户气泡',
+    await settled(() => rows.length === 1)
+      && rows[0]!.text === NOTICE_BODY && rows[0]!.contextNotice?.messageId === 'msg-notice-30'
+      && rows[0]!.contextNotice?.summary === NOTICE_SUMMARY && rows[0]!.seq === 30 && rows[0]!.time === 1_700_000_000_030
+      && channel.rows.filter(row => row.kind === 'user').length === 0,
+    JSON.stringify(rows.map(row => ({ kind: row.kind, seq: row.seq, text: row.text.slice(0, 20) }))))
+  check('通知卡：不产生额外 toast/通知，也不投递模型输入', channel.notifications.length === 0 && session.submits.length === 0)
+  channel.releaseContributions()
+}
+
+// Producer provenance and exact whitespace are durable, not inferred render text.
+{
+  const body = '\n  INDENTED-NOTICE-BODY\n\n'
+  const [event] = translateNotices([noticeMessage({ seq: 39, body })])
+  check('通知卡：保留来源标识和正文的首尾空白',
+    event?.type === 'context.notice' && 'source' in event && event.source === 'acme-context' && event.body === body)
+  const session = fakeSession('cards-notice-provenance')
+  const channel = open(session, { history: [event!] })
+  check('通知卡：投影保留实际来源而不是仅有形态标签',
+    JSON.stringify(noticeRows(channel)[0]?.contextNotice).includes('acme-context'))
+  channel.releaseContributions()
+}
+
+// 同来源多条独立；replacement 副本隐藏；实时与恢复同形。
+{
+  const live = translateNotices([
+    noticeMessage({ seq: 31, surfaceOp: 'append', summary: 'first notice' }),
+    noticeMessage({ seq: 32, id: 'msg-notice-second', surfaceOp: 'append', summary: 'second notice' }),
+  ])
+  const session = fakeSession('cards-notice-multiple')
+  const channel = open(session)
+  session.emit(live)
+  const rows = noticeRows(channel)
+  check('通知卡：同来源的多条通知各自一张卡，摘要互不覆盖',
+    await settled(() => rows.length === 2)
+      && rows[0]!.contextNotice?.summary === 'first notice' && rows[1]!.contextNotice?.summary === 'second notice'
+      && rows[0]!.seq === 31 && rows[1]!.seq === 32,
+    JSON.stringify(rows.map(row => ({ seq: row.seq, summary: row.contextNotice?.summary }))))
+  const [replacement] = translateNotices([noticeMessage({ seq: 33, surfaceOp: { op: 'replace', startSeq: 31, endSeq: 32 } })])
+  check('通知卡：replacement 副本是模型面材料，翻译为隐藏注入而不是通知卡',
+    replacement?.type === 'user.message' && replacement.source === 'injected' && replacement.text === '')
+  session.emit([replacement!])
+  check('通知卡：隐藏的 replacement 不加行、不产生用户气泡',
+    await settled(() => noticeRows(channel).length === 2) && channel.rows.length === 2)
+  const replaySession = fakeSession('cards-notice-replay')
+  const replayChannel = open(replaySession, { history: live })
+  const shape = (target: { rows: readonly ChatRow[] }) => target.rows.map(row => ({ kind: row.kind, text: row.text, notice: row.contextNotice, seq: row.seq, time: row.time }))
+  check('通知卡：durable 重放与实时得到同形的卡片',
+    await settled(() => noticeRows(replayChannel).length === 2) && JSON.stringify(shape(replayChannel)) === JSON.stringify(shape(channel)),
+    JSON.stringify(shape(replayChannel)))
+  channel.releaseContributions()
+  replayChannel.releaseContributions()
+}
+
+{
+  const history = translateNotices([noticeMessage({ seq: 34, surfaceOp: 'append' })])
+  const session = fakeSession('cards-notice-off')
+  const channel = open(session, { sessionCards: false, history })
+  check('通知卡：sessionCards 关闭时不产生新卡，转录保持上游形态',
+    await settled(() => channel.rows.length === 0) && noticeRows(channel).length === 0,
+    JSON.stringify(channel.rows.map(row => row.kind)))
+  channel.releaseContributions()
+}
+
+// A first-party producer follows exactly the same generic form contract.
+{
+  const session = fakeSession('cards-subagent-settled')
+  const channel = open(session, { history: translateNotices([noticeMessage({ seq: 38, kind: 'subagent-settled', summary: 'Child settled' })]) })
+  check('通知卡：核心 subagent-settled 也按 form 显示，不生成人工气泡',
+    noticeRows(channel).length === 1 && channel.rows.every(row => row.kind !== 'user'))
+  channel.releaseContributions()
+}
+
+// ── 7. 内存约束：窗口折叠 + 按持久锚点从日志恢复 ─────────────────────────
 {
   const rows: ChatRow[] = [
     { id: 0, kind: 'command', text: BODY, seq: 2, time: 1, command: { commandId: 'cmd-1', name: 'model-context', args: ' raw', status: 'success' } },
@@ -269,7 +414,22 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
   check('内存：loadOlder 按 commandId 从日志恢复完整正文', foldBack(rows, events) === 1 && rows[0]!.text === BODY && rows[0]!.folded !== true)
 }
 
-// ── 7/8. 渲染：折叠/展开、点击、40/100 列、不执行命令 ────────────────────
+{
+  const rows: ChatRow[] = [
+    { id: 0, kind: 'context-notice', text: NOTICE_BODY, seq: 35, time: 1_700_000_000_035, contextNotice: { messageId: 'msg-notice-35', source: 'acme-context', summary: NOTICE_SUMMARY } },
+    { id: 1, kind: 'user', text: 'after', seq: 36, anchor: '36' },
+  ]
+  check('内存：通知卡超出窗口时正文降为预览，摘要/消息身份/序号保留',
+    foldRows(rows, 1, undefined, () => true) === 1 && rows[0]!.text.length < NOTICE_BODY.length
+      && rows[0]!.folded === true && rows[0]!.contextNotice?.messageId === 'msg-notice-35'
+      && rows[0]!.contextNotice?.summary === NOTICE_SUMMARY && rows[0]!.seq === 35)
+  check('内存：loadOlder 按通知消息的持久 seq 恢复完整正文（不读技能文件、不重注入）',
+    foldBack(rows, [noticeMessage({ seq: 35, surfaceOp: 'append' })]) === 1
+      && rows[0]!.text === NOTICE_BODY && rows[0]!.folded !== true
+      && rows[0]!.contextNotice?.messageId === 'msg-notice-35')
+}
+
+// ── 8/9. 渲染：折叠/展开、点击、40/100 列、不执行命令 ────────────────────
 class Input extends PassThrough {
   isTTY = true
   setRawMode(): this { return this }
@@ -364,7 +524,76 @@ for (const { columns, fullscreen } of [
   }
 }
 
-// ── 8. 消息选择里按 Enter 展开（既有的逐行展开手势）──────────────────────
+// 通用通知卡渲染：默认折叠显示来源标签与摘要，Ctrl+O 展开完整正文；
+// 40/100 列下 CJK/emoji/ANSI 都不越界且不显示原始转义序列。
+for (const { columns, fullscreen } of [
+  { columns: 100, fullscreen: false },
+  { columns: 40, fullscreen: false },
+]) {
+  const label = `通知卡 ${fullscreen ? 'fullscreen' : 'inline'} ${columns} 列`
+  const history = translateNotices([noticeMessage({ seq: 40, surfaceOp: 'append' })])
+  const session = fakeSession(`notice-render-${columns}-${fullscreen}`)
+  const channel = open(session, { sessionCards: true, history })
+  const h = await mountChat(
+    <Chat channel={channel as never} questionStore={new QuestionStore()} approvalStore={new ApprovalStore()}
+      fullscreen={fullscreen} trajectorySeen onExit={() => undefined} promptControllerRef={{ current: null }} />,
+    columns,
+    fullscreen,
+  )
+  const rowCount = channel.rows.length
+  try {
+    check(`${label}：默认折叠只显示中性标签与摘要（正文末尾不在屏上）`,
+      await settled(() => h.screen().includes('[通知]') && h.screen().includes('acme-context') && h.screen().includes('CONTEXT-NOTICE-SUMMARY'))
+        && !h.screen().includes('END-OF-NOTICE-BODY') && !h.screen().includes('\u001b[31m'),
+      h.screen().split('\n').filter(line => line.includes('[通知]') || line.includes('CONTEXT-NOTICE')).join(' | '))
+    h.input.write('\x0f')
+    check(`${label}：Ctrl+O 展开完整持久正文（ANSI 被清理、CJK/emoji 保留、末尾可见）`,
+      await settled(() => h.screen().includes('END-OF-NOTICE-BODY') && h.screen().includes('RED-CONTEXT-MARKER'))
+        && !h.screen().includes('\u001b[31m'),
+      h.screen().split('\n').slice(-4).join(' | '))
+    const noticeLines = h.lines().filter(line => /\[通知\]|CONTEXT-NOTICE|NOTICE-HEAD|RED-CONTEXT|通知😀|END-OF-NOTICE/.test(line))
+    check(`${label}：含中文/emoji 的正文每一行都不越界`,
+      noticeLines.length > 0 && noticeLines.every(line => displayWidth(line) <= columns),
+      JSON.stringify(noticeLines.filter(line => displayWidth(line) > columns).slice(0, 5).map(line => [displayWidth(line), line])))
+    check(`${label}：展开/折叠不新增行、不投递模型输入`, channel.rows.length === rowCount && session.submits.length === 0)
+    h.input.write('\x0f')
+    check(`${label}：再次 Ctrl+O 收起到摘要`, await settled(() => !h.screen().includes('END-OF-NOTICE-BODY')))
+  } finally {
+    await h.close()
+    channel.releaseContributions()
+  }
+}
+
+// 点击既有逐行展开手势（inline 模式交给终端原生鼠标行为，只在 fullscreen 断言）。
+{
+  const history = translateNotices([noticeMessage({ seq: 41, surfaceOp: 'append' })])
+  const session = fakeSession('notice-render-click')
+  const channel = open(session, { sessionCards: true, history })
+  const h = await mountChat(
+    <Chat channel={channel as never} questionStore={new QuestionStore()} approvalStore={new ApprovalStore()}
+      fullscreen trajectorySeen onExit={() => undefined} promptControllerRef={{ current: null }} />,
+    100,
+    true,
+  )
+  try {
+    await settled(() => h.screen().includes('[通知]'))
+    const lines = h.lines()
+    const noticeRow = lines.findIndex(line => line.includes('[通知]'))
+    check('通知卡：折叠时能找到通知卡行', noticeRow >= 0)
+    if (noticeRow >= 0) {
+      const col = lines[noticeRow]!.indexOf('[通知]') + 2
+      h.input.write(`\x1b[<0;${col};${noticeRow + 1}M`)
+      h.input.write(`\x1b[<0;${col};${noticeRow + 1}m`)
+      check('通知卡：点击卡行逐行展开完整正文',
+        await settled(() => h.screen().includes('END-OF-NOTICE-BODY')))
+    }
+  } finally {
+    await h.close()
+    channel.releaseContributions()
+  }
+}
+
+// ── 9. 消息选择里按 Enter 展开（既有的逐行展开手势）──────────────────────
 // `enterSelection` 就地从 channel.rows 按 SELECTABLE_KINDS 取最后一条可选行：
 // 这条断言同时保护卡行进入可选集合与普通行的选择定位。
 async function mountSelectionCase(sessionId: string, history: readonly AgentEvent[], columns = 100) {
@@ -413,6 +642,20 @@ async function mountSelectionCase(sessionId: string, history: readonly AgentEven
     check('消息选择：Enter 展开技能卡正文（最后一条可选行是技能卡）',
       await settled(() => h.screen().includes('ALPHA-MARKER')),
       h.screen().split('\n').filter(line => line.includes('MARKER')).join(' | '))
+  } finally {
+    await close()
+  }
+}
+
+{
+  const history = translateNotices([noticeMessage({ seq: 42, surfaceOp: 'append' })])
+  const { h, enter, close } = await mountSelectionCase('cards-select-notice', history)
+  try {
+    check('消息选择：通知卡是可选行，默认折叠', await settled(() => h.screen().includes('[通知]')) && !h.screen().includes('END-OF-NOTICE-BODY'))
+    await enter()
+    check('消息选择：Enter 展开通知卡完整正文',
+      await settled(() => h.screen().includes('END-OF-NOTICE-BODY')),
+      h.screen().split('\n').filter(line => line.includes('NOTICE')).join(' | '))
   } finally {
     await close()
   }

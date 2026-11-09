@@ -18,6 +18,7 @@ import type { ChatRow, SelectionAttachment, TodoPanelItem, ToolCallView, TurnOut
 import { markChannelReadDirty } from '../adapter/channel/read-view.js'
 import type { AgentEvent, AgentEventMeta, AgentEventOf, ContentBlockView, GoalSnapshot, ImageRef, UsageDelta } from '../agent/events.js'
 import { t } from '../i18n.js'
+import { createSessionCardProjection } from './session-card-projection.js'
 import { logForDebugging } from '../utils/debug.js'
 import { laneOf } from './activity.js'
 import { buildQuestionRecord, parseQuestionRecordAnswers, parseQuestionRecordQuestions } from './question-record.js'
@@ -85,10 +86,10 @@ export interface ChannelProjectionDeps {
    *  id the durable event carries), for the user row's indicator line. */
   selectionAttached(messageId: string): SelectionAttachment | undefined
   /**
-   * Whether a settled command result and a user-explicit skill load render as
-   * transcript cards — the `sessionCards` deployment switch. Absent/false
-   * keeps the upstream shape: no command card (the caller's own report path
-   * owns that text) and no skill card (the injected body stays model-facing).
+   * Whether command results, explicit skill loads and generic context notices
+   * render as cards — the `sessionCards` deployment switch. Absent/false keeps
+   * local command reports and leaves injected skill/notice bodies model-facing
+   * only, preserving the upstream transcript shape.
    */
   sessionCards?: boolean
   /**
@@ -237,6 +238,7 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
   /** The live toast of each notice key (a repeat replaces it). */
   const keyedToasts = new Map<string, () => void>()
   const appendRow = (row: ChatRow): void => { state.rows.push(row); markChannelReadDirty(state.rows) }
+  const factCards = createSessionCardProjection(deps, appendRow)
   const removeRow = (row: ChatRow): void => {
     const index = state.rows.indexOf(row)
     if (index !== -1) {
@@ -1242,6 +1244,9 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
         deps.rowIds.value += 1
         return
       }
+      case 'context.notice':
+        factCards.apply(event)
+        return
       case 'step.start':
         openStep = { turn: event.turn, step: event.step }
         if (tpsTurn === event.turn) {

@@ -1213,6 +1213,7 @@ const dict = {
   // ── components/SuggestionCard.tsx（/ 命令菜单 · @ 文件菜单）─────────
   'sugg-commands-title': { zh: '命令', en: 'commands' },
   'sugg-files-title': { zh: '文件', en: 'files' },
+  'sugg-input-title': { zh: '补全', en: 'completions' },
   'sugg-count': { zh: '共 {{n}} 项', en: '{{n}} items' },
   'sugg-more-above': { zh: '↑{{n}}', en: '↑{{n}}' },
   'sugg-more-below': { zh: '↓{{n}}', en: '↓{{n}}' },
@@ -1898,6 +1899,10 @@ const dict = {
   // 默认一行只报 `<标签> 名字 · 已加载指令`；正文靠既有 Ctrl+O/逐行展开。
   'skill-card-label': { zh: '技能', en: 'skill' },
   'skill-card-loaded': { zh: '已加载指令', en: 'instructions loaded' },
+
+  // ── components/messages/ContextNoticeCardRow.tsx（通用上下文通知卡）──
+  // 折叠一行：中性标签 + 生产者摘要；不推断严重级别。
+  'context-notice-label': { zh: '通知', en: 'notice' },
   'new-message': { zh: '↓ {{n}} 条新消息', en: '↓ 1 new message' },
   'new-messages': { zh: '↓ {{n}} 条新消息', en: '↓ {{n}} new messages' },
   'back-to-bottom': { zh: '↓ 回到底部（Enter/End）', en: '↓ back to bottom (Enter/End)' },

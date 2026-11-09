@@ -46,6 +46,8 @@ const MATH_PREVIEW_SCALE = 2
 const MATH_PREVIEW_MAX_COLUMNS = 480
 const MATH_PREVIEW_MAX_ROWS = 64
 import type { TuiShortcutHost } from '../dsh-adapter/shortcuts.js'
+import type { TuiInputCompletionHost } from '../dsh-adapter/input-completions.js'
+import { inputCompletionSession } from '../components/useInputCompletions.js'
 import type { TuiThemeHost } from '../dsh-adapter/themes.js'
 import type { TuiRewindMode } from '../dsh-adapter/extension-events.js'
 import { runOAuthLogin, runProviderWizard, type ProviderWizardOutcome } from '../dsh-adapter/providerWizard.js'
@@ -324,6 +326,7 @@ const SELECTABLE_KINDS = new Set<ChatRow['kind']>([
   'compact',
   'command',
   'skill',
+  'context-notice',
 ])
 
 /** Shared empty list for mode-gated derived rows (stable reference, so
@@ -425,6 +428,7 @@ export function Chat({
   extensionStatus,
   activityStore,
   extensionShortcuts,
+  inputCompletions,
   themeHost,
   onExit,
   onUpdate,
@@ -473,6 +477,12 @@ export function Chat({
   activityStore?: ActivityStore
   /** Host-only keyboard shortcut dispatch path. */
   extensionShortcuts?: TuiShortcutHost
+  /**
+   * Host-only facade for plugin input-completion sources. Passed in by the
+   * assembly (`plugin.ts`), never imported from the adapter here: the screen
+   * neither registers sources nor reads the registry. Absent on bare embeds.
+   */
+  inputCompletions?: TuiInputCompletionHost
   /** Optional runtime theme host; static JSON themes work without it. */
   themeHost?: TuiThemeHost
   onExit: () => void
@@ -6965,6 +6975,8 @@ export function Chat({
       <Launchpad
         query={launchpadDraft}
         imageComposer={{ channel, bindings: launchpadImagesRef.current }}
+        inputCompletions={inputCompletions}
+        inputCompletionContext={inputCompletions && inputCompletionSession(channel)}
         cursorOffset={launchpadCaret}
         focusIndex={launchpadFocus}
         isTerminalFocused={terminalFocused}
@@ -7503,6 +7515,7 @@ export function Chat({
         <PromptInput
           key="prompt-input"
           channel={channel}
+          inputCompletions={inputCompletions}
           suspended={promptReplacementOpen}
           // 选择器、搜索框或侧栏持有键盘焦点时，让对应输入框接管原生
           // 光标与 IME 锚点，避免主输入框在后续提交中抢回声明。

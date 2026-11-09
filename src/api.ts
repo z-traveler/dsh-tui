@@ -118,6 +118,14 @@ export type {
 } from './settings-sections.js'
 export type { TuiCommandTreeProvider } from './command-trees.js'
 export type {
+  TuiInputCompletionCandidate,
+  TuiInputCompletionContext,
+  TuiInputCompletionProvider,
+  TuiInputCompletionQuery,
+  TuiInputCompletionToken,
+  TuiInputCompletionTrigger,
+} from './input-completions.js'
+export type {
   TuiWorkspaceKind,
   TuiWorkspaceTarget,
   TuiWorkspaceChoice,

@@ -72,6 +72,9 @@ export function codexEmits(type: AgentEventType): boolean {
     // fact.
     case 'skill.invocation':
     case 'command.result':
+    // Codex has no DSH context-form notices: its notices are rendered from
+    // their own item shapes, not a `form: 'notice'` source.
+    case 'context.notice':
       return false
     default: {
       const unhandled: never = type
