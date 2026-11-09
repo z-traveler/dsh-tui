@@ -334,7 +334,7 @@ export interface ChannelUi {
    *  (config.contextBar; the status/mode lines are unaffected). */
   readonly contextBarEnabled: boolean
   /** Whether settled command results and user-explicit skill loads render as
-   *  transcript cards (config.sessionCards, off by default). With it off the
+   *  transcript cards (config.sessionCards, on by default). With it off the
    *  transcript keeps the upstream shape: a registry command's result is the
    *  dispatcher's local report, and an injected skill body stays model-facing
    *  only. */

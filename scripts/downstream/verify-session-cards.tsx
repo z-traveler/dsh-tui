@@ -48,6 +48,7 @@ const [
   { ApprovalStore },
   { settled, settle, sleep, viewportLines },
   { foldRows, foldBack },
+  { Config },
 ] = await Promise.all([
   import('react'),
   import('@xterm/headless'),
@@ -58,6 +59,7 @@ const [
   import('../../src/dsh-adapter/approvals.js'),
   import('../lib/term-test.mjs'),
   import('../../src/dsh-adapter/channel/transcript.js'),
+  import('../../src/dsh-adapter/index.js'),
 ])
 
 let failed = 0
@@ -65,6 +67,9 @@ function check(name: string, ok: boolean, extra = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${extra ? `  (${extra})` : ''}`)
   if (!ok) failed += 1
 }
+
+check('默认配置：省略 sessionCards 时开启卡片', Config({}).sessionCards === true)
+check('显式配置：sessionCards: false 仍可关闭卡片', Config({ sessionCards: false }).sessionCards === false)
 
 /** 一条超长正文：>200 行、>65536 码元，含中文/emoji 与一条 >4000 显示单元的行。 */
 const LONG_LINE = '中文😀'.repeat(2500)
@@ -146,7 +151,7 @@ function open(session: AgentSession, options: { sessionCards?: boolean; history?
     whale: false,
     whaleIdle: false,
     scrollGutter: 'hidden',
-    ...(options.sessionCards === true ? { sessionCards: true } : {}),
+    ...(options.sessionCards === undefined ? {} : { sessionCards: options.sessionCards }),
     ...(options.history === undefined ? {} : { initialHistory: options.history }),
   })
 }
@@ -157,7 +162,8 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
 // ── 1. 命令卡：完整正文、命令事实与锚点 ─────────────────────────────────
 {
   const session = fakeSession('cards-command')
-  const channel = open(session, { sessionCards: true })
+  const channel = open(session)
+  check('默认通道：省略 sessionCards 时开启卡片', channel.sessionCardsEnabled === true)
   session.emit([commandResult(3, { args: ' raw', text: BODY })])
   check('命令卡：一条 command.result 出一张卡',
     await settled(() => commandRows(channel).length === 1),
@@ -196,10 +202,10 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
 {
   const history: AgentEvent[] = [prompt('u1', '/model-context raw', 1), commandResult(2, { args: ' raw', text: BODY })]
   const session = fakeSession('cards-replay')
-  const channel = open(session, { sessionCards: true, history })
+  const channel = open(session, { history })
   const live = (() => {
     const liveSession = fakeSession('cards-live')
-    const liveChannel = open(liveSession, { sessionCards: true })
+    const liveChannel = open(liveSession)
     liveSession.emit([prompt('u1', '/model-context raw', 1), commandResult(2, { args: ' raw', text: BODY })])
     return liveChannel
   })()
@@ -217,7 +223,7 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
 // ── 4. 技能卡：独立记录，不生成人工气泡 ─────────────────────────────────
 {
   const session = fakeSession('cards-skill')
-  const channel = open(session, { sessionCards: true })
+  const channel = open(session)
   session.emit([
     prompt('u2', '/alpha', 1),
     skillLoad(2),
@@ -240,7 +246,7 @@ const skillRows = (channel: { rows: readonly ChatRow[] }) => channel.rows.filter
 // ── 5. 开关关闭：保持上游形态 ───────────────────────────────────────────
 {
   const session = fakeSession('cards-off')
-  const channel = open(session, { history: [prompt('u3', '/model-context raw', 1), commandResult(2, { args: ' raw', text: BODY }), prompt('u4', '/alpha', 3), skillLoad(4)] })
+  const channel = open(session, { sessionCards: false, history: [prompt('u3', '/model-context raw', 1), commandResult(2, { args: ' raw', text: BODY }), prompt('u4', '/alpha', 3), skillLoad(4)] })
   check('关闭开关：命令结果与技能加载都不出卡片（上游形态）',
     await settled(() => channel.rows.length >= 2)
       && commandRows(channel).length === 0 && skillRows(channel).length === 0

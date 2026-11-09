@@ -131,7 +131,7 @@ async function harness(fullscreen, execute, options = {}) {
   }
   const channel = createChannel(ctx, origin, {
     model: 'fake-model', provider: '', cwd: home, activity: false,
-    ...(options.sessionCards === true ? { sessionCards: true } : {}),
+    ...(options.sessionCards === undefined ? {} : { sessionCards: options.sessionCards }),
   })
   const term = new Terminal({ cols: 90, rows: 50, scrollback: 1000, allowProposedApi: true })
   const stdout = new Writable({ write(chunk, _encoding, callback) { term.write(String(chunk), callback) } })
@@ -156,7 +156,7 @@ async function harness(fullscreen, execute, options = {}) {
 const text = Array.from({ length: 30 }, (_, i) => i === 14 ? '' : `  REPORT-${i + 1} 中文😀`).join('\n')
 for (const fullscreen of [false, true]) {
   for (const kind of ['success', 'error']) {
-    const h = await harness(fullscreen, async () => ({ kind, text }))
+    const h = await harness(fullscreen, async () => ({ kind, text }), { sessionCards: false })
     await h.run()
     await settle(() => h.channel.rows.filter(row => row.kind === 'local-output').length === 30)
     const rows = h.channel.rows.filter(row => row.kind === 'local-output')
@@ -186,7 +186,7 @@ for (const fullscreen of [false, true]) {
 }
 
 {
-  const h = await harness(false, async () => ({ kind: 'success', text: 'line\n'.repeat(201) }))
+  const h = await harness(false, async () => ({ kind: 'success', text: 'line\n'.repeat(201) }), { sessionCards: false })
   await h.run()
   await settle(() => h.channel.rows.some(row => row.text.includes('command output truncated')))
   assert.equal(h.channel.rows.filter(row => row.kind === 'local-output').length, 201)
@@ -194,7 +194,7 @@ for (const fullscreen of [false, true]) {
   console.log('PASS visible truncation marker through real Chat')
 }
 {
-  const h = await harness(false, async () => ({ kind: 'success', text: 'retained' }))
+  const h = await harness(false, async () => ({ kind: 'success', text: 'retained' }), { sessionCards: false })
   h.channel.rows.push({ id: -1, kind: 'user', text: 'backend fact must survive local report eviction' })
   for (let i = 0; i < 8; i++) h.channel.pushLocal(`REPORT ${i}`, Array(200).fill(`line ${i}`), { preserveWhitespace: true })
   assert.ok(h.channel.rows.filter(row => row.kind === 'local' || row.kind === 'local-output').length <= MAX_ROWS)
@@ -206,7 +206,7 @@ for (const fullscreen of [false, true]) {
 }
 {
   let resolve
-  const h = await harness(false, () => new Promise(done => { resolve = done }))
+  const h = await harness(false, () => new Promise(done => { resolve = done }), { sessionCards: false })
   await h.run()
   await settle(() => typeof resolve === 'function')
   assert.equal(await h.channel.newSession(), true)
@@ -227,7 +227,7 @@ const promptLine = screen => screen.split('\n').find(line => line.includes('❯'
 {
   // The generic plugin-command route (`{ report: true }`). The card carries the
   // whole 30-line body; the dispatcher's report rows must not be laid on top.
-  const h = await harness(false, async () => ({ kind: 'success', text }), { sessionCards: true, lifecycle: true })
+  const h = await harness(false, async () => ({ kind: 'success', text }), { lifecycle: true })
   await h.run()
   await settle(() => h.channel.rows.some(row => row.kind === 'command'))
   const cards = h.channel.rows.filter(row => row.kind === 'command')
@@ -268,7 +268,7 @@ const promptLine = screen => screen.split('\n').find(line => line.includes('❯'
 {
   // Switch off: the upstream shape stays byte for byte (toast, no card).
   const h = await harness(false, async () => ({ kind: 'success', text: 'Compacted 12 history items.' }),
-    { lifecycle: true, commands: ['compact'] })
+    { sessionCards: false, lifecycle: true, commands: ['compact'] })
   await h.run('/compact')
   await settle(() => h.channel.notifications.length > 0)
   assert.equal(h.channel.rows.filter(row => row.kind === 'command').length, 0)
@@ -345,7 +345,7 @@ const promptLine = screen => screen.split('\n').find(line => line.includes('❯'
   // work, not an unobserved callback.
   const h = await harness(false, async () => ({
     kind: 'success', text: 'Compacted 12 history items.', checkpoint: 'SUMMARY-OF-PRIOR-CONTEXT',
-  }), { lifecycle: true, commands: ['compact'] })
+  }), { sessionCards: false, lifecycle: true, commands: ['compact'] })
   await h.run('/compact')
   await settle(() => h.channel.notifications.length > 0)
   assert.deepEqual(h.channel.notifications.map(notice => notice.text), ['Compacted 12 history items.'])

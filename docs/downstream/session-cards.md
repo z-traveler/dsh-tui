@@ -2,7 +2,7 @@
 
 ## 中文
 
-`sessionCards` 是一个**默认关闭**的展示开关，把两类**持久会话事实**做成转录卡片：
+`sessionCards` 是一个**默认开启**的展示开关，把两类**持久会话事实**做成转录卡片：
 DSH 注册表命令的结算结果，以及显式技能加载注入的正文。两者的模型面各自不变——
 命令的 `command/run` / `command/done` 是 log-only 记录（从不进入模型消息），技能正文
 则**继续供模型使用**，卡片只是给同一份已保存的正文补一个可见投影；因此开关不新增
@@ -60,13 +60,13 @@ canonical 文本。开启开关后，这条记录投影成一张独立技能卡�
 卡片正文保持会话窗口的内存约束——行超出转录窗口时正文降为预览，`loadOlder` 按
 `commandId`（命令）或该记录的 `seq`（技能）从日志恢复完整正文。
 
-### 启用
+### 配置
 
-默认关闭，只有显式配置才启用（`cordis.patch.yml` / `cordis.yml` 的 dsh-tui 行）：
+默认开启，无需额外配置。要关闭，在 `cordis.patch.yml` / `cordis.yml` 的 dsh-tui 行显式设置：
 
 ```yaml
 config:
-  sessionCards: true
+  sessionCards: false
 ```
 
 关闭时转录保持上游形态：注册表命令结果走 dispatcher 的本地报告路径，注入的技能
@@ -74,7 +74,7 @@ config:
 
 ## English
 
-`sessionCards` is an **opt-in** display switch that turns two **durable session
+`sessionCards` is an **enabled-by-default** display switch that turns two **durable session
 facts** into transcript cards: a DSH registry command's settled result, and the
 body an explicit skill load injected. Neither model surface changes — the
 command's `command/run` / `command/done` are log-only records (they never become
@@ -152,14 +152,14 @@ earlier" paging produce the same row. Retention follows the existing transcript
 window: beyond it the body drops to a preview, and `loadOlder` restores it from
 the log by `commandId` (commands) or the record's `seq` (skills).
 
-### Enabling
+### Configuration
 
-Off by default; enable it explicitly on the dsh-tui row of
-`cordis.patch.yml` / `cordis.yml`:
+Enabled by default; no additional configuration is needed. To disable it, set
+this explicitly on the dsh-tui row of `cordis.patch.yml` / `cordis.yml`:
 
 ```yaml
 config:
-  sessionCards: true
+  sessionCards: false
 ```
 
 With the switch off the transcript keeps the upstream shape: a registry command's

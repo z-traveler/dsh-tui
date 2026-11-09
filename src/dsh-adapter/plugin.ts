@@ -1182,8 +1182,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
     activityFrames: config.activityFrames ?? readActivityFrames() ?? 'moon8',
     // Static footer preference: cordis.yml `contextBar` (schema default on).
     contextBar: config.contextBar,
-    // Command/skill transcript cards: a deployment switch, off unless the
-    // deployment opts in (default upstream shape otherwise).
+    // Command/skill transcript cards are on by default; an explicit false
+    // restores the upstream transcript.
     sessionCards: config.sessionCards,
     // Same precedence for the agent preset: cordis.yml `preset` over the
     // persisted `/preset` choice; undefined adopts the roster default.

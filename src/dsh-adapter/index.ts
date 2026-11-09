@@ -111,9 +111,8 @@ export interface Config {
    *  while the status/mode lines stay (issue #29). */
   contextBar?: boolean
   /** Fold command results and explicit skill loads into collapsible
-   *  transcript cards. Off by default: an unset deployment keeps the upstream
-   *  shape, where a registry command's result is the dispatcher's own local
-   *  report and an injected skill body stays model-facing only. */
+   *  transcript cards (default true). Set false to keep local command reports
+   *  and hide injected skill bodies from the transcript. */
   sessionCards?: boolean
   /** Run in the terminal's alternate screen (full-screen terminal layout).
    *  Defaults to true — the fullscreen surface is the more complete one
@@ -346,9 +345,9 @@ export const Config: Schema<Config, RuntimeConfig<Config>> = editableConfig<Conf
   activity: Schema.boolean().default(true),
   activityFrames: Schema.string().required(false),
   contextBar: Schema.boolean().default(true),
-  // Command/skill transcript cards: a downstream presentation feature behind
-  // an explicit opt-in, so an unset deployment keeps the upstream transcript.
-  sessionCards: Schema.boolean().default(false),
+  // Command/skill transcript cards are enabled by default; an explicit false
+  // keeps the upstream transcript.
+  sessionCards: Schema.boolean().default(true),
   fullscreen: Schema.boolean().default(true),
   terminalImages: Schema.boolean().default(true),
   // No `.default()` on purpose (same rule as recapOnOpen): an unset key must

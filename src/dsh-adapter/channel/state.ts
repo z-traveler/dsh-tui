@@ -117,8 +117,8 @@ export interface ChannelLaunchOptions {
    *  purely a decoration switch. NOT the kernel agent preset `minimal`. */
   minimalUi?: boolean
   contextBar?: boolean
-  /** Command result / explicit skill-load cards (`sessionCards`, off by
-   *  default): the deployment switch behind the two transcript cards. */
+  /** Command result / explicit skill-load cards (`sessionCards`, on by
+   *  default): set false to restore the upstream transcript shape. */
   sessionCards?: boolean
   configuredPreset?: string
   configuredProvider?: string
@@ -226,7 +226,7 @@ export function createInitialChannelView(
     promptSessionLabel: options.promptSessionLabel === true, expandEditor: options.expandEditor !== false,
     smoothStreaming: options.smoothStreaming !== false, statusBar: normalizeStatusBar(options.statusBar),
     whale: options.whale !== false, whaleIdle: options.whaleIdle !== false, whaleGirl: options.whaleGirl === true, splashFont: normalizeSplashFont(options.splashFont), brand: normalizeBrandSetting(options.brand), minimalUi: options.minimalUi === true, activityEnabled: options.activity !== false,
-    contextBarEnabled: options.contextBar !== false, sessionCardsEnabled: options.sessionCards === true, agentPreset: options.agentPreset, goal: undefined,
+    contextBarEnabled: options.contextBar !== false, sessionCardsEnabled: options.sessionCards !== false, agentPreset: options.agentPreset, goal: undefined,
     todos: [], loadedContext: undefined, pending: [], commandList: [], lastUsage: undefined, turnUsage: undefined, turnOutcome: undefined,
     tps: undefined, tpsSamples: [], contextSegments: { system: 0, prompt: 0, assistant: 0, thinking: 0, tools: 0 },
     // 费用估算输入：主会话按模型分桶 + 子代理快照。与 tokens 并行累计，
