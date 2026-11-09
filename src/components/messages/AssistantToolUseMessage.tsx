@@ -1,7 +1,7 @@
 import React from 'react'
 import { extname } from 'node:path'
 import * as JsDiff from 'diff'
-import { Box, Text, useTerminalSize } from '../../ui.js'
+import { Box, Text, useTheme } from '../../ui.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { useAnimationFrame } from '../../ink/hooks/use-animation-frame.js'
 import type { ToolCallView, ToolFileDiff, ToolResultView, ToolRow } from '../../dsh-adapter/channel.js'
@@ -15,6 +15,8 @@ import { foldLongLines } from '../../utils/fold-long-lines.js'
 import { getLang, t, tOr, type I18nKey } from '../../i18n.js'
 import type { ToolBackground } from '../../tuiDisplayPrefs.js'
 import type { Theme } from '../../theme.js'
+import type { Color } from '../../ink/styles.js'
+import { getTheme } from '../../theme.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
 import { revealLinesOf, scopeRevealKey, snapReveal } from '../smoothReveal.js'
 import { useRevealScope } from '../revealScope.js'
@@ -24,6 +26,8 @@ import { agentMessageStateColor, agentMessageStateText } from './TranscriptLeave
 import type { AgentMessageState } from './agentTeam.js'
 import { liveOutputMaxLines, liveOutputView } from './liveOutputLines.js'
 import { isPatchDiff, parseFilePatch, patchHeader, type ToolPatchDiff } from '../diffPatch.js'
+import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
+import { diffBodyAppearance } from '../diffAppearance.js'
 
 type Props = {
   tool: ToolRow
@@ -819,6 +823,11 @@ export function AssistantToolUseMessage({
   useRevealVersion(revealVersion === undefined)
   // Per-root keyspace: a recompose can render this card under a new root.
   const revealScope = useRevealScope()
+  // The card's own face and content width (cardStyles.ts): `columns` here is
+  // already net of the border and horizontal padding, so every budget below
+  // (header, live output, split panes) measures the space the card leaves.
+  const card = useCardSurface('tool', { toolBackground, status: tool.status })
+  const [themeName] = useTheme()
   const isRunning = tool.status === 'running'
   const isError = tool.status === 'error'
   const sendMessage = sendMessageCardOf(tool)
@@ -876,7 +885,7 @@ export function AssistantToolUseMessage({
   // card keeps a fixed height, while the expanded view wraps each pane and pads
   // the shorter side so the two stay row-aligned. Neither fits the flat
   // add/del line model.
-  const { columns } = useTerminalSize()
+  const columns = card.columns
   // Interactive rows grow a ▾/▴ disclose column while the pointer dwells
   // (fixed, no layout shift elsewhere). The tooltip resolves at show time —
   // i.e. exactly while that column is present — so the budget must reserve
@@ -954,7 +963,10 @@ export function AssistantToolUseMessage({
       body = [dim(t('tool-running-elapsed', { duration: formatDuration(Math.max(0, Date.now() - (tool.startedAt ?? Date.now()))) }))]
     }
   }
-  const cap = view?.card === 'diff' ? DIFF_BODY_MAX_LINES : TEXT_BODY_MAX_LINES
+  // The configured `previewLines` overrides both the text and the diff budget
+  // (one knob for the collapsed body, as documented on CardFold).
+  const previewLines = card.style.fold?.previewLines
+  const cap = previewLines ?? (view?.card === 'diff' ? DIFF_BODY_MAX_LINES : TEXT_BODY_MAX_LINES)
   // 展开态（点击/verbose）的 SendMessage 卡不截断——raw 层就是「全量」。
   const bodyUncapped = verbose || sendMessageRawOpen
   // Long-line clip before anything downstream reads the body: the syntax
@@ -1034,29 +1046,47 @@ export function AssistantToolUseMessage({
   const shownLines: BodyLine[] = liveLines.length === 0 || revealedLines.length < rendered.length
     ? revealedLines
     : [...lines, ...liveLines, ...rendered.slice(lines.length)]
-  // The configured treatment is the ordinary card's own face, so it stays on
-  // while the row is expanded — growing the body must not make the card lose
-  // the surface the user chose. Selection is the exception: it owns the row.
-  const cardToolBackground = isSelected ? 'none' : toolBackground
-  const ordinaryBackground = cardToolBackground === 'subtle'
-    ? 'toolCardBackgroundDim'
-    : cardToolBackground === 'strong'
-      ? 'toolCardBackground'
-      : undefined
-  // Nested split-diff context panes must yield to whatever paints the card:
-  // `none` keeps them transparent so the selection highlight, or the root
-  // card's configured face while expanded, shows through instead of stacking
-  // a second fill on top of it.
-  const ordinaryToolBackground = isSelected || isExpanded ? 'none' : toolBackground
+  // The card face (legacy: the `toolBackground` tier, pi-like: the block face,
+  // an override: whatever the user chose) stays on while the row is expanded —
+  // growing the body must not make the card lose the surface the user chose.
+  // Selection is the exception: it owns the row, and hover tints the ordinary
+  // face while the pointer dwells (both stay a different colour than the face,
+  // so the affordance is still readable on a painted card).
+  const ordinaryBackground = card.backgroundColor
+  // pi-like and personal faces let context panes inherit the card. Default
+  // legacy cards keep the original collapsed context tier, including on hover.
   // Hover affordance for the click-to-toggle row: the theme's tool-card blue
-  // face marks the call's content area while the pointer dwells (the
-  // toolBackground treatment steps up one level to the strong card face), the
+  // face marks the call's content area while the pointer dwells (one step
+  // brighter than the card face), the
   // collapsed fold hint (lines-folded-expand) steps from dim to text, the
   // elapsed clock stops dimming, and a ▾/▴ discloses the row is a toggle.
   // No layout change: the indicator is a fixed column on the header line, the
   // body never moves.
   const [hovered, setHovered] = React.useState(false)
   const hoverTint = interactive && hovered && !isSelected
+  // The actual backdrop a selected/hovered row paints behind the diff body:
+  // the root Box below uses the same value, so the contrast math and the cell
+  // paint can never disagree.
+  const theme = getTheme(themeName)
+  const highlightBackground = (isSelected
+    ? theme.messageActionsBackground
+    : hoverTint
+      ? theme.toolCardBackground
+      : undefined) as Color | undefined
+  // pi-like 的预置面下，diff 正文贴回终端底（卡头仍保留状态面），split 的
+  // 增删行改铺自己的极淡衬底；选中/悬停时外层仍是整行真实的高亮底（卡头、
+  // 粗 gutter 与上下文行保留反馈，不再退成扁平的黑底），split 的增删行继续
+  // 保留各自衬底与按衬底重挑的词色。legacy、用户显式 background/states 仍走
+  // 原样。unified 与 split 共用这一份。
+  const diffBody = diffBodyAppearance(card, theme, {
+    active: !isError && view?.card === 'diff',
+    highlight: highlightBackground,
+  })
+  const legacyBackground = toolBackground === 'subtle' ? theme.toolCardBackgroundDim
+    : toolBackground === 'strong' ? theme.toolCardBackground : undefined
+  const paneToolBackground = card.preset === 'legacy' && !isSelected && !isExpanded
+    && card.style.states === undefined && card.backgroundColor === legacyBackground
+    ? toolBackground : 'none'
   // SendMessage 结果行：状态只取结果里明确给出的值；resumedAgentId/pin
   // 显示为「已唤醒 <短id>」；没有明确状态时注明送达状态未知。
   const sendMessageState = sendMessage === undefined ? undefined : sendMessageCardState(tool)
@@ -1067,141 +1097,150 @@ export function AssistantToolUseMessage({
       ref={viewportRef}
       flexDirection="row"
       justifyContent="space-between"
-      marginTop={marginTopOnTurn ? 1 : 0}
+      marginTop={cardMarginTop(marginTopOnTurn, card.style)}
       width="100%"
       onClick={onClick}
-      // Only selection paints a highlight; the configured treatment applies
-      // to an ordinary card. Diff line tints stay - they are content, not chrome.
-      backgroundColor={isSelected ? 'messageActionsBackground' : hoverTint ? 'toolCardBackground' : ordinaryBackground}
+      // The row owns selection/hover feedback; diff presentation chooses its
+      // code substrate without hiding that feedback.
+      backgroundColor={highlightBackground ?? ordinaryBackground}
+      borderStyle={card.box.borderStyle}
+      borderColor={card.box.borderColor}
+      paddingX={card.box.paddingX}
+      paddingY={card.box.paddingY}
       onMouseEnter={interactive ? () => setHovered(true) : undefined}
       onMouseLeave={interactive ? () => setHovered(false) : undefined}
     >
       <Box flexDirection="column" flexGrow={1}>
-        <Box flexDirection="row" flexWrap="nowrap" minWidth={minWidth}>
-          <ToolUseLoader
-            shouldAnimate={isRunning}
-            isUnresolved={isRunning}
-            isError={isError}
-            toolName={tool.name}
-          />
-          <HeaderTitle name={name} title={headerTitle} isTerminal={headerIsTerminal} folded={foldedHeader} displayArgs={displayArgs} argsLanguage={argsLanguage} nameColor={toolNameColor(tool.name, view?.category ?? tool.callView?.category)} filePath={filePath} onOpenFile={onOpenFile} metaTooltip={() => toolCardMetaTooltip(tool, isRunning, isError)} headerTextBudget={headerTextBudget} />
-          {!isRunning && (
-            <Box flexWrap="nowrap">
-              <Text dimColor={!hovered}>{elapsedText}</Text>
-            </Box>
-          )}
-          {hovered && (
-            <Box flexShrink={0}>
-              <Text dimColor>{isExpanded ? '▴' : '▾'}</Text>
-            </Box>
-          )}
-        </Box>
-        {useSplitDiff && view?.card === 'diff' ? (
-          <Box flexDirection="row">
-            <Box width={3} flexShrink={0}>
-              <Text dimColor>{GUTTER_FIRST}</Text>
-            </Box>
-            <SplitDiffView
-              diffs={view.diffs}
-              width={columns - 4}
-              maxRows={DIFF_BODY_MAX_LINES}
-              verbose={verbose}
-              toolBackground={ordinaryToolBackground}
-              reveal={revealable ? { key: `${revealKey}:split` } : undefined}
+        <CardContent surface={card}>
+          <Box flexDirection="row" flexWrap="nowrap" minWidth={minWidth}>
+            <ToolUseLoader
+              shouldAnimate={isRunning}
+              isUnresolved={isRunning}
+              isError={isError}
+              toolName={tool.name}
             />
-          </Box>
-        ) : (
-          shownLines.map((line, index) => (
-            <Box key={index} flexDirection="row">
-              <Box width={3} flexShrink={0}>
-                <Text
-                  color={
-                    line.tone === 'add'
-                      ? 'diffAddedWord'
-                      : line.tone === 'del'
-                        ? 'diffRemovedWord'
-                        : line.tone === 'path'
-                          ? 'ide'
-                          : undefined
-                  }
-                  dimColor={line.tone !== 'add' && line.tone !== 'del' && line.tone !== 'path'}
-                >
-                  {index === 0 ? GUTTER_FIRST : GUTTER_REST}
-                </Text>
+            <HeaderTitle name={name} title={headerTitle} isTerminal={headerIsTerminal} folded={foldedHeader} displayArgs={displayArgs} argsLanguage={argsLanguage} nameColor={toolNameColor(tool.name, view?.category ?? tool.callView?.category)} filePath={filePath} onOpenFile={onOpenFile} metaTooltip={() => toolCardMetaTooltip(tool, isRunning, isError)} headerTextBudget={headerTextBudget} />
+            {!isRunning && (
+              <Box flexWrap="nowrap">
+                <Text dimColor={!hovered}>{elapsedText}</Text>
               </Box>
-              <Box flexGrow={1}>
-                {line.tone === 'path' && onOpenFile !== undefined ? (
-                  <Box
-                    onClick={(event: ClickEvent) => {
-                      // Stop propagation so the row's fold toggle does not
-                      // fire when clicking the path.
-                      event.stopImmediatePropagation()
-                      onOpenFile(line.target ?? line.text)
-                    }}
-                  >
-                    <Text color="ide" underline>{line.text}</Text>
-                    {line.suffix !== undefined && <Text dimColor>{line.suffix}</Text>}
-                  </Box>
-                ) : (
+            )}
+            {hovered && (
+              <Box flexShrink={0}>
+                <Text dimColor>{isExpanded ? '▴' : '▾'}</Text>
+              </Box>
+            )}
+          </Box>
+          {useSplitDiff && view?.card === 'diff' ? (
+            <Box flexDirection="row" backgroundColor={diffBody.background}>
+              <Box width={3} flexShrink={0}>
+                <Text dimColor>{GUTTER_FIRST}</Text>
+              </Box>
+              <SplitDiffView
+                diffs={view.diffs}
+                width={columns - 4}
+                // Same collapsed budget as the unified body: the configured
+                // `previewLines` covers the diff card too.
+                maxRows={cap}
+                verbose={verbose}
+                toolBackground={paneToolBackground}
+                presentation={diffBody}
+                reveal={revealable ? { key: `${revealKey}:split` } : undefined}
+              />
+            </Box>
+          ) : (
+            shownLines.map((line, index) => (
+              <Box key={index} flexDirection="row" backgroundColor={diffBody.background}>
+                <Box width={3} flexShrink={0}>
                   <Text
                     color={
                       line.tone === 'add'
-                        ? 'diffAddedWord'
+                        ? diffBody.addedWord
                         : line.tone === 'del'
-                          ? 'diffRemovedWord'
-                          : line.tone === 'error'
-                            ? 'error'
-                            : line.tone === 'hint'
-                              ? 'subtle'
-                              : line.tone === 'path'
-                                ? 'ide'
-                                : undefined
+                          ? diffBody.removedWord
+                          : line.tone === 'path'
+                            ? 'ide'
+                            : undefined
                     }
-                    dimColor={(line.tone === 'dim' && !(line.revealOnHover === true && hovered)) || line.tone === 'live'}
-                    wrap={line.tone === 'live' ? 'truncate-end' : 'wrap'}
+                    dimColor={line.tone !== 'add' && line.tone !== 'del' && line.tone !== 'path'}
                   >
-                    {line.tone === 'plain' && syntaxLanguage !== undefined ? (
-                      <SyntaxText text={line.text} sourceText={bodySource} lineIndex={index} language={syntaxLanguage} />
-                    ) : (
-                      line.text === '' ? ' ' : line.text
-                    )}
-                    {line.suffix !== undefined && <Text dimColor>{line.suffix}</Text>}
+                    {index === 0 ? GUTTER_FIRST : GUTTER_REST}
                   </Text>
-                )}
+                </Box>
+                <Box flexGrow={1}>
+                  {line.tone === 'path' && onOpenFile !== undefined ? (
+                    <Box
+                      onClick={(event: ClickEvent) => {
+                        // Stop propagation so the row's fold toggle does not
+                        // fire when clicking the path.
+                        event.stopImmediatePropagation()
+                        onOpenFile(line.target ?? line.text)
+                      }}
+                    >
+                      <Text color="ide" underline>{line.text}</Text>
+                      {line.suffix !== undefined && <Text dimColor>{line.suffix}</Text>}
+                    </Box>
+                  ) : (
+                    <Text
+                      color={
+                        line.tone === 'add'
+                          ? diffBody.addedWord
+                          : line.tone === 'del'
+                            ? diffBody.removedWord
+                            : line.tone === 'error'
+                              ? 'error'
+                              : line.tone === 'hint'
+                                ? 'subtle'
+                                : line.tone === 'path'
+                                  ? 'ide'
+                                  : undefined
+                      }
+                      dimColor={(line.tone === 'dim' && !(line.revealOnHover === true && hovered)) || line.tone === 'live'}
+                      wrap={line.tone === 'live' ? 'truncate-end' : 'wrap'}
+                    >
+                      {line.tone === 'plain' && syntaxLanguage !== undefined ? (
+                        <SyntaxText text={line.text} sourceText={bodySource} lineIndex={index} language={syntaxLanguage} />
+                      ) : (
+                        line.text === '' ? ' ' : line.text
+                      )}
+                      {line.suffix !== undefined && <Text dimColor>{line.suffix}</Text>}
+                    </Text>
+                  )}
+                </Box>
               </Box>
+            ))
+          )}
+          {sendMessage !== undefined && sendMessageState !== undefined && (
+            <Box flexDirection="row">
+              <Box width={3} flexShrink={0}>
+                <Text dimColor>{GUTTER_REST}</Text>
+              </Box>
+              <Text color={agentMessageStateColor(sendMessageState)}>{agentMessageStateText(sendMessageState)}</Text>
+              {sendMessageResumed !== undefined && (
+                <Text dimColor>{` · ${t('send-message-card-resumed', { id: sendMessageResumed })}`}</Text>
+              )}
+              {sendMessageState === 'unknown' && (
+                <Text dimColor italic>{` · ${t('agent-message-no-delivery-fact')}`}</Text>
+              )}
             </Box>
-          ))
-        )}
-        {sendMessage !== undefined && sendMessageState !== undefined && (
-          <Box flexDirection="row">
-            <Box width={3} flexShrink={0}>
-              <Text dimColor>{GUTTER_REST}</Text>
+          )}
+          {useSplitDiff && disclosure.length > 0 && disclosure.map((line, index) => (
+            <Box key={`disclosure-${index}`} flexDirection="row" backgroundColor={diffBody.background}>
+              <Box width={3} flexShrink={0}>
+                <Text dimColor>{GUTTER_REST}</Text>
+              </Box>
+              <Text dimColor>{line.text}</Text>
             </Box>
-            <Text color={agentMessageStateColor(sendMessageState)}>{agentMessageStateText(sendMessageState)}</Text>
-            {sendMessageResumed !== undefined && (
-              <Text dimColor>{` · ${t('send-message-card-resumed', { id: sendMessageResumed })}`}</Text>
-            )}
-            {sendMessageState === 'unknown' && (
-              <Text dimColor italic>{` · ${t('agent-message-no-delivery-fact')}`}</Text>
-            )}
-          </Box>
-        )}
-        {useSplitDiff && disclosure.length > 0 && disclosure.map((line, index) => (
-          <Box key={`disclosure-${index}`} flexDirection="row">
-            <Box width={3} flexShrink={0}>
-              <Text dimColor>{GUTTER_REST}</Text>
+          ))}
+          {useSplitDiff && footnote !== undefined && (
+            <Box flexDirection="row" backgroundColor={diffBody.background}>
+              <Box width={3} flexShrink={0}>
+                <Text dimColor>{GUTTER_REST}</Text>
+              </Box>
+              <Text color="subtle">{footnote}</Text>
             </Box>
-            <Text dimColor>{line.text}</Text>
-          </Box>
-        ))}
-        {useSplitDiff && footnote !== undefined && (
-          <Box flexDirection="row">
-            <Box width={3} flexShrink={0}>
-              <Text dimColor>{GUTTER_REST}</Text>
-            </Box>
-            <Text color="subtle">{footnote}</Text>
-          </Box>
-        )}
+          )}
+        </CardContent>
       </Box>
     </Box>
   )

@@ -235,6 +235,22 @@ export interface GoalTodoPanelScrollHandle {
 }
 
 /**
+ * Whether the panel renders a todo section at all: with none there is nothing
+ * to fold, expand or hide. An idle session with every row completed and no
+ * goal narrates nothing, so the section folds away (historical behavior); the
+ * panel variant always keeps its section.
+ */
+export function goalTodoSectionShown(
+  channel: Pick<Channel, 'goal' | 'todos' | 'working'>,
+  variant: 'default' | 'panel' = 'default',
+): boolean {
+  const todos = channel.todos ?? []
+  return todos.length > 0
+    && (channel.working || todos.some(todo => todo.status !== 'completed')
+      || channel.goal !== undefined || variant === 'panel')
+}
+
+/**
  * Live goal + todo panel above the prompt input. Data rides on the channel:
  * `channel.goal` is folded from `goal/change` context events and
  * `channel.todos` from `todo/write` whole-list snapshots, so every model
@@ -345,11 +361,7 @@ export function GoalTodoPanel({
     ? formatDuration((variant === 'panel' ? Date.now() : now) - startRef.current.at)
     : undefined
 
-  // All-completed idle snapshot with no goal: nothing left to narrate —
-  // the whole panel folds away (historical behavior).
-  const anyUnfinished = allTodos.some(todo => todo.status !== 'completed')
-  const showTodoSection = allTodos.length > 0 &&
-    (channel.working || anyUnfinished || goal !== undefined || variant === 'panel')
+  const showTodoSection = goalTodoSectionShown(channel, variant)
 
   // ── panel 几何 / 滚动（default 形态不读这些值） ─────────────────────────
   // 宽度、折行与视口全部按显示单元计；直接挂载（缺省 width/height）时退化

@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, NoSelect, Text } from '../../ui.js'
 import { BLACK_CIRCLE } from '../../terminal-utils/figures.js'
 import { Markdown } from '../Markdown.js'
+import { CardBox, useCardSurface } from '../cardSurface.js'
 
 type Props = {
   text: string
@@ -26,8 +27,9 @@ export function AssistantTextMessage({
   isSelected = false,
   isExpanded = false,
 }: Props): React.ReactNode {
+  const card = useCardSurface('assistant')
   return (
-    <Box
+    <CardBox surface={card}
       alignItems="flex-start"
       flexDirection="row"
       justifyContent="space-between"
@@ -49,6 +51,6 @@ export function AssistantTextMessage({
           <Markdown>{text}</Markdown>
         </Box>
       </Box>
-    </Box>
+    </CardBox>
   )
 }

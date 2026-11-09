@@ -15,6 +15,7 @@ import type { TeamTask, TeamView } from '../adapter/ports/channel-view.js'
 import { isTeamTaskBlocked, teamDashboardModel, teamTaskProgress, type TeamMemberRow } from './teamRoster.js'
 import { isDegradedChannel, summarizeChannelFailures } from '../channel/subagent-failure.js'
 import { isMinimalUiMode } from '../minimalUiMode.js'
+import { useCardStyles } from './cardSurface.js'
 
 export interface SubagentDashboardProps {
   subagents: readonly SubagentState[]
@@ -78,7 +79,8 @@ interface DashboardEntry {
 
 /** A teammate the host has not announced as a subagent yet. */
 function TeamRosterOnlyRow({ row, focused, panelMode, self }: { row: TeamMemberRow; focused: boolean; panelMode: boolean; self: boolean }): React.ReactNode {
-  const { glyph, color } = teamStatusGlyph(row.status, isMinimalUiMode())
+  const piLike = useCardStyles().preset === 'pi-like'
+  const { glyph, color } = teamStatusGlyph(row.status, isMinimalUiMode(), piLike)
   return (
     <Box flexDirection="row" paddingLeft={1} marginBottom={panelMode ? 0 : 1}>
       <Box flexShrink={0} marginRight={1}><Text color={color}>{glyph}</Text></Box>

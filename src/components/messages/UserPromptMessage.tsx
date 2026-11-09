@@ -1,9 +1,10 @@
 import React from 'react'
-import { Box, Text, useTerminalSize } from '../../ui.js'
+import { Text } from '../../ui.js'
 import { POINTER } from '../../terminal-utils/figures.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { wrapWidth } from '../../sessions/format.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
+import { CardBox, useCardSurface } from '../cardSurface.js'
 
 type Props = {
   text: string
@@ -18,7 +19,8 @@ type Props = {
  * User prompt bubble: `❯ text` in bold userPromptLabel tint with no background
  * fill (Kimi Code style: the user turn gets a distinct bold tint — the
  * kernel-rotated brand colour of the active theme — so it reads apart from
- * assistant text; only selection mode paints a highlight).
+ * assistant text; only selection mode paints a highlight). Card styles may
+ * restyle its face, colour and weight (`cardSurface.tsx`).
  */
 export function UserPromptMessage({
   text,
@@ -26,7 +28,9 @@ export function UserPromptMessage({
   isSelected = false,
   onClick,
 }: Props): React.ReactNode {
-  const { columns } = useTerminalSize()
+  // Card chrome is already deducted: this budgets only the pointer prefix.
+  const card = useCardSurface('user')
+  const { columns } = card
   const promptPrefix = `${POINTER} `
   const prefixWidth = stringWidth(promptPrefix)
   // Wrap here instead of letting Ink wrap the whole Text node. Ink starts an
@@ -43,7 +47,7 @@ export function UserPromptMessage({
   // crossing it yields the tooltip fragment instead of the message.
 
   return (
-    <Box
+    <CardBox surface={card}
       flexDirection="column"
       marginTop={marginTopOnTurn ? 1 : 0}
       backgroundColor={isSelected ? 'messageActionsBackground' : undefined}
@@ -51,11 +55,11 @@ export function UserPromptMessage({
       onClick={onClick}
     >
       {lines.map((line, index) => (
-        <Text key={index} color="userPromptLabel" bold wrap="truncate-end">
+        <Text key={index} color={card.foregroundColor ?? 'userPromptLabel'} bold={card.style.bold} wrap="truncate-end">
           {index === 0 ? `${POINTER} ` : continuationIndent}
           {line}
         </Text>
       ))}
-    </Box>
+    </CardBox>
   )
 }

@@ -6,6 +6,8 @@ import { jobOutputRows } from './Chat/JobCard.js'
 import { isMinimalUiMode } from '../minimalUiMode.js'
 import type { ClickEvent } from '../ink/events/click-event.js'
 import type { TeamMemberStatus } from './teamRoster.js'
+import { useCardStyles } from './cardSurface.js'
+import { compactStatusMarker, type CompactStatusMarker } from './compactStatusMarker.js'
 
 function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000)
@@ -23,7 +25,8 @@ export interface SubagentCardProps {
 }
 
 /** Status glyph and color of a team member (`·`-style in minimal UI). */
-export function teamStatusGlyph(status: TeamMemberStatus, minimalUi: boolean): { readonly glyph: string; readonly color?: 'warning' | 'subtle' | 'error' | 'accent' } {
+export function teamStatusGlyph(status: TeamMemberStatus, minimalUi: boolean, compact = false): CompactStatusMarker {
+  if (compact) return compactStatusMarker(status, minimalUi)
   switch (status) {
     case 'running': return minimalUi ? { glyph: '·' } : { glyph: '🟡', color: 'warning' }
     case 'idle': return minimalUi ? { glyph: '○' } : { glyph: '🔵', color: 'accent' }
@@ -35,6 +38,7 @@ export function teamStatusGlyph(status: TeamMemberStatus, minimalUi: boolean): {
 
 export function SubagentCard({ subagent, focused, onClick, variant = 'default', teamMember }: SubagentCardProps): React.ReactNode {
   const panelMode = variant === 'panel'
+  const piLike = useCardStyles().preset === 'pi-like'
   const running = teamMember !== undefined
     ? teamMember.status === 'running'
     : subagent.status === 'running' || subagent.status === 'starting'
@@ -52,13 +56,14 @@ export function SubagentCard({ subagent, focused, onClick, variant = 'default', 
   const [hovered, setHovered] = useState(false)
   const liveLine = running ? subagent.output[subagent.output.length - 1] : undefined
   const minimalUi = isMinimalUiMode()
-  const teamGlyph = teamMember === undefined ? undefined : teamStatusGlyph(teamMember.status, minimalUi)
-  const glyph = teamGlyph !== undefined ? teamGlyph.glyph
+  const teamGlyph = teamMember === undefined ? undefined : teamStatusGlyph(teamMember.status, minimalUi, piLike)
+  const marker = teamGlyph ?? (piLike ? compactStatusMarker(subagent.status, minimalUi) : undefined)
+  const glyph = marker !== undefined ? marker.glyph
     : running ? (minimalUi ? '·' : '🟡')
     : subagent.status === 'unknown' ? (minimalUi ? '·' : '⚪')
     : subagent.status === 'failed' || subagent.status === 'cancelled' ? (minimalUi ? '×' : '🔴')
     : (minimalUi ? '✓' : '🟢')
-  const glyphColor = teamGlyph !== undefined ? teamGlyph.color
+  const glyphColor = marker !== undefined ? marker.color
     : minimalUi ? undefined
     : running ? 'warning' as const
     : subagent.status === 'unknown' ? 'subtle' as const

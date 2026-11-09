@@ -22,6 +22,8 @@ import { toolNameColor } from './messages/AssistantToolUseMessage.js'
 import { Markdown } from './Markdown.js'
 import { getCliHighlightPromise } from '../terminal-utils/cliHighlight.js'
 import { isMinimalUiMode } from '../minimalUiMode.js'
+import { useCardStyles } from './cardSurface.js'
+import { compactStatusMarker } from './compactStatusMarker.js'
 import { usePanelInput } from './sidePanel/usePanelInput.js'
 import type { SidePanelKeyFlags } from './sidePanel/types.js'
 import type { Theme } from '../theme.js'
@@ -219,6 +221,8 @@ export function SubagentDetailScene({
     if (visible && subagent.status === 'failed') onFailureRead?.(subagent)
   }, [visible, subagent, onFailureRead])
   const panelMode = variant === 'panel'
+  const piLike = useCardStyles().preset === 'pi-like'
+  const loadingGlyph = piLike ? '·' : '⏳'
   const scrollRef = React.useRef<ScrollBoxHandle | null>(null)
   const { rows, columns } = useTerminalSize()
   // 主屏 Agent View 盖过 Detail 时组件会卸载；从 Agent View 回来时按记忆
@@ -262,7 +266,7 @@ export function SubagentDetailScene({
   const elapsed = isRunning
     ? Date.now() - subagent.startedAt
     : subagent.completedAt !== undefined ? subagent.completedAt - subagent.startedAt : undefined
-  const info = statusGlyph(subagent.status)
+  const info = { ...statusGlyph(subagent.status), ...(piLike ? compactStatusMarker(subagent.status, isMinimalUiMode()) : {}) }
   const totalTokens = subagent.tokens?.total ?? ((subagent.tokens?.input ?? 0) + (subagent.tokens?.output ?? 0) || 0)
   // The backend's own counts win over the locally kept records (a missed
   // lane frame must not undercount); no report → the local records.
@@ -505,7 +509,7 @@ export function SubagentDetailScene({
     <Box flexDirection="column" {...outer}>
       {/* Header: identity line, stats line, timing line */}
       <Box flexDirection="row" gap={1}>
-        <Text color={info.color} bold>{info.glyph}</Text>
+        <Text color={info.color} bold={!piLike}>{info.glyph}</Text>
         <Text bold>{`${t('subagent-card-prefix')}${subagent.description}`}</Text>
         {/* rc.2 catalog v3 name: the addressable path (`reviewer/checker`,
             root = `lead`); historical rows have none. */}
@@ -667,7 +671,7 @@ export function SubagentDetailScene({
               {transcript.status === 'ready' && transcript.parentAgentId === null && (subagent.depth ?? 1) >= 2 && (
                 <Text dimColor>{t('subagent-transcript-old-format', { depth: subagent.depth ?? 2 })}</Text>
               )}
-              {transcript.status === 'loading' && <Text dimColor>{`⏳ ${t('subagent-transcript-loading')}`}</Text>}
+              {transcript.status === 'loading' && <Text dimColor>{`${loadingGlyph} ${t('subagent-transcript-loading')}`}</Text>}
               {transcript.status === 'unavailable' && <Text color="error">{t('subagent-transcript-unavailable')}</Text>}
               {transcript.status === 'ready' && (() => {
                 const merged = mergeLiveWindow(transcript.leaves, subagent, true)
@@ -678,7 +682,7 @@ export function SubagentDetailScene({
                     {transcript.hasOlder && (
                       <Box onClick={loadOlderTranscript} marginTop={1}>
                         <Text color="accent">{transcript.loadingOlder
-                          ? `⏳ ${t('subagent-transcript-loading')}`
+                          ? `${loadingGlyph} ${t('subagent-transcript-loading')}`
                           : `▸ ${t('subagent-transcript-load-older', { count: transcript.sourceCursor === undefined ? Math.min(TRANSCRIPT_OLDER_CHUNK, transcript.skippedFromStart) : TRANSCRIPT_OLDER_CHUNK })}`}</Text>
                       </Box>
                     )}
