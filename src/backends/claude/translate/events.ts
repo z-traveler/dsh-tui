@@ -79,6 +79,9 @@ export function claudeEmits(type: AgentEventType): boolean {
     // Claude has no DSH context-form notices: its notices are rendered from
     // their own message shapes, not a `form: 'notice'` source.
     case 'context.notice':
+    // Custom Cards are DSH plugin records; the Claude transcript has no
+    // ignorable-record carrier to read them from.
+    case 'card.upsert':
     case 'custom':
       return false
     default: {

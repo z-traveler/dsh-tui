@@ -13,6 +13,7 @@
  * (the UI's own vocabulary), never a vendor package.
  */
 import type { AgentMessageView, ChannelGoal, TodoPanelItem, TranscriptImage } from '../adapter/ports/channel-view.js'
+import type { TuiCardRecord } from './cards.js'
 import type { ToolCallPresentation, ToolResultPresentation } from './presentation.js'
 
 /**
@@ -262,6 +263,17 @@ export type AgentEvent =
    * is such a fact — a replacement copy is model-only.
    */
   | { readonly type: 'context.notice'; readonly id: string; readonly seq: number; readonly time: number; readonly source: string; readonly summary: string; readonly body: string }
+  /**
+   * One committed Custom Card snapshot a backend recorded in its own durable
+   * log (DSH: the dedicated `plugin:dsh-tui/card` carrier). `record` is the
+   * complete validated snapshot and `seq`/`time` its committed position: a
+   * later snapshot with the same business `(type, id)` replaces this card's
+   * content in the same transcript row, without adding a second card and
+   * without moving the row's original position. Transcript material only — the
+   * card never enters the model surface, and its view is host-presented (a
+   * missing or failing presenter falls back to the snapshot's own text).
+   */
+  | { readonly type: 'card.upsert'; readonly record: TuiCardRecord; readonly seq: number; readonly time: number }
   /**
    * Snapshot of the backend's queue of unclaimed user inputs (replaces the
    * previous one). `claimed`/`discarded` name the ids that left the queue in

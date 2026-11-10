@@ -2,7 +2,7 @@ import React from 'react'
 import { marked, type Token, type Tokens } from 'marked'
 import { Box, Text, useTheme } from '../ui.js'
 import type { TextDecoration } from '../ink/styles.js'
-import { getTheme } from '../theme.js'
+import { getTheme, type Theme } from '../theme.js'
 import { appendBlockText, configureMarked, formatToken, stripPromptXMLTags } from '../terminal-utils/markdown.js'
 import { getCliHighlightPromise, type CliHighlight } from '../terminal-utils/cliHighlight.js'
 import { isMermaidLang } from '../terminal-utils/mermaid.js'
@@ -31,6 +31,8 @@ type Props = {
   children: string
   /** 为 true 时全部文本内容以 dim 样式呈现 */
   dimColor?: boolean
+  /** Default prose color; syntax/Markdown-specific colors keep their roles. */
+  color?: keyof Theme
   /** 为 false 时跳过 token 缓存（流式尾部的内容逐帧变化，缓存必然失效） */
   cacheTokens?: boolean
   /**
@@ -47,6 +49,13 @@ type Props = {
    * line (that API promises raw code, not the chat's pre-processing).
    */
   stripPromptTags?: boolean
+  /**
+   * Whether raw HTML tokens render as their literal source instead of staying
+   * invisible. Chat prose keeps the default (hidden wrappers); a recorded card
+   * body opts in so an instruction wrapper cannot hide the text it encloses.
+   * HTML is only ever painted as text — never interpreted.
+   */
+  preserveHtml?: boolean
 }
 
 /**
@@ -165,6 +174,8 @@ function renderTokensToNodes(
   highlight: CliHighlight | null,
   dimColor: boolean,
   inlineMathImages: boolean,
+  preserveHtml: boolean,
+  color: keyof Theme | undefined,
 ): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
   let ansiText = ''
@@ -174,7 +185,7 @@ function renderTokensToNodes(
   const flushAnsiText = (): void => {
     if (!ansiText && textParts.length === 0) return
     if (textParts.length === 0) {
-      nodes.push(<Text key={nodes.length} dimColor={dimColor} decoration={HANG_DECORATION}>{ansiText.trim()}</Text>)
+      nodes.push(<Text key={nodes.length} dimColor={dimColor} color={color} decoration={HANG_DECORATION}>{ansiText.trim()}</Text>)
     } else {
       textParts.push(ansiText)
       let first = 0
@@ -188,7 +199,7 @@ function renderTokensToNodes(
       nodes.push(
         <Box key={nodes.length} flexDirection="column">
           {textParts.slice(first, last + 1).map((part, index) => (
-            <Text key={index} dimColor={dimColor} decoration={HANG_DECORATION}>{index + first < last ? part.slice(0, -1) : part}</Text>
+            <Text key={index} dimColor={dimColor} color={color} decoration={HANG_DECORATION}>{index + first < last ? part.slice(0, -1) : part}</Text>
           ))}
         </Box>,
       )
@@ -207,6 +218,7 @@ function renderTokensToNodes(
           key={nodes.length}
           token={token as Tokens.Table}
           highlight={highlight}
+          preserveHtml={preserveHtml}
         />,
       )
     } else if (inlineMathImages && token.type === 'paragraph' && hasInlineMath(token)) {
@@ -242,7 +254,7 @@ function renderTokensToNodes(
     } else {
       // appendBlockText inserts the row break after the (newline-free) hr
       // divider when the next block does not open its own line.
-      ansiText = appendBlockText(ansiText, formatToken(token, 0, null, null, highlight))
+      ansiText = appendBlockText(ansiText, formatToken(token, 0, null, null, highlight, preserveHtml))
       // A top-level token boundary keeps inline formatting and code fences
       // intact while letting the painter cull finished offscreen text blocks.
       if (ansiText.length >= TEXT_BLOCK_BUDGET && ansiText.endsWith('\n')) {
@@ -267,7 +279,7 @@ function renderTokensToNodes(
  * block — the dominant long-output stall (string-width via wrap-ansi, 60%+
  * of CPU in streaming profiles).
  */
-function MarkdownImpl({ children, dimColor = false, cacheTokens = true, inlineMathImages = true, stripPromptTags = true }: Props): React.ReactNode {
+function MarkdownImpl({ children, dimColor = false, color, cacheTokens = true, inlineMathImages = true, stripPromptTags = true, preserveHtml = false }: Props): React.ReactNode {
   const [highlight, setHighlight] = React.useState<CliHighlight | null>(null)
   // Inline math is baked into the ANSI text, so the switch must invalidate
   // the memo below (MathBlock nodes subscribe on their own).
@@ -299,8 +311,10 @@ function MarkdownImpl({ children, dimColor = false, cacheTokens = true, inlineMa
       dimColor,
       // Dimmed text (thinking) cannot dim an image, so it keeps Unicode.
       inlineMathImages && mathRendering === 'image' && !dimColor,
+      preserveHtml,
+      color,
     )
-  }, [children, dimColor, highlight, cacheTokens, mathRendering, inlineMathImages, palette, stripPromptTags])
+  }, [children, dimColor, color, highlight, cacheTokens, mathRendering, inlineMathImages, palette, stripPromptTags, preserveHtml])
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -318,7 +332,9 @@ export const Markdown = React.memo(
   (prev, next) =>
     prev.children === next.children &&
     prev.dimColor === next.dimColor &&
+    prev.color === next.color &&
     prev.cacheTokens === next.cacheTokens &&
     prev.inlineMathImages === next.inlineMathImages &&
-    prev.stripPromptTags === next.stripPromptTags,
+    prev.stripPromptTags === next.stripPromptTags &&
+    prev.preserveHtml === next.preserveHtml,
 )

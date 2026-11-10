@@ -4,10 +4,32 @@
  */
 import React from 'react'
 import { Box } from '../ui.js'
-import type { JobRow } from '../dsh-adapter/channel.js'
+import type { ChatRow, JobRow } from '../dsh-adapter/channel.js'
 import type { ToolBackground } from '../tuiDisplayPrefs.js'
-import { cardRowExpanded, type ResolvedCardStyles } from '../cardStyles.js'
+import { cardRowDensity } from '../channel/card-row.js'
+import { cardRowExpanded, type CardKind, type ResolvedCardStyles } from '../cardStyles.js'
 import { CardContent, cardMarginTop, useCardStyles, type CardSurface } from './cardSurface.js'
+
+/** Transcript row kind → card style kind (cardStyles.ts). The style taxonomy
+ *  is coarser than the transcript's: thinking is the `thinking` card, the
+ *  compaction summary is `summary`, context notices are `notice`, and ordinary
+ *  notices / interrupts / local echoes / the turn ledger draw as `other`. */
+export function cardKindOf(kind: ChatRow['kind']): CardKind {
+  switch (kind) {
+    case 'user': return 'user'
+    case 'assistant': return 'assistant'
+    case 'reasoning': return 'thinking'
+    case 'tool': return 'tool'
+    case 'subagent': return 'subagent'
+    case 'job': return 'job'
+    case 'compact': return 'summary'
+    case 'card':
+    case 'skill':
+    case 'command': return 'custom'
+    case 'context-notice': return 'notice'
+    default: return 'other'
+  }
+}
 
 /**
  * Conversation card styles resolved once for the whole list (each card
@@ -53,6 +75,34 @@ export function hashJobProgress(sig: number, job: JobRow): number {
  */
 export function jobGroupOpened(cardStyles: ResolvedCardStyles, headToggled: boolean): boolean {
   return cardRowExpanded(headToggled, cardStyles.kinds.job.fold?.defaultExpanded)
+}
+
+/**
+ * `minimumGap` adds a real top row even for the first block (the preset's
+ * breathing space); measured turn tops have to include it. Group members apply
+ * their minimum breathing space inside the card. A card that declared
+ * `density: 'compact'` has no face gap to add — also while the window folded
+ * its view away.
+ */
+export function cardBreathing(cardStyles: ResolvedCardStyles, row: ChatRow, member: boolean): boolean {
+  return !member && cardStyles.kinds[cardKindOf(row.kind)].minimumGap > 0
+    && cardRowDensity(row.card) !== 'compact'
+}
+
+/**
+ * Per-row expansion: the configured `defaultExpanded` is only the default for a
+ * row the user has not toggled (a click/Enter reverses it), and Ctrl+O still
+ * forces every row open. Job rows are the exception — their default is the
+ * GROUP state decided in the fold pass, and the flag keeps meaning "the row was
+ * toggled" for the card body. A live thinking row's preview/full choice belongs
+ * to `dsh-tui.thinkingFold` and its per-row override, not to the card default
+ * (see CardFold): the default only reaches settled rows.
+ */
+export function transcriptRowExpanded(cardStyles: ResolvedCardStyles, row: ChatRow, toggled: boolean): boolean {
+  const liveThinking = row.kind === 'reasoning' && (row.streaming === true || row.thinkingOpen === true)
+  return row.kind === 'job' || liveThinking
+    ? toggled
+    : cardRowExpanded(toggled, cardStyles.kinds[cardKindOf(row.kind)].fold?.defaultExpanded)
 }
 
 type BoxProps = React.ComponentProps<typeof Box>

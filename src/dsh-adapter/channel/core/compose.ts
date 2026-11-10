@@ -225,14 +225,20 @@ export function createCoreChannel(
       notify(t('capability-failed', { name: 'load earlier', err: error instanceof Error ? error.message : String(error) }), { color: 'error', timeoutMs: 8000 })
       return 0
     }
+    const renderers = host.rendererRuntime
     try {
       if (state.rows.some(row => row.folded === true)) {
         const record = transcript.record()
-        const restored = record === undefined ? 0 : restoreFoldedRows(state.rows, record)
+        const restored = record === undefined ? 0 : restoreFoldedRows(state.rows, record, renderers?.presentCard)
         if (restored > 0) return restored
       }
       if (viewCleared() || !transcript.hasOlder()) return 0
-      return prependHistoryRows(state.rows, projectHistorySlice(transcript.older(), state.thinkingFold))
+      return prependHistoryRows(state.rows, projectHistorySlice(transcript.older(), state.thinkingFold, {
+        sessionCards: state.sessionCardsEnabled,
+        // The renderer is what live projection reads: an older slice must show
+        // the same shared card host, not the pre-card shape.
+        ...(renderers === undefined ? {} : { renderer: renderers }),
+      }))
     } catch (error) {
       return failed(error)
     }

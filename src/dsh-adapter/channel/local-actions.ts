@@ -1,6 +1,7 @@
 import { t } from '../../i18n.js'
 import { snapshotLiveSessionEvents } from '../compat/liveSession.js'
 import { listDirectChildren, type SubagentsServiceView } from './subagent-projection.js'
+import { withCardPresenter } from '../card-presenters.js'
 import type { foldBack as FoldBack } from './transcript.js'
 import type { ChannelState, ToolViewPresenter } from './types.js'
 
@@ -20,7 +21,10 @@ export function createLocalActions(deps: {
     readonly agent: { session: unknown }
   }
   state: ChannelState
-  presenters: ToolViewPresenter
+  presenters: Omit<ToolViewPresenter, 'card'>
+  /** The host's Custom Card presenters, resolved on every restore so a
+   *  presenter registered after a fold still presents the restored card. */
+  cardPresenter(): ToolViewPresenter['card']
   foldBack: typeof FoldBack
 }) {
   const { ctx, owner, binding, state, foldBack } = deps
@@ -29,7 +33,7 @@ export function createLocalActions(deps: {
     /** The history slicer behind "load earlier": restores folded rows from
      *  the durable DSH log (the core emits when anything came back). */
     loadOlder(): number {
-      return foldBack(state.rows, snapshotLiveSessionEvents(binding.agent.session), deps.presenters)
+      return foldBack(state.rows, snapshotLiveSessionEvents(binding.agent.session), withCardPresenter(deps.presenters, deps.cardPresenter()))
     },
     async listSubagents(): Promise<string[]> {
       const service = ctx.get('subagents') as SubagentsServiceView | undefined
