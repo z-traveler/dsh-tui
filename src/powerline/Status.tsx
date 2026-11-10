@@ -109,7 +109,13 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   const title = reserveLabel && channel.promptSessionLabel ? channel.sessionTitle ?? '' : ''
   const labelWidth = title === '' ? 0 : stringWidth(truncateToWidth(title, Math.max(8, Math.min(28, columns - 8)))) + 2
   const width = Math.max(0, columns - 4 - labelWidth)
-  const layout = layoutPowerlineFields(fields, grouped, width)
+  let layout = layoutPowerlineFields(fields, grouped, width)
+  if (jobsPart !== undefined) {
+    const withoutJobs = layoutPowerlineFields(fields.filter(field => field.key !== 'jobs'), grouped, width)
+    // A transient count must not add a chrome row, even at a full primary
+    // budget. Leave the chip out when it would increase overflow height.
+    if (layout.secondary.length > withoutJobs.secondary.length) layout = withoutJobs
+  }
   const rowWidth = (row: readonly PowerlineField[]) => row.length === 0 ? 0 : row.reduce((sum, field) => sum + field.width, 0) + options.padding * 2 + (row.length - 1) * (stringWidth(options.separator) + 2)
   const row = (items: readonly PowerlineField[]) => items.length === 0 ? null : <>
     <Text>{' '.repeat(options.padding)}</Text>
@@ -129,7 +135,7 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   return <Box flexDirection="row" width={columns} height={1} flexShrink={0} overflow="hidden" marginTop={gapBefore ? 1 : 0}>
     <Text color={options.colors.border}>{edged ? '╭─' : '  '}</Text>
     {row(layout.left)}
-    <Text color={options.colors.border}>{(layout.right.length > 0 || !edged ? ' ' : '─').repeat(gap)}</Text>
+    <Text color={options.colors.border}>{(edged ? '─' : ' ').repeat(gap)}</Text>
     {row(layout.right)}
     {label !== undefined ? <><Text> </Text><Text color={label.ink} backgroundColor={label.color}>{label.text}</Text><Text> </Text></> : <Text>{' '.repeat(labelWidth)}</Text>}
     <Text color={options.colors.border}>{edged ? '─╮' : '  '}</Text>

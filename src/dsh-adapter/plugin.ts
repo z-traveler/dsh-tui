@@ -1399,7 +1399,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         notificationMethod: Schema.union(['auto', 'osc9', 'bel', 'windows']),
         // Same no-default rule: applyDisplay resolves `?? config.mermaidDiagrams ?? true`.
         mermaidDiagrams: Schema.boolean(),
-        // Code-frame shape; unset keeps the light rail frame.
+        // Code-frame shape; no default, so an unset setting follows the
+        // card-style preset (CodeBlockFrame resolves it).
         codeFrameStyle: Schema.union(['light', 'full']),
         // Same no-default rule: resolveMathRendering falls back to cordis.yml.
         mathRendering: Schema.union(['auto', 'image', 'unicode', 'source']),

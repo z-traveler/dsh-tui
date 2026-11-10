@@ -1,5 +1,6 @@
 import chalk from 'chalk'
 import type { Color, TextStyles } from './styles.js'
+import { tmuxClientsSupportTruecolor } from '../terminal-utils/tmuxTruecolor.js'
 
 /**
  * xterm.js (VS Code, Cursor, code-server, Coder) has supported truecolor
@@ -20,8 +21,8 @@ import type { Color, TextStyles } from './styles.js'
  * An explicit FORCE_COLOR=2 is a caller asking for 256 colors, so neither
  * VS Code nor Windows Terminal overrides it.
  *
- * Must run BEFORE the tmux clamp — inside either truecolor host, tmux's
- * passthrough limitation wins and we want level 2.
+ * Must run BEFORE the tmux capability check so an unsupported outer client
+ * can still downgrade the boosted level.
  */
 function boostChalkLevelForXtermJs(): boolean {
   const truecolorHost = process.env.TERM_PROGRAM === 'vscode'
@@ -34,19 +35,14 @@ function boostChalkLevelForXtermJs(): boolean {
 }
 
 /**
- * tmux parses truecolor SGR (\e[48;2;r;g;bm) into its cell buffer correctly,
- * but its client-side emitter only re-emits truecolor to the outer terminal if
- * the outer terminal advertises Tc/RGB capability (via terminal-overrides).
- * Default tmux config doesn't set this, so tmux emits the cell to iTerm2/etc
- * WITHOUT the bg sequence — outer terminal's buffer has bg=default → black on
- * dark profiles. Clamping to level 2 makes chalk emit 256-color (\e[48;5;Nm),
- * which tmux passes through cleanly. grey93 (255) is visually identical to
- * rgb(240,240,240).
+ * tmux's outer-client capabilities determine whether RGB SGR survives the
+ * multiplexer. Keep the detected truecolor level when tmux confirms support;
+ * otherwise emit 256-colour SGR, preserving backgrounds on unsupported clients.
  *
- * Users who HAVE set `terminal-overrides ,*:Tc` get a technically-unnecessary
- * downgrade, but the visual difference is imperceptible. Querying
- * `tmux show -gv terminal-overrides` to detect this would add a subprocess on
- * startup — not worth it.
+ * Near-black card tints lose their subtle hues at level 2. Query tmux once
+ * for the actual clients attached to this pane's session: all must report RGB
+ * to retain truecolor. Other sessions' clients do not determine this pane's
+ * capabilities; unknown/no-client results keep the conservative fallback.
  *
  * $TMUX is a pty-lifecycle env var set by tmux itself; it never comes from
  * globalSettings.env, so reading it here is correct. chalk is a singleton, so
@@ -58,6 +54,7 @@ function clampChalkLevelForTmux(): boolean {
   // configured their tmux correctly.
   if (process.env.DSH_TUI_TMUX_TRUECOLOR) return false
   if (process.env.TMUX && chalk.level > 2) {
+    if (tmuxClientsSupportTruecolor()) return false
     chalk.level = 2
     return true
   }

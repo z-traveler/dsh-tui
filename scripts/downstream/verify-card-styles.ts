@@ -135,7 +135,22 @@ check('legacy keeps toolBackground for the tool card and for no other kind', () 
   }
 })
 
-check('the default user face is a whisper of the theme text over the real terminal background', () => {
+check('user foreground and weight inherit overrides without changing legacy defaults', () => {
+  assert.equal(pi().kinds.user.bold, false)
+  assert.equal(legacy().kinds.user.bold, true)
+  const config = normalizeCardStyleConfig({ preset: 'pi-like', common: { foreground: 'error', bold: true }, kinds: { user: { foreground: 'success', bold: false } } })
+  const style = pi(config).kinds.user
+  assert.equal(style.foreground, 'success')
+  assert.equal(style.bold, false)
+  const common = pi(normalizeCardStyleConfig({ preset: 'pi-like', common: { foreground: '#abcdef', bold: true } })).kinds.user
+  assert.equal(common.foreground, '#abcdef')
+  assert.equal(common.bold, true)
+  const bad = pi(normalizeCardStyleConfig({ preset: 'pi-like', kinds: { user: { foreground: 'not-a-color', bold: 'yes' } } })).kinds.user
+  assert.equal(bad.foreground, undefined)
+  assert.equal(bad.bold, false)
+})
+
+check('the default user face is distinct but subdued over the real terminal background', () => {
   // The old default was the hover/expand highlight — a saturated block (dark's
   // `rgb(59,91,219)`), i.e. an interaction cue, not a near-transparent face.
   const face = pi().kinds.user.background
@@ -154,8 +169,8 @@ check('the default user face is a whisper of the theme text over the real termin
     const text = channelsOf(theme.text)
     assert.ok(got !== undefined && base !== undefined && text !== undefined, `${name}/${terminal}: a real RGB mix (${color})`)
     const drift = channelDistance(got, base)
-    assert.ok(drift >= 4, `${name}/${terminal}: still a face, not the bare terminal background (${drift.toFixed(1)} away)`)
-    assert.ok(drift <= 24, `${name}/${terminal}: only a whisper away from the terminal background (${drift.toFixed(1)})`)
+    assert.ok(drift >= 18, `${name}/${terminal}: user messages have a visible substrate (${drift.toFixed(1)} away)`)
+    assert.ok(drift <= 64, `${name}/${terminal}: the substrate stays subdued (${drift.toFixed(1)})`)
     assert.ok(contrastOf(got, text) >= 4.5, `${name}/${terminal}: body text stays readable on it (${contrastOf(got, text).toFixed(1)}:1)`)
     // The pale light-theme highlights are near-white themselves, so this bound
     // only pins "clearly not the highlight surface"; the shape assertions above
@@ -172,13 +187,28 @@ check('the default user face is a whisper of the theme text over the real termin
   assert.equal(cardBackgroundColor(face, getTheme('light'), 'light'), cardBackgroundColor(face, getTheme('light'), 'light', '#ffffff'))
 })
 
+check('notice has its own neutral face and one-cell rail, with explicit overrides preserved', () => {
+  const style = pi().kinds.notice
+  assert.equal(cardContentWidth(80, style), 79)
+  assert.equal(cardBackgroundColor(style.background, getTheme('dark'), 'dark'), '#19151f')
+  assert.equal(cardBackgroundColor(style.background, getTheme('light'), 'light'), '#f3eef7')
+  assert.equal(style.states, undefined, 'notice text does not infer an execution state')
+  const custom = pi(normalizeCardStyleConfig({ preset: 'pi-like', kinds: { notice: { background: '#123456', border: 'round', borderColor: 'error' } } })).kinds.notice
+  assert.deepEqual(custom.background, { fill: '#123456' })
+  assert.deepEqual(custom.border, { style: 'round', color: 'error' })
+  const off = pi(normalizeCardStyleConfig({ preset: 'pi-like', kinds: { notice: { background: 'none', border: 'none' } } })).kinds.notice
+  assert.equal(off.background, undefined)
+  assert.equal(off.border, undefined)
+})
+
 check('pi-like keeps padding 0 and leaves the reading kinds unfilled', () => {
   const styles = pi()
   for (const kind of CARD_KINDS) {
     assert.equal(styles.kinds[kind].paddingX, 0, `${kind} keeps the original prefix/gutter column`)
     assert.equal(styles.kinds[kind].paddingY, 0, `${kind} takes no vertical padding`)
     assert.equal(styles.kinds[kind].minimumGap, kind === 'job' ? 0 : 1, `${kind} gets its preset breathing rows`)
-    assert.equal(styles.kinds[kind].border, undefined, `${kind} has no border under pi-like`)
+    if (kind === 'notice') assert.deepEqual(styles.kinds[kind].border, { style: 'single', color: 'merged', leftOnly: true })
+    else assert.equal(styles.kinds[kind].border, undefined, `${kind} has no border under pi-like`)
   }
   assert.deepEqual(styles.kinds.user.background, { fill: 'text', presetUser: true })
   for (const kind of ['tool', 'subagent'] as const) {

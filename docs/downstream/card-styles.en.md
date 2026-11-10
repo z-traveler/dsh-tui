@@ -30,7 +30,7 @@ Within an object, precedence is **preset → `common` → `kinds.<kind>`**, incl
 | Preset | Defaults |
 | --- | --- |
 | `legacy` (default) | Existing appearance and folding; `toolBackground` still controls tool backgrounds |
-| `pi-like` | No border; horizontal and vertical padding 0 (the original `❯`/`⎿` prefixes and the subagent card's own indent line up with legacy); a near-transparent user face, soft state faces for tool/subagent cards, and transparent jobs by default with groups sitting flush like legacy; at least one uncoloured breathing row between other cards (an existing transition row is not stacked); assistant/thinking/summary/other unfilled |
+| `pi-like` | Ordinary cards are borderless; context notices keep a left rail; horizontal and vertical padding 0 (the original `❯`/`⎿` prefixes and the subagent card's own indent line up with legacy); a subtly distinct user face, soft state faces for tool/subagent cards, and transparent jobs by default with groups sitting flush like legacy; at least one uncoloured breathing row between other cards (an existing transition row is not stacked); assistant/thinking/summary/other unfilled |
 
 Neither preset changes folding defaults. `pi-like` takes over tool backgrounds instead of using `toolBackground`. Overrides still win. It does not switch themes: dark palettes use a small fixed near-black table (neutral running, very faint grey-green success, very faint dusty-rose failure), while light palettes keep the theme's neutral running surface with pale sage/rose success/failure; lower colour tiers fall back to distinguishable slots so body text stays readable — see below. The user face and Edit code area follow the **terminal background** instead; see below.
 
@@ -44,6 +44,7 @@ Neither preset changes folding defaults. `pi-like` takes over tool backgrounds i
 | `tool` | Tool calls/results | `defaultExpanded`, `previewLines` |
 | `subagent` | Subagent messages | None; existing detail entry unchanged |
 | `job` | Background tasks | `defaultExpanded` for initial group expansion; grouping conditions unchanged; `progressStyle` controls the conversation card's progress form (see below) |
+| `notice` | Context notices such as `tool-jobs` and `subagent-settled` | Existing click, selection Enter and Ctrl+O expansion; no new fold configuration |
 | `summary` | Compaction summary | `defaultExpanded`; folded text preview has no line-count control |
 | `other` | Notices, interruptions, local echoes/output, turn usage | None |
 
@@ -52,6 +53,8 @@ Each kind and `common` accept:
 | Property | Value |
 | --- | --- |
 | `background` | `none`, theme colour key, or an existing valid explicit colour |
+| `foreground` | User prompts only (other kinds do not consume it). Text colour: theme key or explicit colour; unset retains `userPromptLabel` (orange-red for DSH) |
+| `bold` | User prompts only (other kinds do not consume it). Weight: defaults to `false` for `pi-like`, `true` for `legacy`; per-kind overrides common |
 | `border` | `none`, `single`, `double`, `round`, `bold`, `singleDouble`, `doubleSingle`, `classic`, `arrow`, `dashed` |
 | `borderColor` | Theme key or explicit colour; defaults to `promptBorder` when a border is enabled |
 | `paddingX` | 0–8 columns on each side |
@@ -65,6 +68,20 @@ Each kind and `common` accept:
 Counts are floored and clamped. Invalid fields and unknown kinds are dropped, falling back to preset defaults. Colours accept theme keys, `#rgb`/`#rrggbb`, `rgb()`, `ansi256()`, `ansi:` and the existing theme formats. Eight-digit hex does not provide alpha compositing.
 
 Initial expansion does not replace click or `Ctrl+O` behaviour: clicking an initially expanded row can collapse it. `thinkingFold`, `jobGroupFold`, and `foldTerminalCommand` retain their existing mechanisms; no new folding interactions are introduced.
+
+## Status markers and code frames
+
+Under `pi-like`, subagents and workflow members use single-cell markers: a small braille spinner in live transcript cards, a dot in lists, `✓` in the theme's success colour, `×` in its error colour, and a muted `·` for cancelled/unknown states. Sidebar/team lists, detail headers and transcript-loading hints use the same restrained glyphs. Status labels remain; legacy and emoji in user/tool content are unchanged.
+
+When `codeFrameStyle` is unset, fenced code in replies defaults to `full` under `pi-like` and `light` under `legacy`. An explicit `values.codeFrameStyle` (or deployment `config.codeFrameStyle`) of `light/full` always wins; the preset supplies the default only when neither layer sets it. This remains a separate setting, not a key inside `cardStyles`. Very narrow terminals retain their plain fallback; the Edit tool's dedicated diff view is not controlled by this code-frame setting.
+
+Powerline places the live job count in the primary HUD row. If adding it would grow the overflow area by a row, the chip is omitted so starting/settling jobs cannot shift the transcript. The complete job list remains available through `/jobs`.
+
+## Context notice cards
+
+Under `pi-like`, generic context notices use a purple left rail and a purple-grey face: `#19151f` on dark truecolor and `#f3eef7` on light. The title identifies the producer. Collapsed cards put the summary on its own following line; expanded cards show the complete saved body without repeating the summary. The surface is distinct from user and execution-state cards and never infers severity from completed/failed text or exit codes. At 256 colours it falls back to neutral grey; at 16 colours only the rail and labels remain.
+
+Override background, border, gap and padding through `cardStyles.kinds.notice`. `background: none` removes the face, `border: none` removes the rail, and a regular border choice replaces the rail with a full frame. Legacy defaults retain the old notice presentation. This changes only how persisted notices are displayed, not model delivery, waking, persistence or task state.
 
 ## State backgrounds
 
@@ -98,7 +115,7 @@ The default state surfaces are low-contrast and close to the terminal floor: on 
 
 Truecolor uses the small table above according to theme polarity. The 256-colour tier selects coloured slots explicitly so quantization cannot collapse success and failure to one colour, but it **cannot express the near-black truecolour steps**: on dark palettes running stays neutral grey `#303030` (236), success is teal 23, and failure is dusty rose 95, so the differences are stronger than at truecolor. The 16-colour tier uses distinguishable, readable fallback slots and **cannot render the soft palette or guarantee a green success fill**. These are tier capability limits, not three identical looks. Dark truecolor states use the fixed near-black table; ANSI-name-only dark themes still fall back to a neutral slot for running. Light running uses the theme's neutral surface, falling back to the tier slot when that colour is unavailable. Contrast tests assume conventional terminal palettes; redefining slots 0–15 can change results. Explicit `states` overrides paint as given at every tier; their contrast and distinctness are the user's responsibility. With colour disabled, existing state glyphs remain without background distinctions.
 
-Truecolour also depends on a terminal-capability limit: the repository's `src/ink/colorize.ts` clamps colours to the 256-colour tier inside tmux by default (so tmux clients that cannot advertise RGB do not drop truecolour SGR). When the client is known to support RGB, the **existing** environment variable `DSH_TUI_TMUX_TRUECOLOR=1` skips that clamp; the isolated demo entry (`card-styles-demo.tsx`) already defaults it with `??=` before dynamically importing the UI, which is how the demo shows the near-black steps. The production app never sets it for you — export it explicitly. An explicit `FORCE_COLOR=2/1` still degrades as requested and is not overridden by the demo.
+Inside tmux, startup automatically queries the clients attached to this pane's session. If every attached client reports `RGB`, the app retains its detected truecolour output; unsupported clients, no attached clients, failed queries and timeouts keep the conservative 256-colour fallback. No tmux configuration change or extra environment variable is required for a supported session. The existing `DSH_TUI_TMUX_TRUECOLOR=1` explicitly bypasses the check, and `FORCE_COLOR=0/1/2` retains the requested colour depth. Capabilities are determined at startup; restart after they change.
 
 ## Edit / diff body
 
@@ -125,7 +142,9 @@ The line substrate derives from the theme's own diff word colour mixed faintly i
 
 ## User card and terminal background
 
-The `pi-like` user card (user messages and team messages share one configuration) follows the **actual terminal background**: by default it blends the active theme's text colour into the terminal background at roughly 3.5%, so the background shows through and the card reads as an almost transparent surface (terminals have no real alpha; this is a very pale solid colour, not translucency). A dark theme's text colour is lighter, so the face lifts very slightly; a light theme's is darker, so it darkens very slightly. The background comes from the existing `useTerminalBackground()` (the OSC 11 answer, or black/white by palette lightness when there is none), so a detected, palette-compatible background receives only a slight change. A forced or hand-picked theme, an unavailable background, or a detected background discarded for a polarity mismatch can activate the existing black/white fallback, which cannot guarantee a near-transparent appearance.
+The `pi-like` user card (user messages and team messages share one configuration) follows the **actual terminal background**: by default it blends the active theme's text colour into the terminal background at roughly 12%, giving user messages a subdued but identifiable substrate (terminals have no real alpha; this is a solid colour, not translucency). A dark theme's text colour is lighter, so the face lifts very slightly; a light theme's is darker, so it darkens very slightly. The background comes from the existing `useTerminalBackground()` (the OSC 11 answer, or black/white by palette lightness when there is none), so a detected, palette-compatible background receives only a slight change. A forced or hand-picked theme, an unavailable background, or a detected background discarded for a polarity mismatch can activate the existing black/white fallback, which cannot guarantee a near-transparent appearance.
+
+User prompt text retains `userPromptLabel` and is not bold under `pi-like`. Override it with `kinds.user.foreground` and `kinds.user.bold`, for example `"user": { "foreground": "userPromptLabel", "bold": false }`. Existing background, border and padding controls still apply. Team messages share the surface but retain their own sender typography.
 
 It does not use the hover or selection highlight (`userMessageBackgroundHover` is the saturated #3B5BDB blue on `dark`, `messageActionsBackground` is the selection cue): selection still wins, so a selected card keeps its own selection colour and stays distinguishable from the face.
 
@@ -133,7 +152,7 @@ Lower colour tiers cannot render such a pale fill and degrade the same “distin
 
 | Tier | Default user face |
 | --- | --- |
-| Truecolor | ~3.5% of the text colour over the terminal background (measured channel distance to that background ~11–14, body contrast ≥ 9.7:1) |
+| Truecolor | ~12% of the text colour over the terminal background, about `#1c1c1b` on dark black, subdued but distinguishable |
 | 256 colours | The nearest neutral grey-ramp slot (232–255); near-white lands on 255 (#eeeeee), near-black on 232 |
 | 16 colours / colour off | No fill |
 
@@ -160,4 +179,4 @@ node --import tsx/esm scripts/downstream/card-styles-demo.tsx --width 40
 node --import tsx/esm scripts/downstream/card-styles-demo.tsx --inline --settings .scratch/card-styles/settings.example.json
 ```
 
-The demo isolates HOME and uses the `auto` theme to follow the terminal background, falling back to dark if the terminal does not answer detection. It also sets `DSH_TUI_TMUX_TRUECOLOR ??= '1'` before dynamically importing the UI so the truecolour near-black steps are visible past tmux's default 256-colour clamp; an explicit `FORCE_COLOR=2/1` still degrades as requested, and the production app never sets the variable automatically. It makes no backend calls and leaves the stable installation untouched. `Alt+1/2/3` selects legacy/pi-like/border overrides; `Alt+4` restores the supplied file preset when `--settings` is used. `Alt+o` toggles global expansion; arrows or `j/k` scroll; `Ctrl+C` exits. A real TTY is required. Delivery evidence and personal acceptance steps live in the feature directory's `delivery.md`.
+The demo isolates HOME and uses the `auto` theme to follow the terminal background, falling back to dark if the terminal does not answer detection. It also sets `DSH_TUI_TMUX_TRUECOLOR ??= '1'` before dynamically importing the UI to retain the truecolour near-black steps explicitly; `FORCE_COLOR=2/1` still degrades as requested. Normal application startup detects tmux client capabilities automatically as described above. It makes no backend calls and leaves the stable installation untouched. `Alt+1/2/3` selects legacy/pi-like/border overrides; `Alt+4` restores the supplied file preset when `--settings` is used. `Alt+o` toggles global expansion; arrows or `j/k` scroll; `Ctrl+C` exits. A real TTY is required. Delivery evidence and personal acceptance steps live in the feature directory's `delivery.md`.

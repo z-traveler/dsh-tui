@@ -31,6 +31,7 @@ import {
   cardBackgroundColor,
   cardBackgroundOf,
   cardContentWidth,
+  colorOf,
   cardStatusOf,
   getCardStyleConfig,
   resolveCardStyles,
@@ -57,6 +58,10 @@ export interface CardBoxProps {
   readonly borderStyle: BorderStyle | undefined
   /** 主题键或显式颜色（`CardBoxProps.backgroundColor` 同一套解析）。 */
   readonly borderColor: Color | undefined
+  readonly borderLeft?: boolean
+  readonly borderRight?: boolean
+  readonly borderTop?: boolean
+  readonly borderBottom?: boolean
   readonly paddingX: number
   readonly paddingY: number
 }
@@ -71,6 +76,8 @@ export interface CardSurface {
   readonly presetFace: boolean
   /** 本帧该用的底色：状态底色 → 普通底色；`undefined` = 不涂底。 */
   readonly backgroundColor: Color | undefined
+  /** Resolved user prompt foreground override; absent keeps its theme label. */
+  readonly foregroundColor: Color | undefined
   /** `useTerminalBackground()` 报的实际终端底色（`#rrggbb`），与用户卡面
    *  同一个值，不另查终端；需要贴底的呈现（diff 代码区）用它。 */
   readonly terminalBackground: `#${string}`
@@ -113,6 +120,7 @@ export function useCardSurface(
   const size = useTerminalSize()
   const style = styles.kinds[kind]
   const background = cardBackgroundOf(styles, kind, cardStatusOf(options.status))
+  const foregroundColor = style.foreground === undefined ? undefined : asColor(colorOf(style.foreground, getTheme(themeName)))
   const backgroundColor = cardBackgroundColor(
     background,
     getTheme(themeName),
@@ -132,6 +140,7 @@ export function useCardSurface(
     presetFace: styles.preset === 'pi-like'
       && (background?.presetFace === true || background?.presetState !== undefined),
     backgroundColor: asColor(backgroundColor),
+    foregroundColor,
     terminalBackground,
     columns,
     contentSize,
@@ -140,6 +149,7 @@ export function useCardSurface(
       backgroundColor: asColor(backgroundColor),
       borderStyle: style.border?.style,
       borderColor: asColor(style.border?.color),
+      ...(style.border?.leftOnly ? { borderLeft: true, borderRight: false, borderTop: false, borderBottom: false } : {}),
       paddingX: style.paddingX,
       paddingY: style.paddingY,
     },

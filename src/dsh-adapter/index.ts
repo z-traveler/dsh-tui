@@ -208,12 +208,14 @@ export interface Config {
    *  than the viewport or of an unsupported type keeps the fenced source.
    *  On by default; off always shows the source. */
   mermaidDiagrams?: boolean
-  /** Code-frame shape (settings `dsh-tui.codeFrameStyle`): `light`
-   *  (default) is the open rail frame — corner + language label on top,
-   *  a left rail with one padding column per row, no right wall or
-   *  bottom edge; `full` closes the box with a right wall (continuous
-   *  across wrapped rows) and a bottom edge. The narrow fallback (net
-   *  body width < 8) always stays the plain ANSI fence. */
+  /** Code-frame shape (settings `dsh-tui.codeFrameStyle`): `light` is the
+   *  open rail frame — corner + language label on top, a left rail with
+   *  one padding column per row, no right wall or bottom edge; `full`
+   *  closes the box with a right wall (continuous across wrapped rows)
+   *  and a bottom edge. Unset (default) follows the card-style preset
+   *  (`cardStyles`): `light` under `legacy`, `full` under `pi-like`; an
+   *  explicit value overrides the preset. The narrow fallback (net body
+   *  width < 8) always stays the plain ANSI fence. */
   codeFrameStyle?: CodeFrameStyle
   /** LaTeX math (settings `dsh-tui.mathRendering`): `$…$` / `\(…\)` inline
    *  and `$$…$$` / `\[…\]` blocks in replies. `auto` (default) uses the best

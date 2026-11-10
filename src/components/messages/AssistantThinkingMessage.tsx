@@ -81,6 +81,17 @@ export function AssistantThinkingMessage({
   // 配置的 previewLines 只改这条流式 ticker 的行数（固定高度是它的契约），
   // 静态折叠仍是只留表头。
   const previewRows = card.style.fold?.previewLines ?? PREVIEW_ROWS
+  // A streaming row can go from token-only to text without remounting.
+  // Keep every hook above the empty-text return, but only tick for text.
+  const [frame, setFrame] = React.useState(0)
+  const [hovered, setHovered] = React.useState(false)
+  const hasThinking = Boolean(thinking)
+  React.useEffect(() => {
+    if (!streaming || !hasThinking) return
+    const interval = setInterval(() => setFrame(f => f + 1), THINKING_SPINNER_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [streaming, hasThinking])
+
   if (!thinking) {
     if (reasoningTokens === undefined) return null
     return (
@@ -99,15 +110,6 @@ export function AssistantThinkingMessage({
   // — the revealed slice under smooth streaming, the full text otherwise.
   const tickerText = textFull ?? thinking
 
-  // Spinner frame (80ms cadence, only while the reasoning is still
-  // streaming — same pattern as BtwPanel's answering spinner).
-  const [frame, setFrame] = React.useState(0)
-  React.useEffect(() => {
-    if (!streaming) return
-    const interval = setInterval(() => setFrame(f => f + 1), THINKING_SPINNER_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [streaming])
-
   const duration =
     durationMs !== undefined && durationMs >= 1000
       ? ` · ${formatDuration(durationMs)}`
@@ -124,7 +126,6 @@ export function AssistantThinkingMessage({
   const frameText = THINKING_SPINNER_FRAMES[frame % THINKING_SPINNER_FRAMES.length]!
   // Hover 轻指示：可点击折叠时折叠头从 dim 提亮为正常色（不刷整行背景，
   // 转录视觉保持安静）。
-  const [hovered, setHovered] = React.useState(false)
   const hoverProps = onClick !== undefined
     ? { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }
     : {}

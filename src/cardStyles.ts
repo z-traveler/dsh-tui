@@ -46,7 +46,7 @@ import { createLiveSetting, type ToolBackground } from './tuiDisplayPrefs.js'
 
 /** Transcript 内容类型（覆盖范围见本文件头的方案说明）。纯呈现分类：
  *  只描述一行怎么画，不表达任何领域事实。 */
-export const CARD_KINDS = ['user', 'assistant', 'thinking', 'tool', 'subagent', 'job', 'summary', 'other'] as const
+export const CARD_KINDS = ['user', 'assistant', 'thinking', 'tool', 'subagent', 'job', 'summary', 'notice', 'other'] as const
 export type CardKind = (typeof CARD_KINDS)[number]
 
 /** 当前会报告执行状态的类型（`ToolRow.status` / `SubagentStatus` /
@@ -80,11 +80,10 @@ export const CARD_PREVIEW_LINES_MAX = 40
 
 /**
  * `pi-like` 用户卡面默认底的混色比例：把主题正文色按这个比例混在**终端实际
- * 底色**上。只有几个百分点——终端自己的背景透出来，卡片读起来像一层几乎透明
- * 的底（终端没有真实 alpha，这是极淡的实色，不是半透明）；深色主题的正文色
- * 更亮，于是极轻提亮，浅色主题反过来极轻压暗。
+ * 底色**上。12% 的实色混色让用户消息易于定位，同时保持低对比；终端没有真实
+ * alpha，这不是半透明。深色主题提亮，浅色主题压暗。
  */
-const USER_SURFACE_RATIO = 0.035
+const USER_SURFACE_RATIO = 0.12
 
 /** 只写了边框、没写颜色时的边框色：主题自己的边框键，不固定颜色。 */
 const DEFAULT_BORDER_COLOR = 'promptBorder'
@@ -107,11 +106,14 @@ export interface CardBackground {
    *  实际终端底色上，于是它跟着终端走，不盖异色块。个人覆盖的底色不带这个
    *  标记，永远按用户给的颜色画。 */
   readonly presetUser?: true
+  /** Neutral context-notice face, independent of the producer's task outcome. */
+  readonly presetNotice?: true
 }
 
 export interface CardBorder {
   readonly style: CardBorderStyle
   readonly color: string
+  readonly leftOnly?: true
 }
 
 /** 已有折叠机制开放的覆盖参数。两项都可以是"没设"（`undefined`）——那就是
@@ -127,6 +129,9 @@ export interface CardFold {
 }
 
 export interface CardStyle {
+  /** User prompt text overrides; other card kinds keep their own typography. */
+  readonly foreground?: string
+  readonly bold?: boolean
   readonly background: CardBackground | undefined
   readonly border: CardBorder | undefined
   readonly paddingX: number
@@ -161,6 +166,9 @@ export interface ResolvedCardStyles {
 
 /** 一层覆盖：每个字段都可省，省了就继承下一层（方案 → 公共 → 类型）。 */
 export interface CardStyleOverrides {
+  /** 用户消息文字色（主题键或显式颜色）与字重；仅 user 消费。 */
+  foreground?: string
+  bold?: boolean
   /** 无状态时的底色：`none` 为无填充，其余是主题键或显式颜色。它与状态底色是
    *  两层独立的设置——写了它不会关掉动态状态，要关请用 `states`。 */
   background?: CardStateFill
@@ -259,6 +267,7 @@ const PRESETS: Readonly<Record<CardStylePreset, PresetPalette>> = Object.freeze(
       // #3B5BDB 高饱和蓝，也不是"近透明"）：默认面是正文色极淡地混在实际
       // 终端底色上，解析见 `presetUserColor`。
       user: { fill: 'text', presetUser: true },
+      notice: { fill: 'merged', presetNotice: true },
       // `presetFace` 标记「这是方案给的底」：diff 卡据此把代码区贴回终端底
       // （见 `diffBodyAppearance`），用户显式 background 不带这个标记。
       tool: { fill: 'toolCardBackgroundDim', presetFace: true },
@@ -328,6 +337,8 @@ function normalizeStates(value: unknown): CardStateOverrides | undefined {
 function normalizeOverrides(value: unknown): CardStyleOverrides | undefined {
   if (!isRecord(value)) return undefined
   const overrides: CardStyleOverrides = {}
+  if (isCardColor(value.foreground)) overrides.foreground = value.foreground.trim()
+  if (typeof value.bold === 'boolean') overrides.bold = value.bold
   if (value.background === 'none') overrides.background = 'none'
   else if (isCardColor(value.background)) overrides.background = value.background.trim()
   const states = normalizeStates(value.states)
@@ -457,9 +468,11 @@ function resolveKind(
   const requestedProgress = pick(layers, 'progressStyle')
   return {
     background,
-    border: border === undefined || border === 'none'
-      ? undefined
-      : { style: border, color: pick(layers, 'borderColor') ?? DEFAULT_BORDER_COLOR },
+    border: border === undefined
+      ? preset === 'pi-like' && kind === 'notice'
+        ? { style: 'single', color: pick(layers, 'borderColor') ?? 'merged', leftOnly: true }
+        : undefined
+      : border === 'none' ? undefined : { style: border, color: pick(layers, 'borderColor') ?? DEFAULT_BORDER_COLOR },
     paddingX: clampOr(pick(layers, 'paddingX'), 0, CARD_PADDING_X_MAX, palette.paddingX),
     paddingY: clampOr(pick(layers, 'paddingY'), 0, CARD_PADDING_Y_MAX, palette.paddingY[kind] ?? 0),
     gap: clampOr(requestedGap, 0, CARD_GAP_MAX, 0),
@@ -469,8 +482,17 @@ function resolveKind(
     fold: foldOf(kind, layers),
     // 只有 job 卡消费进度样式；`common` 可继承，类型层覆盖优先。
     ...(kind === 'job' ? { progressStyle: requestedProgress ?? palette.jobProgressStyle } : {}),
+    ...(kind === 'user' ? { foreground: pick(layers, 'foreground'), bold: pick(layers, 'bold') ?? preset === 'legacy' } : {}),
     ...(states === undefined ? {} : { states }),
   }
+}
+
+/**
+ * 配置的方案，未设即 `legacy`（现有外观）。卡片之外的呈现（例如代码框的
+ * 默认形态）只读方案标识时用它，不重复这次回落。
+ */
+export function cardStylePreset(config: CardStyleConfig): CardStylePreset {
+  return config.preset ?? 'legacy'
 }
 
 /**
@@ -479,7 +501,7 @@ function resolveKind(
  * 因为覆盖本来就是与方案无关的一层。
  */
 export function resolveCardStyles(config: CardStyleConfig, context: { readonly toolBackground: ToolBackground }): ResolvedCardStyles {
-  const preset = config.preset ?? 'legacy'
+  const preset = cardStylePreset(config)
   const kinds = {} as Record<CardKind, CardStyle>
   for (const kind of CARD_KINDS) {
     const overrides = config.kinds?.[kind]
@@ -573,7 +595,8 @@ function fixedRgb(color: string): string {
   return channels === undefined ? color : `rgb(${channels.join(',')})`
 }
 
-function colorOf(color: string, theme: Theme): string | undefined {
+/** Resolve a validated theme key or explicit card colour; empty theme slots stay unpainted. */
+export function colorOf(color: string, theme: Theme): string | undefined {
   const key = normalizeThemeKey(color)
   // 主题里取空值表示该调色板不涂这个底（如 dark 的 userMessageBackground）。
   if (key !== undefined) return theme[key] || undefined
@@ -638,6 +661,10 @@ export function cardBackgroundColor(
 ): string | undefined {
   if (background === undefined) return undefined
   const polarity: PalettePolarity = isLightThemeActive(themeName) ? 'light' : 'dark'
+  if (background.presetNotice === true) {
+    if (chalk.level >= 3) return polarity === 'light' ? '#f3eef7' : '#19151f'
+    return chalk.level >= 2 ? polarity === 'light' ? 'ansi256(254)' : 'ansi256(235)' : undefined
+  }
   if (background.presetUser === true) return presetUserColor(colorOf(background.fill, theme), polarity, terminalBackground)
   if (background.presetState !== undefined) {
     // 低色档直接发有色槽位，不再经过主题混色。
@@ -665,7 +692,7 @@ export function cardBackgroundColor(
  * 显示列数（`useTerminalSize()` 或父级盒宽），不是 JS 字符串长度。
  */
 export function cardContentWidth(width: number, style: CardStyle): number {
-  const inset = style.paddingX * 2 + (style.border === undefined ? 0 : 2)
+  const inset = style.paddingX * 2 + (style.border === undefined ? 0 : style.border.leftOnly ? 1 : 2)
   return Math.max(1, Math.floor(width) - inset)
 }
 

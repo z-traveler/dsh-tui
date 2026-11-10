@@ -6,16 +6,17 @@ import { activateModernEmojiWidths } from '../lib/modern-widths.mjs'
 import { PassThrough, Writable } from 'node:stream'
 import type { AgentSession } from '../../src/agent/session.js'
 import type { PromptController } from '../../src/components/PromptInput.js'
+import type { DOMElement } from '../../src/ink/dom.js'
 process.env.FORCE_COLOR = '3'
 process.env.TERM = 'xterm-256color'
 process.env.COLORTERM = 'truecolor'
 process.env.DSH_TUI_LANG = 'en'
 process.env.DSH_TUI_DISABLE_TERMINAL_IMAGES = '1'
 delete process.env.TMUX
-const [React, { Terminal }, ui, { Chat }, { createChannel }, { QuestionStore }, { ApprovalStore }, { settled, viewportLines }, { Config }, { configValues }, { createTuiSettingsService }] = await Promise.all([
+const [React, { Terminal }, ui, { Chat }, { createChannel }, { QuestionStore }, { ApprovalStore }, { settled, viewportLines }, { Config }, { configValues }, { createTuiSettingsService }, { PowerlineStatus }] = await Promise.all([
   import('react'), import('@xterm/headless'), import('../../src/ui.js'), import('../../src/screens/Chat.js'),
   import('../../src/dsh-adapter/channel.js'), import('../../src/dsh-adapter/questions.js'), import('../../src/dsh-adapter/approvals.js'),
-  import('../lib/term-test.mjs'), import('../../src/dsh-adapter/index.js'), import('../../src/dsh-adapter/compat/settings.js'), import('../../src/dsh-adapter/tui-settings.js'),
+  import('../lib/term-test.mjs'), import('../../src/dsh-adapter/index.js'), import('../../src/dsh-adapter/compat/settings.js'), import('../../src/dsh-adapter/tui-settings.js'), import('../../src/powerline/Status.js'),
 ])
 let checks = 0
 function check(label: string, run: () => void) { run(); console.log(`PASS ${++checks}: ${label}`) }
@@ -46,6 +47,8 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     history: async () => [
       { type: 'session.ready', sessionId: 'powerline-fixture', cwd: '/fixture/project', model: 'deepseek-flash', effort: 'high', contextWindow: 100_000 },
       { type: 'context.usage', used: 25_000, max: 100_000 },
+      ...Array.from({ length: 45 }, (_, i) => ({ type: 'assistant.message' as const, seq: i + 1, anchor: `spacing-${i}`, attemptId: `spacing-${i}`, time: i,
+        blocks: [{ type: 'text' as const, text: i === 44 ? 'REPLY_SPACING_MARKER' : `reply filler ${i}` }], canonical: true })),
       { type: 'turn.end', turn: 0, reason: { kind: 'completed' }, time: 0, cost: { amount: 0.125, currency: 'USD', source: 'estimate' } },
     ],
     subscribe: listener => { receive = listener; return () => { receive = undefined } }, submit: async () => ({ accepted: false }),
@@ -82,6 +85,20 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       assert.ok(frame[at - 1]!.includes('🐋'), frame.join('\n'))
       assert.ok(!frame[at]!.includes('⌸') && !frame[at]!.includes('⛶'))
     })
+    assert.ok(await settled(() => lines().some(line => line.includes('REPLY_SPACING_MARKER'))))
+    check(`one blank row separates reply from input header (${fullscreen},${columns})`, () => {
+      const frame = lines(), reply = frame.findIndex(line => line.includes('REPLY_SPACING_MARKER'))
+      assert.equal(draftRow() - 1 - reply, 2, frame.join('\n'))
+      assert.equal(frame[reply + 1]?.trim(), '', frame.join('\n'))
+    })
+    if (columns === 180) {
+      channel.setStatusBar({ powerline: { icons: 'none', left: ['marker', 'model', 'context', 'cost'], right: ['cwd'] } })
+      assert.ok(await settled(() => (lines()[draftRow() - 1] ?? '').lastIndexOf('project') > columns - 20))
+      check(`right HUD fields keep a horizontal rule instead of a wide blank (${fullscreen})`, () => {
+        assert.ok(lines()[draftRow() - 1]!.includes('─'.repeat(12)), lines()[draftRow() - 1])
+      })
+      channel.setStatusBar({ powerline: { icons: 'none' } })
+    }
     check(`one blank row separates input from its overflow (${fullscreen},${columns})`, () => {
       assert.equal(lines()[draftRow() + 1]?.trim(), '', lines().join('\n'))
     })
@@ -250,6 +267,14 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
       assert.ok(frame[workAt + 2]!.includes('╭─'), frame.join('\n'))
       assert.ok(!frame[workAt]!.includes('↑') && !frame[workAt]!.includes('↓'))
     })
+    receive!([{ type: 'todo.write', items: [{ content: 'INPUT_GAP_TODO', status: 'in_progress' }] }], { replay: false })
+    assert.ok(await settled(() => lines().some(line => line.includes('INPUT_GAP_TODO'))))
+    check(`todo footer keeps exactly one blank row before input (${fullscreen},${columns})`, () => {
+      const frame = lines(), header = draftRow() - 1
+      assert.equal(frame[header - 1]?.trim(), '', frame.join('\n'))
+      assert.notEqual(frame[header - 2]?.trim(), '', frame.join('\n'))
+    })
+    receive!([{ type: 'todo.write', items: [] }], { replay: false })
     channel.setStatusBar({ workingCounters: true })
     assert.ok(await settled(() => lines().some(line => /[0-9]s.*↓.*interrupt/i.test(line))))
     check(`opt-in counters do not invent an unknown upload count (${fullscreen},${columns})`, () => {
@@ -305,6 +330,45 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     receive!([{ type: 'rate-limit', info: { windows: [] } }], { replay: false })
     assert.ok(await settled(() => !lines().some(line => line.includes('week:38%'))))
     check(`missing subscription data has no placeholder (${fullscreen},${columns})`, () => assert.ok(!lines()[draftRow() - 1]!.includes('week:')))
+
+    // The native presenter supplies this registry chip independently of neutral
+    // task events. Exercise both concrete Powerline surfaces at that seam.
+    channel.setStatusBar({ powerline: { icons: 'none', left: ['model'], right: [] } })
+    const chromeRef = React.createRef<DOMElement>()
+    const renderJobs = (count: number, tight = false) => {
+      const view = { fields: count === 0 ? [] : [{ key: 'jobs', node: <ui.Text>● {count}</ui.Text> }],
+        pluginFields: [], used: undefined, capacity: undefined, detail: () => null, supplemental: null }
+      const content = <ui.ThemeProvider theme="dark"><ui.Box key={`${count}-${tight}`} ref={chromeRef} flexDirection="column">
+        <PowerlineStatus {...view} channel={channel as never} surface="header" statusText={tight ? 'M'.repeat(columns - 4) : ''} />
+        <ui.Text>JOB_DRAFT_MARKER</ui.Text>
+        <PowerlineStatus {...view} channel={channel as never} surface="overflow" statusText={tight ? 'M'.repeat(columns - 4) : ''} />
+      </ui.Box></ui.ThemeProvider>
+      instance.rerender(fullscreen ? <ui.AlternateScreen>{content}</ui.AlternateScreen> : content)
+    }
+    renderJobs(0)
+    assert.ok(await settled(() => chromeRef.current !== null && lines().some(line => line.includes('JOB_DRAFT_MARKER'))))
+    const chromeHeight = chromeRef.current!.yogaNode!.getComputedHeight()
+    renderJobs(1)
+    assert.ok(await settled(() => lines().some(line => line.includes('● 1'))))
+    check(`live registry job count stays on the primary HUD, without an extra chrome row (${fullscreen},${columns})`, () => {
+      const frame = lines(), draft = frame.findIndex(line => line.includes('JOB_DRAFT_MARKER'))
+      assert.ok(frame[draft - 1]!.includes('● 1'), frame.join('\n'))
+      assert.equal(chromeRef.current!.yogaNode!.getComputedHeight(), chromeHeight, frame.join('\n'))
+    })
+    renderJobs(0)
+    assert.ok(await settled(() => !lines().some(line => line.includes('● 1'))))
+    check(`settled registry jobs leave chrome height unchanged (${fullscreen},${columns})`, () => {
+      assert.equal(chromeRef.current!.yogaNode!.getComputedHeight(), chromeHeight)
+    })
+    channel.setStatusBar({ powerline: { icons: 'none', padding: 0, left: ['plugins'], right: [] } })
+    renderJobs(0, true)
+    assert.ok(await settled(() => lines().some(line => line.includes('M'.repeat(columns - 4)))))
+    const tightNode = chromeRef.current!, tightHeight = tightNode.yogaNode!.getComputedHeight()
+    renderJobs(1, true)
+    assert.ok(await settled(() => chromeRef.current !== tightNode && chromeRef.current!.yogaNode!.getComputedHeight() > 0))
+    check(`a full primary row never creates an overflow row just for live jobs (${fullscreen},${columns})`, () => {
+      assert.equal(chromeRef.current!.yogaNode!.getComputedHeight(), tightHeight, lines().join('\n'))
+    })
   } finally { await instance.unmount(); channel.releaseContributions(); terminal.dispose(); input.destroy() }
 }
 console.log(`Powerline input: ${checks} checks passed`)

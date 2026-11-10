@@ -9,6 +9,8 @@ import { stringWidth } from '../../ink/stringWidth.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
 import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
+import { compactStatusMarker } from '../compactStatusMarker.js'
+import { THINKING_SPINNER_FRAMES, THINKING_SPINNER_INTERVAL_MS } from '../../terminal-utils/figures.js'
 
 /** The waterfall window is a Kimi Code style constant-height region. */
 const WATERFALL_ROWS = 3
@@ -58,9 +60,9 @@ function clipLine(text: string, maxWidth: number): string {
  * (Kimi Code visual language). Running: header + one-line current tool + a
  * constant 3-row waterfall (each row hard-clipped to one terminal line so
  * the card height never changes). Settled: folds to the header line alone
- * (failure keeps one error line). The running glyph reuses the user's
+ * (failure keeps one error line). Legacy's running glyph reuses the user's
  * working-activity preset (`/activity`), so the indicator follows the same
- * setting as the main spinner.
+ * setting as the main spinner. Pi-like always uses a single-cell braille spinner.
  */
 export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onClick, onOpenView }: {
   subagent: SubagentRow
@@ -77,12 +79,13 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   // 归零 → interval 清除），否则历史里的每张完成卡片都以 120ms 永久驱动
   // React commit。viewportRef 必须挂到根节点——useTerminalViewport 初始
   // isVisible:true，ref 不挂就永远不修正（虚拟化滚出视口的卡片继续动画）。
-  const [viewportRef, time] = useAnimationFrame(settled ? null : 120)
   // The card's face follows the reported status: a cancel/unknown run keeps the
   // ordinary face and its own glyph (cardStatusOf maps neither).
   const card = useCardSurface('subagent', { status: subagent.status })
   const columns = card.columns
-  const info = status(subagent)
+  const piLike = card.preset === 'pi-like'
+  const [viewportRef, time] = useAnimationFrame(settled ? null : piLike ? THINKING_SPINNER_INTERVAL_MS : 120)
+  const info = { ...status(subagent), ...(piLike ? compactStatusMarker(subagent.status, isMinimalUiMode()) : {}) }
   const [hovered, setHovered] = React.useState(false)
   const clickable = onClick !== undefined
   const elapsed = subagent.completedAt ? subagent.durationMs : Date.now() - subagent.startedAt
@@ -92,7 +95,9 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
     : subagent.toolCalls[subagent.toolCalls.length - 1]
   const preset = React.useMemo(() => resolvePreset(activityFrames), [activityFrames])
   const activity = settled ? [] : subagent.outputLines.slice(-WATERFALL_ROWS)
-  const runningGlyph = preset.frames[Math.floor(time / preset.intervalMs) % preset.frames.length] ?? '·'
+  const runningGlyph = piLike
+    ? THINKING_SPINNER_FRAMES[Math.floor(time / THINKING_SPINNER_INTERVAL_MS) % THINKING_SPINNER_FRAMES.length]!.trimStart()
+    : preset.frames[Math.floor(time / preset.intervalMs) % preset.frames.length] ?? '·'
   // `card.columns` is already net of the border and configured padding; the
   // +2 indent below eats into it too, so a card whose content is indented
   // must subtract it or the constant-height rows ask the renderer for two
@@ -112,7 +117,7 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   const showStatus = !compact || columns >= 60
   const showModel = !compact || columns >= 90
   const showCounts = !compact || columns >= 110
-  const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : ` ${runningGlyph}`}</Text>
+  const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : piLike ? runningGlyph : ` ${runningGlyph}`}</Text>
 
   // 点击打开详情场景；hover 不刷整行背景（转录视觉保持安静），只把状态
   // glyph 提亮为品牌色作为可点指示。

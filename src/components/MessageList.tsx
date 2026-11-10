@@ -111,8 +111,8 @@ function teamSenderOf(row: ChatRow): string | undefined {
 
 /** Transcript row kind → card style kind (cardStyles.ts). The style taxonomy
  *  is coarser than the transcript's: thinking is the `thinking` card, the
- *  compaction summary is `summary`, and notices / interrupts / local echoes /
- *  the turn ledger all draw as `other`. */
+ *  compaction summary is `summary`, context notices are `notice`, and ordinary
+ *  notices / interrupts / local echoes / the turn ledger draw as `other`. */
 function cardKindOf(kind: ChatRow['kind']): CardKind {
   switch (kind) {
     case 'user': return 'user'
@@ -122,6 +122,7 @@ function cardKindOf(kind: ChatRow['kind']): CardKind {
     case 'subagent': return 'subagent'
     case 'job': return 'job'
     case 'compact': return 'summary'
+    case 'context-notice': return 'notice'
     default: return 'other'
   }
 }
@@ -368,8 +369,8 @@ function signatureParts(
       signatureScratch.push(expanded, expandedRows.has(row.id), row.skill?.name ?? '')
       break
     case 'context-notice':
-      // One collapsed line (summary) vs the revealed saved body; the summary
-      // and both expansion switches are height inputs.
+      // Collapsed summary vs the revealed saved body; the summary and both
+      // expansion switches are height inputs (preset layout joins cardHeightKey).
       signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.source ?? '', row.contextNotice?.summary ?? '')
       break
     case 'compact':
@@ -2289,10 +2290,10 @@ function TranscriptRow({
       )
     case 'context-notice':
       if (contextSummary === undefined) return null
-      // A generic context notice: one line while it stays folded, the saved
-      // complete body once expanded. No severity styling is inferred.
+      // A generic context notice: a folded summary or the saved complete body.
+      // Its neutral notice face never infers severity from the message text.
       return (
-        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
+        <Box flexDirection="column" ref={ref} marginTop={cardMarginTop(marginTopOnTurn, card.style)}>
           <ContextNoticeCardRow
             source={contextSource ?? ''}
             summary={contextSummary}

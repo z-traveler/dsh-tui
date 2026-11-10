@@ -355,27 +355,43 @@ export const applyMermaidDiagrams = mermaidDiagramsStore.apply
 
 /**
  * How fenced code blocks frame themselves (settings
- *  `dsh-tui.codeFrameStyle`): `light` (default) is the open rail frame
+ *  `dsh-tui.codeFrameStyle`): `light` is the open rail frame
  * — corner + language label on top, a left rail with one padding
  * column, no right wall or bottom edge; `full` closes the box with a
  * right wall (continuous across wrapped rows, it rides the layout
  * border) and a bottom edge. The narrow-terminal fallback (net body
  * width < 8) always stays the plain ANSI fence, whatever this says.
+ *
+ * Unset is not `light`: the default follows the card-style preset
+ * (`pi-like` closes the box, `legacy` keeps the open rail), so the store
+ * keeps the absent value and the renderer resolves the fallback. Only an
+ * explicit `light`/`full` outranks the preset.
  */
 export type CodeFrameStyle = 'light' | 'full'
 const CODE_FRAME_STYLES = new Set<CodeFrameStyle>(['light', 'full'])
 
-export function normalizeCodeFrameStyle(value: unknown): CodeFrameStyle {
+/** The explicit choice, or `undefined` when the setting is unset. */
+function normalizeCodeFrameStyleOverride(value: unknown): CodeFrameStyle | undefined {
   return typeof value === 'string' && CODE_FRAME_STYLES.has(value as CodeFrameStyle)
     ? value as CodeFrameStyle
-    : 'light'
+    : undefined
 }
 
-/** Read at render time, so settled code blocks re-render on change. */
-const codeFrameStyleStore = createLiveSetting<CodeFrameStyle>('light', normalizeCodeFrameStyle)
+export function normalizeCodeFrameStyle(value: unknown): CodeFrameStyle {
+  return normalizeCodeFrameStyleOverride(value) ?? 'light'
+}
+
+/** Read at render time, so settled code blocks re-render on change; the
+ *  snapshot is `getCodeFrameStyleOverride` (the explicit choice only). */
+const codeFrameStyleStore = createLiveSetting<CodeFrameStyle | undefined>(undefined, normalizeCodeFrameStyleOverride)
 export const subscribeCodeFrameStyle = codeFrameStyleStore.subscribe
-export const getCodeFrameStyle = codeFrameStyleStore.get
-export const applyCodeFrameStyle = codeFrameStyleStore.apply
+/** The explicit choice only; `undefined` means "follow the card-style preset". */
+export const getCodeFrameStyleOverride = codeFrameStyleStore.get
+/** Effective style without the preset fallback: `light` when unset. */
+export const getCodeFrameStyle = (): CodeFrameStyle => getCodeFrameStyleOverride() ?? 'light'
+/** Returns the value that ended up applied (`light` when cleared). */
+export const applyCodeFrameStyle = (value: unknown): CodeFrameStyle =>
+  codeFrameStyleStore.apply(value) ?? 'light'
 
 /**
  * How LaTeX math in replies renders (settings `dsh-tui.mathRendering`):

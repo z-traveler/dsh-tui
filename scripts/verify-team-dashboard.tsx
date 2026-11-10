@@ -241,6 +241,19 @@ try {
     check('no team: no team sections', !screen.includes('Members') && !screen.includes('Tasks ·'))
     f.unmount()
   }
+  const { applyCardStyles } = await import('../src/cardStyles.js')
+  const { compactStatusMarker } = await import('../src/components/compactStatusMarker.js')
+  check('pi-like markers: all subagent/team states are one cell and minimal UI remains uncoloured',
+    (['running', 'starting', 'completed', 'failed', 'cancelled', 'unknown', 'idle', 'active', 'provisioning'] as const).every(status =>
+      width.stringWidth(compactStatusMarker(status).glyph) === 1 && compactStatusMarker(status, true).color === undefined))
+  for (const preset of ['legacy', 'pi-like'] as const) {
+    applyCardStyles({ preset })
+    const f = await mount(100, 40, { team }, 'Tasks')
+    const hasEmoji = /[🟢🔴🟡⚪🔵🟣]/u.test(f.lines.join('\n'))
+    check(`${preset}: team, roster-only and workflow status chrome follows the preset`, preset === 'legacy' ? hasEmoji : !hasEmoji)
+    f.unmount()
+  }
+  applyCardStyles({ preset: 'legacy' })
 } finally {
   rmSync(dataDir, { recursive: true, force: true })
 }

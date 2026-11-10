@@ -272,7 +272,7 @@ function toolRow(id: number, status: 'running' | 'ok' | 'error'): Row {
   }
 }
 
-function subagentRow(id: number, status: 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown'): Row {
+function subagentRow(id: number, status: 'running' | 'starting' | 'completed' | 'failed' | 'cancelled' | 'unknown'): Row {
   const done = status !== 'running' && status !== 'starting'
   return {
     id,
@@ -336,6 +336,7 @@ const listOf = (rows: readonly Row[], opts = {}) => (): React.ReactNode =>
 // reference paints (colour tier of THIS environment)
 // ---------------------------------------------------------------------------
 const NONE = '\u0000none'
+const { stringWidth } = await import('../../src/ink/stringWidth.js')
 const dark = getTheme('dark')
 const piStyles = resolveCardStyles(normalizeCardStyleConfig({ preset: 'pi-like' }), { toolBackground: 'none' })
 /**
@@ -390,12 +391,17 @@ const sampled = await samplePaints([
   dark.error,
   dark.inactive,
   dark.syntaxKeyword,
+  dark.userPromptLabel,
+  dark.warning,
+  dark.subtle,
   darkDiffBody.addedLine,
   darkDiffBody.removedLine,
   '#000000',
   '#ffffff',
   '#112233',
   '#123456',
+  '#19151f',
+  'ansi256(235)',
   ...Object.values(stateColors),
 ] as string[])
 const paintOfColor = (color: string | undefined): Paint => sampled.get(color ?? NONE) ?? 'default'
@@ -540,6 +546,9 @@ applyCardStyles({ preset: 'pi-like' })
     check('P 相邻卡片之间有一行不着色的呼吸空间', teamHeadY - promptY === 2,
       `user=${promptY} teamHead=${teamHeadY}`)
     check('P 用户气泡与 legacy 前缀对齐（paddingX 0，❯ 在第 0 列）', (frame.lines()[promptY] ?? '').startsWith('❯ '), JSON.stringify(frame.lines()[promptY]))
+    const userCell = frame.cell(2, promptY)
+    check('P pi-like 用户文字保留主题橘红但不加粗', userCell !== undefined && !userCell.isBold()
+      && frame.fg(2, promptY) === paintOfColor(dark.userPromptLabel))
     // Team messages ride the same `user` card face; only the sender line differs.
     const teamY = frame.rowOf('team note')
     check('P 团队消息与用户气泡用同一卡面',
@@ -636,7 +645,7 @@ console.log('--- P1: subagent compact header follows the preset, not padding ---
     check('P1 窄屏 pi-like 仍是紧凑单行（状态词按预算隐藏）', await ready(frame, 'Subagent: Explore'))
     const y = frame.lines().findIndex(line => line.includes('Subagent:'))
     check('P1 窄屏紧凑头不折行、仍保留状态字形',
-      !(frame.lines()[y + 1] ?? '').includes('repository') && frame.screen().includes('🟢'),
+      !(frame.lines()[y + 1] ?? '').includes('repository') && frame.screen().includes('✓'),
       JSON.stringify(frame.lines().slice(y, y + 2)))
   })
   applyCardStyles({ preset: 'pi-like' })
@@ -750,7 +759,7 @@ console.log('--- P4: bordered subagent clips inside its own indent ---')
       const bottom = frame.lines().findIndex(line => line.includes('╰'))
       check(`P4 ${columns}列落定子代理标题保持单行`, bottom - top === 2, `top=${top} bottom=${bottom}`)
       check(`P4 ${columns}列子代理标题仍显示任务描述`, frame.screen().includes('Explore'))
-      check(`P4 ${columns}列子代理保留原状态字形`, frame.screen().includes('🟢'))
+      check(`P4 ${columns}列子代理使用单列完成字形`, frame.screen().includes('✓') && !frame.screen().includes('🟢'))
     })
   }
   applyCardStyles({ preset: 'pi-like' })
@@ -1459,6 +1468,15 @@ console.log('--- O: overrides ---')
 // ---------------------------------------------------------------------------
 // S — 状态 / 取消
 // ---------------------------------------------------------------------------
+for (const bold of [false, true]) {
+  applyCardStyles({ preset: 'pi-like', common: { foreground: 'success', bold: !bold }, kinds: { user: { foreground: 'error', bold } } })
+  await withTerminal(80, listOf([userRow(1, 'USER_STYLE_OVERRIDE')]), async (frame) => {
+    await ready(frame, 'USER_STYLE_OVERRIDE')
+    const y = frame.rowOf('USER_STYLE_OVERRIDE'), cell = frame.cell(2, y)
+    check(`O 用户前景/加粗可配置，类型覆盖公共（bold=${bold}）`, cell !== undefined && Boolean(cell.isBold()) === bold
+      && frame.fg(2, y) === paintOfColor(dark.error))
+  })
+}
 console.log('--- S: status faces and cancelled runs ---')
 applyCardStyles({ preset: 'pi-like' })
 {
@@ -1488,7 +1506,70 @@ applyCardStyles({ preset: 'pi-like' })
 // ---------------------------------------------------------------------------
 // F — 折叠默认与预览行数
 // ---------------------------------------------------------------------------
+applyCardStyles({ preset: 'pi-like' })
+let subagentLabelColumn: number | undefined
+for (const state of ['running', 'starting', 'completed', 'failed', 'cancelled', 'unknown'] as const) {
+  const row = subagentRow(800, state)
+  await withTerminal(90, listOf([row]), async (frame) => {
+    await ready(frame, 'Explore repository')
+    const y = frame.rowOf('Explore repository'), line = frame.lines()[y] ?? ''
+    const glyph = [...line.trimStart()][0] ?? ''
+    subagentLabelColumn ??= line.indexOf('Explore repository')
+    check(`S pi-like ${state}：运行与落定标题列位置一致`, line.indexOf('Explore repository') === subagentLabelColumn, line)
+    check(`S pi-like ${state}：状态标识为单列非emoji`, stringWidth(glyph) === 1
+      && !/[🟢🔴🟡⚪🔵🟣🌑🌒🌓🌔🌕🌖🌗🌘]/u.test(line), line)
+    const color = state === 'completed' ? dark.success : state === 'failed' ? dark.error
+      : state === 'cancelled' || state === 'unknown' ? dark.subtle : dark.warning
+    check(`S pi-like ${state}：状态色保持语义`, frame.fg(line.indexOf(glyph), y) === paintOfColor(color))
+  })
+}
+const { SubagentDetailScene } = await import('../../src/components/SubagentDetailScene.js')
+for (const preset of ['legacy', 'pi-like'] as const) {
+  applyCardStyles({ preset })
+  await withTerminal(90, () => React.createElement(SubagentDetailScene, {
+    subagent: { agentId: 'detail-status', description: 'DETAIL_STATUS_MARKER', status: 'failed', startedAt: NOW - 1000,
+      completedAt: NOW, output: [], outputEvents: [], toolCalls: [], error: 'fixture failure' },
+    onBack() {},
+  }), async (frame) => {
+    await ready(frame, 'DETAIL_STATUS_MARKER')
+    const y = frame.rowOf('DETAIL_STATUS_MARKER'), line = frame.lines()[y] ?? ''
+    check(`S ${preset}：详情页状态字形遵循方案`, preset === 'pi-like' ? line.includes('×') && !line.includes('🔴') : line.includes('🔴'))
+    if (preset === 'pi-like') check('S pi-like：详情页失败标识小而有色、不加粗',
+      frame.fg(line.indexOf('×'), y) === paintOfColor(dark.error) && !frame.cell(line.indexOf('×'), y)?.isBold())
+  })
+}
+applyCardStyles({ preset: 'pi-like' })
+{
+  const body = '<tool-jobs>\nMODEL_NOTICE_BODY\n</tool-jobs>'
+  const row: Row = { id: 991, kind: 'context-notice', text: body,
+    contextNotice: { messageId: 'notice-fixture', source: 'tool-jobs', summary: 'NOTICE_SUMMARY' } }
+  await withTerminal(80, listOf([row]), async (frame) => {
+    await ready(frame, 'tool-jobs', 'NOTICE_SUMMARY')
+    const header = frame.rowOf('tool-jobs'), summary = frame.rowOf('NOTICE_SUMMARY')
+    const expected = chalk.level >= 3 ? paintOfColor('#19151f') : chalk.level === 2 ? paintOfColor('ansi256(235)') : 'default'
+    check('N 通知卡：紫灰底、左细线，无右墙', frame.bg(1, header) === expected && frame.bg(79, header) === expected
+      && (frame.lines()[header] ?? '').startsWith('│') && !(frame.lines()[header] ?? '').trimEnd().endsWith('│'))
+    check('N 通知卡：标题与折叠摘要分行，不泄露正文', summary === header + 1 && !frame.screen().includes('MODEL_NOTICE_BODY'))
+    frame.rerender(React.createElement(MessageList, listProps([row], { expandedRows: [991] })))
+    check('N 通知卡：展开仍是同一条消息的完整正文', await ready(frame, '<tool-jobs>', 'MODEL_NOTICE_BODY', '</tool-jobs>'))
+    check('N 通知卡：展开不重复显示摘要', !frame.screen().includes('NOTICE_SUMMARY') && row.text === body)
+  })
+}
 console.log('--- F: fold defaults and preview lines ---')
+for (const preset of ['legacy', 'pi-like'] as const) {
+  applyCardStyles({ preset })
+  const empty = { ...reasoningRow(990, ''), reasoningTokens: 42 }
+  const full = { ...empty, text: 'THINKING_TRANSITION_BODY' }
+  await withTerminal(80, listOf([empty], { expanded: true }), async (frame) => {
+    check(`F ${preset}：空思考先显示 token 计数`, await ready(frame, '~42'))
+    frame.rerender(React.createElement(MessageList, listProps([full], { expanded: true })))
+    check(`F ${preset}：同一思考行从空变文本不崩溃`, await ready(frame, 'THINKING_TRANSITION_BODY'))
+    frame.rerender(React.createElement(MessageList, listProps([{ ...empty, streaming: false }], { expanded: true })))
+    check(`F ${preset}：文本退回仅 token 计数不崩溃`, await ready(frame, '~42'))
+    frame.rerender(React.createElement(MessageList, listProps([{ ...full, streaming: false }], { expanded: true })))
+    check(`F ${preset}：思考结束后仍能显示正文`, await ready(frame, 'THINKING_TRANSITION_BODY'))
+  })
+}
 {
   applyCardStyles({ preset: 'legacy', kinds: { tool: { defaultExpanded: true } } })
   await withTerminal(80, listOf([toolRow(1, 'ok')]), async (frame) => {

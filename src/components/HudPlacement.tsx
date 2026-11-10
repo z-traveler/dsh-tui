@@ -33,7 +33,7 @@ export function HudPlacement({ placement, style, powerline, suspended = false, s
     if (!suspended) surface = { header: fused ? header : null, options: normalizePowerlineOptions(powerline) }
     content = [prompt, fused ? null : header(), overflow]
   }
-  const chrome = surface === null ? null : { Frame: PowerlineInputBorder, padding: 3, inlineControls: false, marginTop: 0 }
+  const chrome = surface === null ? null : { Frame: PowerlineInputBorder, padding: 3, inlineControls: false, marginTop: 1 }
   return <PromptChrome.Provider value={chrome}><PowerlineSurface.Provider value={surface}>
     {content}
   </PowerlineSurface.Provider></PromptChrome.Provider>

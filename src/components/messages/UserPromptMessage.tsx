@@ -16,11 +16,9 @@ type Props = {
 }
 
 /**
- * User prompt bubble: `❯ text` in bold userPromptLabel tint with no background
- * fill by default (Kimi Code style: the user turn gets a distinct bold tint —
- * the kernel-rotated brand colour of the active theme — so it reads apart from
- * assistant text; only selection mode paints a highlight). The card style
- * may add a face/border/padding (the `pi-like` preset paints the bubble).
+ * User prompt bubble: `❯ text` keeps the theme's userPromptLabel tint.
+ * Legacy remains bold and unfilled; pi-like uses regular weight and a visible,
+ * subdued card face. User foreground/weight overrides come from card styles.
  */
 export function UserPromptMessage({
   text,
@@ -61,7 +59,7 @@ export function UserPromptMessage({
     >
       <CardContent surface={card}>
         {lines.map((line, index) => (
-          <Text key={index} color="userPromptLabel" bold wrap="truncate-end">
+          <Text key={index} color={card.foregroundColor ?? 'userPromptLabel'} bold={card.style.bold} wrap="truncate-end">
             {index === 0 ? `${POINTER} ` : continuationIndent}
             {line}
           </Text>

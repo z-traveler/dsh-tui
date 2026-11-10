@@ -29,7 +29,7 @@ export function PowerlineWorking({ channel, line, suffix, uploadTokens, elapsed 
   const phase = `${text}${suffix ? ` · ${suffix}` : ''}`
   const budget = Math.max(0, columns - 3 - stringWidth(tail))
   const shown = stringWidth(phase) > budget ? `${truncateToWidth(phase, Math.max(0, budget - 1))}…` : phase
-  return <TooltipTarget content={phase}><Box ref={ref} marginTop={1} marginBottom={1} paddingLeft={1} width="100%" height={1} overflow="hidden">
+  return <TooltipTarget content={phase}><Box ref={ref} marginTop={1} paddingLeft={1} width="100%" height={1} overflow="hidden">
     <Text wrap="truncate-end"><Text color="accent">{FRAMES[Math.floor(time / 80) % FRAMES.length]} </Text>
       <Text dimColor>{shown}{tail}</Text>
     </Text>
