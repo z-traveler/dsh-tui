@@ -12,6 +12,8 @@
  *
  * Run: node --import tsx/esm scripts/verify-thinking-tokens.tsx
  */
+import { settled } from './lib/term-test.mjs'
+
 process.env.FORCE_COLOR = '3'
 
 const [{ Writable }, React, { Terminal: XTerm }, { render, Box, Text }, { AssistantThinkingMessage }, { setLang, t }, { createProjectorHarness }] =
@@ -25,6 +27,8 @@ const [{ Writable }, React, { Terminal: XTerm }, { render, Box, Text }, { Assist
     import('./lib/projector-harness.js'),
   ])
 
+const { formatTokens } = await import('../src/terminal-utils/format.js')
+
 const COLS = 48
 const ROWS = 10
 let passed = 0
@@ -35,7 +39,8 @@ const check = (label: string, ok: boolean, detail = ''): void => {
 }
 
 type Props = Parameters<typeof AssistantThinkingMessage>[0]
-async function renderRow(props: Omit<Props, 'marginTopOnTurn' | 'verbose'> & { verbose?: boolean }): Promise<string[]> {
+type RowProps = Omit<Props, 'marginTopOnTurn' | 'verbose'> & { verbose?: boolean }
+async function renderRow(props: RowProps, updates: readonly RowProps[] = []): Promise<string[]> {
   const term = new XTerm({ cols: COLS, rows: ROWS, scrollback: 0, allowProposedApi: true })
   class FakeStdout extends Writable {
     columns = COLS
@@ -45,18 +50,39 @@ async function renderRow(props: Omit<Props, 'marginTopOnTurn' | 'verbose'> & { v
       term.write(String(chunk), callback)
     }
   }
-  const app = await render(
+  const tree = (row: RowProps) => (
     <Box flexDirection="column" width={COLS}>
-      <AssistantThinkingMessage marginTopOnTurn={false} verbose={false} {...props} />
+      <AssistantThinkingMessage marginTopOnTurn={false} verbose={false} {...row} />
       <Box height={1}><Text>row-sentinel</Text></Box>
-    </Box>,
+    </Box>
+  )
+  const app = await render(tree(props),
     { stdout: new FakeStdout() as NodeJS.WriteStream, exitOnCtrlC: false, patchConsole: false },
   )
-  await new Promise(resolve => setTimeout(resolve, 100))
-  const lines = Array.from({ length: ROWS }, (_, y) => term.buffer.active.getLine(y)?.translateToString(true) ?? '')
-  await app.unmount()
-  term.dispose()
-  return lines
+  let renderError: unknown
+  const exit = app.waitUntilExit().catch(error => { renderError = error })
+  const lines = () => Array.from({ length: ROWS }, (_, y) => term.buffer.active.getLine(y)?.translateToString(true) ?? '')
+  try {
+    for (const [index, row] of [props, ...updates].entries()) {
+      if (index > 0) app.rerender(tree(row))
+      const expected = row.thinking
+        ? row.verbose ? row.thinking : t('thinking-label')
+        : row.reasoningTokens === undefined ? 'row-sentinel'
+          : t(row.streaming ? 'thinking-tokens-live' : 'thinking-tokens-done', { n: formatTokens(row.reasoningTokens) })
+      const visible = await settled(() => renderError !== undefined || (
+        !row.thinking && row.reasoningTokens === undefined
+          ? lines()[0]!.includes('row-sentinel')
+          : lines().some(line => line.includes(expected))
+      ))
+      if (renderError !== undefined) throw renderError
+      if (!visible) throw new Error(`thinking stage ${index} missing ${expected}\n${lines().join('\n')}`)
+    }
+    return lines()
+  } finally {
+    await app.unmount()
+    await exit
+    term.dispose()
+  }
 }
 
 // The projector produces the row the transcript renders.
@@ -94,6 +120,20 @@ for (const lang of ['en', 'zh'] as const) {
 
   const withText = await renderRow({ thinking: 'actual reasoning text', reasoningTokens: 1234, streaming: false, verbose: true })
   check(`${lang}: text wins over the count`, withText.some(line => line.includes('actual reasoning text')) && !withText.some(line => line.includes(doneText)), withText.join('\n'))
+
+  // Keep the SAME mounted component: isolated mounts miss hook-order crashes
+  // when a model first emits empty reasoning, then streams actual text.
+  for (const reasoningTokens of [undefined, 1234]) {
+    const transitioned = await renderRow(
+      { thinking: '', reasoningTokens, streaming: true },
+      [
+        { thinking: 'first reasoning', streaming: true, verbose: true },
+        { thinking: '', reasoningTokens, streaming: true },
+        { thinking: 'final reasoning', streaming: false, verbose: true },
+      ],
+    )
+    check(`${lang}: empty (${reasoningTokens ?? 'no count'}) ↔ text preserves mounted hooks`, transitioned.some(line => line.includes('final reasoning')))
+  }
 
   const none = await renderRow({ thinking: '', streaming: false })
   check(`${lang}: no text and no count renders nothing`, none.findIndex(line => line.includes('row-sentinel')) === 0, none.join('\n'))
