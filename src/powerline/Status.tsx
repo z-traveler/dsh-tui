@@ -89,8 +89,20 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
       fields.push({ key, text, width: stringWidth(text), node: field.node, detail: field.tooltip ?? (field.id ? nodeText(detail(field.id)) : text), onClick: field.onClick })
     }
   }
+  // The live job count rides the primary row: as a `signals` entry it added a
+  // whole row to the (height-0 while idle) overflow surface whenever a
+  // foreground command ran, shifting the viewport for the command's duration.
+  const jobsPart = native.find(field => field.key === 'jobs')
+  if (jobsPart !== undefined) {
+    const text = nodeText(jobsPart.node)
+    fields.push({ key: 'jobs', text, width: stringWidth(text), node: jobsPart.node, detail: jobsPart.tooltip ?? nodeText(detail('jobs')), onClick: jobsPart.onClick })
+  }
   const expand = (ids: readonly string[]) => ids.flatMap(id => id === 'plugins' ? pluginLeft : [id])
-  const grouped = { ...options, left: expand(options.left), right: [...pluginHead, ...expand(options.right), ...pluginTail] }
+  const leftIds = expand(options.left)
+  // Right after the model, where the native footer keeps it.
+  const modelAt = leftIds.indexOf('model')
+  if (jobsPart !== undefined) leftIds.splice(modelAt === -1 ? leftIds.length : modelAt + 1, 0, 'jobs')
+  const grouped = { ...options, left: leftIds, right: [...pluginHead, ...expand(options.right), ...pluginTail] }
   const edged = surface !== 'row'
   // Both presentation slots must use the same budget, even though the
   // prompt supplies the painted chip only to its header slot.
@@ -107,7 +119,7 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
     </React.Fragment>)}
     <Text>{' '.repeat(options.padding)}</Text>
   </>
-  const signals = native.filter(field => ['mode', 'jobs', 'goal', 'starting', 'ideSelection'].includes(field.key))
+  const signals = native.filter(field => ['mode', 'goal', 'starting', 'ideSelection'].includes(field.key))
   if (surface === 'overflow') return <Box flexDirection="column" width="100%" flexShrink={0} marginTop={gapBefore ? 1 : 0}>
     {layout.secondary.map((items, index) => <Box key={index} flexDirection="row" height={1} overflow="hidden">{row(items)}</Box>)}
     {signals.length > 0 && <Box flexDirection="row" overflow="hidden">{signals.map(field => <Box key={field.key} marginRight={1} onClick={field.onClick}>{field.node}</Box>)}</Box>}
