@@ -167,11 +167,17 @@ interface RenderState {
    * indent so the ladder advances by one marker width per level.
    */
   readonly hang: number
+  /**
+   * Render raw HTML tokens as their literal source. Off by default: chat
+   * prose hides HTML wrappers, while a recorded card body must not lose the
+   * text they enclose (an instruction wrapper would otherwise disappear).
+   */
+  readonly preserveHtml: boolean
 }
 
 /** A fresh context for block-level children: list state reset, no parent. */
 function fresh(state: RenderState): RenderState {
-  return { highlight: state.highlight, parent: null, listDepth: 0, ordinal: null, quoteDepth: 0, hang: 0 }
+  return { highlight: state.highlight, parent: null, listDepth: 0, ordinal: null, quoteDepth: 0, hang: 0, preserveHtml: state.preserveHtml }
 }
 
 /** Same context, different parent token. */
@@ -191,6 +197,7 @@ function inlineChildren(state: RenderState): RenderState {
  * @param orderedListNumber - Current ordinal of the enclosing ordered list item, or null for unordered lists.
  * @param parent - The parent token; linkification is skipped inside links and prefixes are added inside list items.
  * @param highlight - Optional cli-highlight surface for code blocks; null disables syntax highlighting.
+ * @param preserveHtml - Render raw HTML tokens as literal source (off: HTML wrappers stay invisible).
  * @returns The rendered ANSI string for the token, or '' for unrendered token types.
  */
 export function formatToken(
@@ -199,6 +206,7 @@ export function formatToken(
   orderedListNumber: number | null = null,
   parent: Token | null = null,
   highlight: CliHighlight | null = null,
+  preserveHtml = false,
 ): string {
   return dispatch(token, {
     highlight,
@@ -207,6 +215,7 @@ export function formatToken(
     ordinal: orderedListNumber,
     quoteDepth: 0,
     hang: 0,
+    preserveHtml,
   })
 }
 
@@ -228,6 +237,7 @@ export function applyMarkdown(
     ordinal: null,
     quoteDepth: 0,
     hang: 0,
+    preserveHtml: false,
   }
   return marked
     .lexer(stripPromptXMLTags(content))
@@ -276,10 +286,10 @@ function dispatch(token: Token, state: RenderState): string {
   // Top-level math blocks are standalone MathBlock nodes; this path only
   // sees blocks nested in list items / blockquotes (or formatToken callers).
   if (isMathBlockToken(token)) return renderNestedMathBlock(token)
-  if (isToken(token, 'def') || isToken(token, 'html')) {
-    // Link definitions and raw HTML carry no ANSI representation.
-    return ''
-  }
+  if (isToken(token, 'def')) return ''
+  // Raw HTML carries no ANSI representation: invisible unless the caller wants
+  // the literal source (a recorded card body keeps the text it wraps).
+  if (isToken(token, 'html')) return state.preserveHtml ? token.raw : ''
   // Unknown token types (a marked upgrade or extension) echo their raw
   // source instead of silently dropping it; verify-markdown-token-coverage
   // fails until the type gets a renderer or an explicit ignore.

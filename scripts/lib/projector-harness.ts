@@ -26,7 +26,18 @@ export interface ProjectorHarness {
   apply(events: readonly AgentEvent[], replay?: boolean): void
 }
 
-export function createProjectorHarness(options: { agentPreset?: string; thinkingFold?: 'preview' | 'full'; model?: string; activity?: boolean; now?: () => number } = {}): ProjectorHarness {
+export function createProjectorHarness(options: {
+  agentPreset?: string
+  thinkingFold?: 'preview' | 'full'
+  model?: string
+  activity?: boolean
+  now?: () => number
+  /** The deployment switch (`sessionCards`) the live channel passes. */
+  sessionCards?: boolean
+  /** The host renderer seam (custom entry renderers + Custom Card presenters),
+   *  read per event exactly as the channel's late host row is. */
+  renderer?: ProjectionArgs[1]['renderer']
+} = {}): ProjectorHarness {
   const view = createInitialChannelView(
     { model: options.model ?? 'fixture-model', provider: 'fixture', cwd: '/fixture', agentPreset: options.agentPreset, thinkingFold: options.thinkingFold },
     { agentId: 'fixture-agent', sessionId: 'fixture-session', mode: { id: 'normal', name: 'Normal' } as never, cwdDescription: '/fixture' },
@@ -53,6 +64,8 @@ export function createProjectorHarness(options: { agentPreset?: string; thinking
     inputConvergence: { cancelInFlight: false },
     selectionAttached: () => undefined,
     ...(activity === undefined ? {} : { activity }),
+    ...(options.sessionCards === undefined ? {} : { sessionCards: options.sessionCards }),
+    ...(options.renderer === undefined ? {} : { renderer: options.renderer }),
   })
   return {
     state,

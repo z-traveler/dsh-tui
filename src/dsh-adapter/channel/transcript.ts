@@ -1,5 +1,7 @@
 import { type SessionEvent } from '@deepseek-ai/dsh-session'
-import { toolResultPayload, skillInvocationName } from '../compat/messages.js'
+import { releaseCardSnapshot } from '../../channel/card-row.js'
+import { toolResultPayload } from '../compat/messages.js'
+import { sessionCardRestore } from './session-card-restore.js'
 import { t } from '../../i18n.js'
 import type { ChatRow, ToolResultView, ToolViewPresenter } from './types.js'
 import { markChannelReadDirty } from '../../adapter/channel/read-view.js'
@@ -11,9 +13,8 @@ export { ARGS_PREVIEW_LIMIT, LOCAL_OUTPUT_LIMIT, MAX_ROWS, preview, previewInden
 
 /**
  * Fold the oldest rows beyond the transcript window cap: drop each row's
- * full-text fields (assistant/reasoning text, tool args/results, a command
- * result's, skill body's or context notice's text) and keep only its preview text, kind, id,
- * and seq. Bounds the TUI's retained text
+ * full-text fields (assistant/reasoning text, tool args/results) and keep
+ * only its preview text, kind, id, and seq. Bounds the TUI's retained text
  * without touching the session log (the source of truth for /export and
  * loadOlder). Small local/notice/interrupt rows are left intact (they hold
  * terminal-local text the log cannot restore). Restored rows are exempt so
@@ -55,7 +56,7 @@ export function foldRows(
   let folded = 0
   for (const row of rows.slice(from, excess)) {
     if (row.folded || row.restored) continue
-    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool' && row.kind !== 'command' && row.kind !== 'skill' && row.kind !== 'context-notice') continue
+    if (row.kind !== 'user' && row.kind !== 'assistant' && row.kind !== 'reasoning' && row.kind !== 'tool' && row.kind !== 'command' && row.kind !== 'skill' && row.kind !== 'context-notice' && row.kind !== 'card') continue
     if (restorable !== undefined && !restorable(row)) continue
     row.folded = true
     folded += 1
@@ -72,6 +73,9 @@ export function foldRows(
       // text lives in the session log and is restored by loadOlder().
       row.text = preview(row.text, 200)
     }
+    // A card row also drops its full presentation: the log holds every
+    // snapshot, and the identity plus this preview keep the row in place.
+    releaseCardSnapshot(row)
     markChannelReadDirty(row)
     markChannelReadDirty(rows)
   }
@@ -96,14 +100,14 @@ export function foldBack(rows: ChatRow[], events: readonly SessionEvent[], views
   const firstFoldedSeq = folded[0]?.seq ?? 0
   const restoreEvents = events.filter(event => event.seq >= firstFoldedSeq)
   // tool results are matched by callId, not seq, because the result event
-  // seq differs from the call event seq that anchored the row. A command
-  // card is matched the same way, by its `commandId` pairing id.
+  // seq differs from the call event seq that anchored the row.
   const resultsByCall = new Map<string, SessionEvent<'tool/result'>>()
   for (const event of restoreEvents) {
     if (event.type === 'tool/result') {
       resultsByCall.set(event.data.message.source.callId, event)
     }
   }
+  const facts = sessionCardRestore(restoreEvents, events, views)
   let restored = 0
   for (const row of folded) {
     const rowSeq = row.seq
@@ -126,41 +130,12 @@ export function foldBack(rows: ChatRow[], events: readonly SessionEvent[], views
       restored += 1
       continue
     }
-    if (row.kind === 'command' && row.command !== undefined) {
-      // The settled record owns the body: it is found by the same `commandId`
-      // the card was built from (the run record only names it, so the folded
-      // row keeps that metadata and drops just the text).
-      const done = restoreEvents.find(event => event.type === 'command/done' && event.data.commandId === row.command?.commandId)
-      if (done === undefined || done.type !== 'command/done') continue
-      row.text = done.data.text ?? ''
-      row.folded = false
-      markChannelReadDirty(row)
-      markChannelReadDirty(rows)
-      restored += 1
-      continue
-    }
-    if (row.kind === 'skill') {
-      // The injected user/message at the row's own seq carries the saved body.
-      const load = restoreEvents.find(event => event.seq === rowSeq && event.type === 'user/message' && skillInvocationName(event.data.source) !== undefined)
-      if (load === undefined || load.type !== 'user/message') continue
-      restoreRowFromEvent(row, load)
-      row.folded = false
-      markChannelReadDirty(row)
-      markChannelReadDirty(rows)
-      restored += 1
-      continue
-    }
-    if (row.kind === 'context-notice') {
-      // The durable notice message at the row's own seq owns the full body;
-      // its message id and summary stay on the row (the log only restores the
-      // text the folded window dropped).
-      const notice = restoreEvents.find(event => event.seq === rowSeq && event.type === 'user/message')
-      if (notice === undefined || notice.type !== 'user/message') continue
-      restoreRowFromEvent(row, notice)
-      row.folded = false
-      markChannelReadDirty(row)
-      markChannelReadDirty(rows)
-      restored += 1
+    const fact = facts(row)
+    if (fact !== undefined) {
+      if (fact) {
+        markChannelReadDirty(rows)
+        restored += 1
+      }
       continue
     }
     // Text rows are anchored on their first delta chunk; the settled
@@ -203,16 +178,6 @@ export function restoreRowFromEvent(row: ChatRow, event: SessionEvent): void {
     case 'tool': {
       if (event.type !== 'tool/call' || row.tool === undefined) break
       row.tool.argsFull = event.data.arguments
-      break
-    }
-    case 'skill':
-    case 'context-notice': {
-      // A skill/context-notice card's saved body is the user/message content
-      // at the row's own seq.
-      if (event.type !== 'user/message') break
-      const body = event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
-      if (row.kind === 'context-notice') row.text = body
-      else if (body.trim()) row.text = body.trim()
       break
     }
     default:

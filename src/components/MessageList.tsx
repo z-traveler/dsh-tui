@@ -10,9 +10,7 @@ import type { TranscriptImage } from '../dsh-adapter/transcript-images.js'
 import type { DOMElement } from '../ink/dom.js'
 import { Divider } from './design-system/Divider.js'
 import { UserPromptMessage } from './messages/UserPromptMessage.js'
-import { CommandCardRow } from './messages/CommandCardRow.js'
-import { SkillCardRow } from './messages/SkillCardRow.js'
-import { ContextNoticeCardRow } from './messages/ContextNoticeCardRow.js'
+import { isSessionCardKind, pushSessionCardSignature, SessionCardRow, sessionCardFields, type SessionCardFields } from './messages/SessionCardRow.js'
 import { TeamMessageBubble } from './messages/TeamMessageBubble.js'
 import { AssistantTextLeafRow, ThinkingLeafRow, ToolLeafRow } from './messages/TranscriptLeaves.js'
 import { liveOutputMaxLines, liveOutputRows } from './messages/liveOutputLines.js'
@@ -39,8 +37,7 @@ import { useRevealScope } from './revealScope.js'
 import { useRevealVersion } from '../hooks/useRevealVersion.js'
 import { TranscriptImages } from './messages/TranscriptImages.js'
 import { cardMarginTop, useCardSurface } from './cardSurface.js'
-import { CardBox, hashJobProgress, jobFoldDefaultSig, jobGroupOpened, useTranscriptCardStyles } from './transcriptCards.js'
-import { cardRowExpanded, type CardKind } from '../cardStyles.js'
+import { CardBox, cardBreathing, cardKindOf, hashJobProgress, jobFoldDefaultSig, jobGroupOpened, transcriptRowExpanded, useTranscriptCardStyles } from './transcriptCards.js'
 import { primaryComboString } from '../utils/keymap.js'
 
 /**
@@ -109,24 +106,6 @@ function isTurnRow(row: ChatRow): boolean {
  *  undefined for every other row, which renders as the human's prompt. */
 function teamSenderOf(row: ChatRow): string | undefined {
   return row.label === 'team-message' ? row.sender ?? '' : undefined
-}
-
-/** Transcript row kind → card style kind (cardStyles.ts). The style taxonomy
- *  is coarser than the transcript's: thinking is the `thinking` card, the
- *  compaction summary is `summary`, context notices are `notice`, and ordinary
- *  notices / interrupts / local echoes / the turn ledger draw as `other`. */
-function cardKindOf(kind: ChatRow['kind']): CardKind {
-  switch (kind) {
-    case 'user': return 'user'
-    case 'assistant': return 'assistant'
-    case 'reasoning': return 'thinking'
-    case 'tool': return 'tool'
-    case 'subagent': return 'subagent'
-    case 'job': return 'job'
-    case 'compact': return 'summary'
-    case 'context-notice': return 'notice'
-    default: return 'other'
-  }
 }
 
 /** Keep a settled text-only reply visible when narration is its whole body. */
@@ -352,26 +331,10 @@ function signatureParts(
       break
     }
     case 'command':
-      // Collapsed headline+summary vs the recorded body painted whole: both
-      // expansion switches, the command line's own text and (only while
-      // expanded) the body length decide the height. `displayTextLen` above is
-      // the body length, which a window fold lowers to the preview.
-      signatureScratch.push(
-        expanded,
-        expandedRows.has(row.id),
-        row.command?.name ?? '',
-        row.command?.args ?? '',
-        row.command?.status ?? '',
-      )
-      break
     case 'skill':
-      // One collapsed line vs the revealed saved body.
-      signatureScratch.push(expanded, expandedRows.has(row.id), row.skill?.name ?? '')
-      break
+    case 'card':
     case 'context-notice':
-      // Collapsed summary vs the revealed saved body; the summary and both
-      // expansion switches are height inputs (preset layout joins cardHeightKey).
-      signatureScratch.push(expanded, expandedRows.has(row.id), row.contextNotice?.source ?? '', row.contextNotice?.summary ?? '')
+      pushSessionCardSignature(signatureScratch, row, expanded, expandedRows.has(row.id))
       break
     case 'compact':
       // Folded one-liner vs full summary text.
@@ -808,11 +771,7 @@ export function MessageList({
       let prev: ChatRow['kind'] | undefined
       for (const row of visibleOut) {
         const member = row.jobGroup !== undefined && !row.jobGroup.head
-        // `minimumGap` adds a real top row even for the first block (pi-like's
-        // breathing space); measured turn tops have to include it. Group
-        // members apply their minimum breathing space inside the card.
-        const breathing = !member && cardStyles.kinds[cardKindOf(row.kind)].minimumGap > 0
-        margins.set(row.id, (prev !== undefined && !member) || breathing)
+        margins.set(row.id, (prev !== undefined && !member) || cardBreathing(cardStyles, row, member))
         prev = row.kind
       }
     }
@@ -1602,19 +1561,6 @@ export function MessageList({
         // spacing; only the very first row of the whole list has none.
           const marginTopOnTurn = margins.get(row.id) === true
           const tool = row.tool
-          // Per-row expansion: the configured `defaultExpanded` is only the
-          // default for a row the user has not toggled (a click/Enter reverses
-          // it), and Ctrl+O still forces every row open. Job rows are the
-          // exception — their default is the GROUP state decided above, and
-          // this flag keeps meaning "the row was toggled" for the card body.
-          const toggled = expandedRows.has(row.id)
-          // A live thinking row's preview/full choice belongs to
-          // `dsh-tui.thinkingFold` and its per-row override, not to the card
-          // default (see CardFold): the default only reaches settled rows.
-          const liveThinking = row.kind === 'reasoning' && (row.streaming === true || row.thinkingOpen === true)
-          const rowExpanded = row.kind === 'job' || liveThinking
-            ? toggled
-            : cardRowExpanded(toggled, cardStyles.kinds[cardKindOf(row.kind)].fold?.defaultExpanded)
           const subagent = row.kind === 'subagent' ? row.subagent : undefined
           const job = row.kind === 'job' ? row.job : undefined
           const jobGroup = row.kind === 'job' ? row.jobGroup : undefined
@@ -1660,7 +1606,7 @@ export function MessageList({
               time={row.time}
               marginTopOnTurn={marginTopOnTurn}
               isSelected={selectedId === row.id}
-              isExpanded={rowExpanded}
+              isExpanded={transcriptRowExpanded(cardStyles, row, expandedRows.has(row.id))}
               expanded={expanded}
               model={model}
               diffLayout={diffLayout}
@@ -1672,12 +1618,7 @@ export function MessageList({
               revealVersion={revealVersion}
               activityFrames={activityFrames}
               background={rowBackground(row.id)}
-              commandName={row.kind === 'command' ? row.command?.name : undefined}
-              commandArgs={row.kind === 'command' ? row.command?.args : undefined}
-              commandStatus={row.kind === 'command' ? row.command?.status : undefined}
-              skillName={row.kind === 'skill' ? row.skill?.name : undefined}
-              contextSource={row.kind === 'context-notice' ? row.contextNotice?.source : undefined}
-              contextSummary={row.kind === 'context-notice' ? row.contextNotice?.summary : undefined}
+              {...sessionCardFields(row)}
               toolCallId={tool?.callId}
               toolName={tool?.name}
               toolArgsText={tool?.argsText}
@@ -1728,7 +1669,7 @@ export function MessageList({
 // Before this, every streamed chunk re-rendered every mounted row (~30-40
 // in the virtualization window) and re-ran each row's markdown pipeline —
 // the dominant long-session jank source.
-type MemoRowProps = {
+type MemoRowProps = SessionCardFields & {
   compactSummaryPreview?: string
   rowId: number
   kind: ChatRow['kind']
@@ -1771,16 +1712,6 @@ type MemoRowProps = {
   /** Working-activity preset name; drives the subagent card's running glyph. */
   activityFrames: string | undefined
   background: 'messageActionsBackground' | undefined
-  /** Command rows: the settled command's identity as the card headlines it. */
-  commandName: string | undefined
-  commandArgs: string | undefined
-  commandStatus: 'success' | 'error' | undefined
-  /** Skill rows: the loaded skill's name. */
-  skillName: string | undefined
-  /** Context-notice rows: durable producer identity, not a renderer selector. */
-  contextSource: string | undefined
-  /** Context-notice rows: the durable summary shown while folded. */
-  contextSummary: string | undefined
   // ToolRow, flattened: the channel writes status/result fields in place,
   // so passing the object itself would make mutations invisible to memo.
   toolCallId: string | undefined
@@ -1881,12 +1812,6 @@ function TranscriptRow({
   foldTerminalCommand,
   activityFrames,
   background,
-  commandName,
-  commandArgs,
-  commandStatus,
-  skillName,
-  contextSource,
-  contextSummary,
   toolCallId,
   toolName,
   toolArgsText,
@@ -1919,6 +1844,7 @@ function TranscriptRow({
   onPreviewImage,
   suppressImageGraphics,
   setRowRef,
+  ...sessionCard
 }: MemoRowProps): React.ReactNode {
   const ref = React.useCallback(
     (el: DOMElement | null): void => {
@@ -1966,7 +1892,7 @@ function TranscriptRow({
   // `lang` is a dependency because the fold marker is localized: a row that
   // re-renders unchanged after /lang must not keep the previous language.
   const lang = getLang()
-  const foldable = kind !== 'reasoning' && kind !== 'tool' && kind !== 'command' && kind !== 'skill' && kind !== 'context-notice'
+  const foldable = kind !== 'reasoning' && kind !== 'tool' && !isSessionCardKind(kind)
   const folded = React.useMemo(
     () => (foldable ? foldLongLines(text) : { text, hiddenChars: 0, foldedLines: 0 }),
     [foldable, text, lang],
@@ -2178,53 +2104,22 @@ function TranscriptRow({
         </CardBox>
       )
     case 'command':
-      if (commandName === undefined || commandStatus === undefined) return null
-      // A settled command result: collapsed headline + one summary row,
-      // expanded the recorded body. The row itself is the disclosure (click),
-      // the same gesture Ctrl+O and selection-Enter drive.
-      return (
-        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
-          <CommandCardRow
-            name={commandName}
-            args={commandArgs}
-            status={commandStatus}
-            text={text}
-            expanded={expanded || isExpanded}
-            background={background}
-            onClick={foldOnClick}
-          />
-        </Box>
-      )
     case 'skill':
-      if (skillName === undefined) return null
-      // A user-explicit skill load: one line while it stays folded, the saved
-      // canonical body once expanded.
-      return (
-        <Box flexDirection="column" ref={ref} marginTop={marginTopOnTurn ? 1 : 0}>
-          <SkillCardRow
-            name={skillName}
-            body={text}
-            expanded={expanded || isExpanded}
-            background={background}
-            onClick={foldOnClick}
-          />
-        </Box>
-      )
+    case 'card':
     case 'context-notice':
-      if (contextSummary === undefined) return null
-      // A generic context notice: a folded summary or the saved complete body.
-      // Its neutral notice face never infers severity from the message text.
       return (
-        <Box flexDirection="column" ref={ref} marginTop={cardMarginTop(marginTopOnTurn, card.style)}>
-          <ContextNoticeCardRow
-            source={contextSource ?? ''}
-            summary={contextSummary}
-            body={text}
-            expanded={expanded || isExpanded}
-            background={background}
-            onClick={foldOnClick}
-          />
-        </Box>
+        <SessionCardRow
+          {...sessionCard}
+          kind={kind}
+          text={text}
+          expanded={expanded || isExpanded}
+          background={background}
+          marginTopOnTurn={marginTopOnTurn}
+          toolBackground={toolBackground}
+          surface={card}
+          boxRef={ref}
+          onClick={foldOnClick}
+        />
       )
     case 'compact':
       // The post-compaction summary defaults to a folded one-liner with a

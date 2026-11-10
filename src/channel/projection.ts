@@ -17,8 +17,9 @@ import type { ChannelUi } from '../adapter/ports/channel-ui.js'
 import type { ChatRow, SelectionAttachment, TodoPanelItem, ToolCallView, TurnOutcome, TurnUsageSummary } from '../adapter/ports/channel-view.js'
 import { markChannelReadDirty } from '../adapter/channel/read-view.js'
 import type { AgentEvent, AgentEventMeta, AgentEventOf, ContentBlockView, GoalSnapshot, ImageRef, UsageDelta } from '../agent/events.js'
-import { t } from '../i18n.js'
+import type { TuiCardRecord, TuiCardView } from '../agent/cards.js'
 import { createSessionCardProjection } from './session-card-projection.js'
+import { t } from '../i18n.js'
 import { logForDebugging } from '../utils/debug.js'
 import { laneOf } from './activity.js'
 import { buildQuestionRecord, parseQuestionRecordAnswers, parseQuestionRecordQuestions } from './question-record.js'
@@ -51,6 +52,12 @@ export interface ProjectionState extends Mutable<Pick<ChannelUi,
 /** Plugin custom-entry renderer (tuiRenderers seam), structurally. */
 export interface ProjectionRenderer {
   render(type: string, data: unknown): { readonly title?: string; readonly lines: readonly unknown[] } | undefined
+  /** Whether a Custom Card business type has a registered presenter (the
+   *  command-result seam asks before taking a command card over). */
+  hasCard?(type: string): boolean
+  /** Present one validated Custom Card snapshot through the host registry;
+   *  absent (a bare embedder) falls back to the snapshot's own readable text. */
+  presentCard?(record: TuiCardRecord): TuiCardView
 }
 
 /** Everything the projector needs from its channel. */
@@ -238,7 +245,7 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
   /** The live toast of each notice key (a repeat replaces it). */
   const keyedToasts = new Map<string, () => void>()
   const appendRow = (row: ChatRow): void => { state.rows.push(row); markChannelReadDirty(state.rows) }
-  const factCards = createSessionCardProjection(deps, appendRow)
+  const factCards = createSessionCardProjection(state, deps, appendRow, touchRow)
   const removeRow = (row: ChatRow): void => {
     const index = state.rows.indexOf(row)
     if (index !== -1) {
@@ -1205,46 +1212,10 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
       case 'user.message':
         applyUserMessage(event)
         return
-      case 'command.result': {
-        // A settled command (core's command/run + command/done, paired by the
-        // backend): one card, unless there is nothing to present. A success
-        // with no text has no outcome to show, and `coveredBySeq` names an
-        // earlier record that already owns this outcome's presentation
-        // (a compaction checkpoint) — a card there would be its duplicate.
-        if (deps.sessionCards !== true) return
-        if (event.text === '' || event.coveredBySeq !== undefined) return
-        appendRow({
-          id: deps.rowIds.value,
-          kind: 'command',
-          text: event.text,
-          seq: event.seq,
-          time: event.time,
-          command: {
-            commandId: event.commandId,
-            name: event.name,
-            ...(event.args === undefined || event.args === '' ? {} : { args: event.args }),
-            status: event.outcome,
-          },
-        })
-        deps.rowIds.value += 1
-        return
-      }
-      case 'skill.invocation': {
-        // A user-explicit skill load. The card shows the canonical body core
-        // injected, verbatim; the switch keeps the upstream hidden injection.
-        if (deps.sessionCards !== true) return
-        appendRow({
-          id: deps.rowIds.value,
-          kind: 'skill',
-          text: event.body,
-          seq: event.seq,
-          time: event.time,
-          skill: { name: event.name },
-        })
-        deps.rowIds.value += 1
-        return
-      }
+      case 'command.result':
+      case 'skill.invocation':
       case 'context.notice':
+      case 'card.upsert':
         factCards.apply(event)
         return
       case 'step.start':
@@ -1684,6 +1655,7 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
     // row is inspected; move it too or the rows above stay hidden behind the
     // previous snapshot.
     if (droppedFresh) markChannelReadDirty(state.rows)
+    factCards.reindex()
     replaying = true
     try {
       for (const event of events) applyEvent(event)
@@ -1701,6 +1673,7 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
     lastReasoningRow = undefined
     toolCards.clear()
     liveTails.clear()
+    factCards.clear()
     askCalls.clear()
     todoCalls.clear()
     settledCardCallId = undefined

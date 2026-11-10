@@ -75,6 +75,9 @@ export function codexEmits(type: AgentEventType): boolean {
     // Codex has no DSH context-form notices: its notices are rendered from
     // their own item shapes, not a `form: 'notice'` source.
     case 'context.notice':
+    // Custom Cards are DSH plugin records; the Codex item stream has no
+    // ignorable-record carrier to read them from.
+    case 'card.upsert':
       return false
     default: {
       const unhandled: never = type

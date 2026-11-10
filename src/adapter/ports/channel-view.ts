@@ -1,4 +1,5 @@
 /** Host-owned in-process Channel contract. No runtime or upstream imports. */
+import type { TuiCardDensity, TuiCardView } from './cards.js'
 
 
 /** Live editor selection projection (IDE selection channel): the editor
@@ -103,7 +104,7 @@ export interface WorkingActivityView {
  */
 export interface ChatRow {
   id: number
-  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'command' | 'skill' | 'context-notice' | 'subagent' | 'job' | 'turn-summary'
+  kind: 'user' | 'assistant' | 'tool' | 'notice' | 'reasoning' | 'interrupt' | 'local' | 'local-output' | 'compact' | 'command' | 'skill' | 'context-notice' | 'card' | 'subagent' | 'job' | 'turn-summary'
   /** Extra label for non-human user rows (e.g. `steering`). */
   label?: string
   /** `user` rows another agent sent (an Agent Teams peer message): its name. */
@@ -133,6 +134,10 @@ export interface ChatRow {
   /** Present on `context-notice` rows; the durable notice identity and its
    *  one-line summary. The row's `text` is the complete saved body. */
   contextNotice?: ContextNoticeRow
+  /** Present on `card` rows, and on a `command`/`skill` row the shared card
+   *  host presents: the Custom Card identity and its current view. The row's
+   *  `text` is the view's readable plain text (search and fold preview). */
+  card?: CardRow
   /** Present on `subagent` rows; the subagent state snapshot. */
   subagent?: SubagentRow
   /** Present on `job` rows; the background-job state snapshot. */
@@ -220,6 +225,28 @@ export interface ContextNoticeRow {
   readonly messageId: string
   /** The producer's one-line account of what happened. */
   readonly summary: string
+}
+
+/**
+ * One Custom Card row (a producer's dedicated card record). Its identity is
+ * the business `(type, id)` pair, not the row id: a later committed snapshot
+ * with the same pair replaces this row's `view` in place — same position, same
+ * row id, no second card. `view` is the host presenter's frozen output for the
+ * latest snapshot; it is absent while the transcript window folded the row (the
+ * log restores it).
+ */
+export interface CardRow {
+  /** Namespaced business type (`owner/kind`) the presenter registry keys on. */
+  readonly type: string
+  /** Producer-chosen identity, stable across the card's content updates. */
+  readonly id: string
+  /** Committed seq of the applied snapshot — the ordering/dedupe fence. */
+  readonly latestSeq: number
+  /** The latest presentation; absent on a folded row until the log restores it. */
+  view?: TuiCardView
+  /** The presentation density, kept while `view` is folded away: the folded
+   *  preview draws in the same card shell, so it must not change face. */
+  density?: TuiCardDensity
 }
 
 /** Tool-call card state: the presentation of one tool invocation. */

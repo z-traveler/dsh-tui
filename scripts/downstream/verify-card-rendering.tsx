@@ -771,20 +771,26 @@ console.log('--- P4: bordered subagent clips inside its own indent ---')
 console.log('--- D: diff body presentation ---')
 const EDIT_DIFFS = [{ path: '/tmp/edit.ts', oldText: 'const a = 1\nkeep()', newText: 'const a = 2\nkeep()' }]
 const PATCH_DIFFS = [{ path: '/tmp/edit.ts', patch: ['@@ -1,2 +1,2 @@', '-const a = 1', '+const a = 2', ' keep()'].join('\n') }]
-function editRow(id: number, diffs: Row[] | Record<string, unknown>[], status: 'ok' | 'running' | 'error' = 'ok'): Row {
+function editRow(
+  id: number,
+  diffs: Row[] | Record<string, unknown>[],
+  status: 'ok' | 'running' | 'error' = 'ok',
+  name: 'edit' | 'write' = 'edit',
+): Row {
+  const title = `${name === 'write' ? 'Write' : 'Edit'} /tmp/${name}.ts`
   return {
     id,
     kind: 'tool',
-    text: 'edit',
+    text: name,
     tool: {
-      callId: `edit-${id}`,
-      name: 'edit',
+      callId: `${name}-${id}`,
+      name,
       argsText: '{}',
       status,
       startedAt: NOW - 100,
       ...(status === 'running' ? {} : { durationMs: 100 }),
-      callView: { card: 'diff', title: 'Edit /tmp/edit.ts', diffs },
-      ...(status === 'ok' ? { resultView: { card: 'diff', title: 'Edit /tmp/edit.ts', diffs }, resultFull: 'ok' } : {}),
+      callView: { card: 'diff', title, diffs },
+      ...(status === 'ok' ? { resultView: { card: 'diff', title, diffs }, resultFull: 'ok' } : {}),
     },
   }
 }
@@ -839,6 +845,18 @@ const SPLIT_DIVIDER_X = 60
       wordContrast(frame, delX, delY) >= diffContrastFloor() && wordContrast(frame, addX, addY) >= diffContrastFloor(),
       `del=${wordContrast(frame, delX, delY).toFixed(2)} add=${wordContrast(frame, addX, addY).toFixed(2)}`)
     check('D unified 80：没有整片 palette59 中灰', !frame.paintsInRow(delY).has('palette:59'))
+  })
+  // A file written from scratch has no before-image and no syntax highlighting,
+  // so pinning it to the bare terminal would only strip the face from every body
+  // row and leave the header a lone strip.
+  const NEW_FILE_DIFFS = [{ path: '/tmp/write.ts', oldText: null, newText: 'hello\nworld' }]
+  await withTerminal(80, listOf([editRow(9, NEW_FILE_DIFFS, 'ok', 'write')]), async (frame) => {
+    check('D unified 80 write：新建文件卡与正文在屏上', await ready(frame, 'Write /tmp/write.ts', '+hello', '+world'))
+    const header = frame.rowOf('Write /tmp/write.ts')
+    const body = frame.rowOf('+hello')
+    check('D unified 80 write：整卡保留成功状态面（正文不贴回终端底）',
+      frame.bg(0, header) === face.success && frame.bg(0, body) === face.success && frame.bg(79, body) === face.success,
+      `header=${frame.bg(0, header)} body=${frame.bg(0, body)}/${frame.bg(79, body)} want=${face.success}`)
   })
   await withTerminal(80, listOf([editRow(2, PATCH_DIFFS)]), async (frame) => {
     check('D unified 80 patch：正文在屏上', await ready(frame, 'const a = 1', 'const a = 2'))

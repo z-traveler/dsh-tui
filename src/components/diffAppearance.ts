@@ -30,6 +30,9 @@ import type { Theme } from '../theme.js'
 import { contrastRatio, parseFixedColor } from '../theme.js'
 import { mix } from '../trajectory/motion.js'
 import type { CardSurface } from './cardSurface.js'
+import { isPatchDiff } from './diffPatch.js'
+import type { ToolFileDiff } from '../dsh-adapter/channel.js'
+import type { ToolBackground } from '../tuiDisplayPrefs.js'
 import chalk from 'chalk'
 
 /** diff 增删词的对比门槛；上下文保持原语法色，低色档限制见下文。 */
@@ -315,3 +318,44 @@ export function diffBodyAppearance(
   }
 }
 
+/**
+ * 工具卡（`AssistantToolUseMessage`）接入卡面后的三份底色数据：根行的普通
+ * 底色（卡面）、split 上下文窗格沿用的 `toolBackground`，以及 diff 正文呈现。
+ * 选中/悬停的根行高亮仍由卡片自己优先；这里按同一组条件解析出真实高亮底，
+ * 供 diff 词色对比使用，二者不会不一致。
+ */
+export function toolCardAppearance(card: CardSurface, options: {
+  readonly toolBackground: ToolBackground
+  readonly isSelected: boolean
+  readonly isExpanded: boolean
+  readonly hoverTint: boolean
+  /** diff 卡的正文行；不是 diff 卡或是错误正文时为 `undefined`。 */
+  readonly diffs: readonly ToolFileDiff[] | undefined
+}): {
+  readonly ordinaryBackground: Color | undefined
+  readonly ordinaryToolBackground: ToolBackground
+  readonly diffBody: DiffBodyAppearance
+} {
+  const { theme } = card
+  const { toolBackground, isSelected, isExpanded } = options
+  const highlight = (isSelected
+    ? theme.messageActionsBackground
+    : options.hoverTint
+      ? theme.toolCardBackground
+      : undefined) as Color | undefined
+  // 只有真的带对比的正文才贴上那层代码底：新建文件的 write 全是 `+` 行、也没有
+  // 语法高亮，贴底只会把卡面从每一行正文剥掉、只剩卡头一条色带。判据：patch
+  // 或带旧文的 old/new 对。
+  const diffBody = diffBodyAppearance(card, theme, {
+    active: options.diffs?.some(line => isPatchDiff(line) || line.oldText !== null) === true,
+    highlight,
+  })
+  // pi-like 与个人卡面让上下文窗格透出卡面；默认 legacy 卡保留原来的折叠
+  // 上下文底色（含悬停）。
+  const legacyBackground = toolBackground === 'subtle' ? theme.toolCardBackgroundDim
+    : toolBackground === 'strong' ? theme.toolCardBackground : undefined
+  const ordinaryToolBackground = card.preset === 'legacy' && !isSelected && !isExpanded
+    && card.style.states === undefined && card.backgroundColor === legacyBackground
+    ? toolBackground : 'none'
+  return { ordinaryBackground: card.backgroundColor, ordinaryToolBackground, diffBody }
+}
