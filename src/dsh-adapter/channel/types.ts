@@ -8,6 +8,7 @@ import {
   type StreamChunk
 } from '@deepseek-ai/dsh-llm'
 import { type SessionEvent } from '@deepseek-ai/dsh-session'
+import type { TuiCardRecord, TuiCardView } from '../../agent/cards.js'
 import { type CommandCompletion, type LocalCommand } from '../../commands.js'
 import type { SpinnerMode } from '../../components/Spinner/spinnerMode.js'
 import { type BalanceResult } from '../../deepseekBalance.js'
@@ -64,6 +65,10 @@ export interface ToolsRegistryLike {
 export interface ToolViewPresenter {
   call(name: string, rawArgs: string): ToolCallView | undefined
   result(name: string, rawArgs: string, data: SessionEvent<'tool/result'>['data']): ToolResultView | undefined
+  /** Present a Custom Card snapshot back into its row. Read on every restore,
+   *  so a presenter registered after the fold still applies; absent (a bare
+   *  embedder) falls back to the snapshot's own readable text. */
+  card?(record: TuiCardRecord): TuiCardView
 }
 /** Raw host implementation; the renderer receives ChannelUi instead. */
 export interface Channel extends Omit<ChannelUi, 'pluginScene' | 'traceEvents' | 'trajectorySource' | 'trajectoryLaneEvents'> {

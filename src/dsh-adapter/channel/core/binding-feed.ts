@@ -335,6 +335,9 @@ export function createBindingFeed(ctx: { readonly logger: ChannelHostLogger }, d
   // job feed and pricing policy before any event is projected.
   const projectorDeps: ChannelProjectionDeps = {
     ...deps.projection, inputConvergence,
+    // Profile services can mount after the standalone channel. A spread would
+    // freeze the renderer getter at its startup value (often undefined).
+    get renderer() { return deps.projection.renderer },
     backendLabel: () => state.backendCapabilities.backendId === 'dsh' ? undefined : state.backendCapabilities.backendLabel,
   }
   const projector = createChannelProjection(state, projectorDeps)

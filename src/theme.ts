@@ -80,6 +80,11 @@ export type Theme = {
   // shade, diff context rows the lighter one, changed rows the diff palette)
   toolCardBackground: string
   toolCardBackgroundDim: string
+  // Pi-like custom/skill card roles, distinct from tool execution surfaces.
+  customMessageBackground: string
+  customMessageLabel: string
+  customMessageText: string
+  customMessageHint: string
   // Tool status dots, by tool category (error always wins with a red ✗)
   toolDotExec: string
   toolDotRead: string
@@ -358,6 +363,10 @@ const darkTheme: Theme = {
   diffRemovedWord: rgb('#B26671'),
   toolCardBackground: rgb('#242B3A'), // lighter blue-grey card surface
   toolCardBackgroundDim: rgb('#1C2330'), // deeper blue substrate
+  customMessageBackground: rgb('#3A3055'),
+  customMessageLabel: rgb('#A798D7'),
+  customMessageText: rgb('#9DA5A9'),
+  customMessageHint: rgb('#7E888E'),
   toolDotExec: rgb('#7FAE99'), // sage green — bash/pwsh
   toolDotRead: rgb('#82B8C7'), // cyan blue — read/grep/glob
   toolDotWrite: rgb('#B3A0D4'), // soft violet — edit/write
@@ -544,6 +553,10 @@ const lightTheme: Theme = {
   diffRemovedWord: rgb('#E5B3AE'),
   toolCardBackground: rgb('#FFFFFF'), // neutral white panel surface
   toolCardBackgroundDim: rgb('#FFFFFF'), // white tool-card substrate
+  customMessageBackground: rgb('#E6E4EE'),
+  customMessageLabel: rgb('#7459B4'),
+  customMessageText: rgb('#677176'),
+  customMessageHint: rgb('#879095'),
   toolDotExec: rgb('#4E7A4E'),
   toolDotRead: rgb('#3F7E8F'),
   toolDotWrite: rgb('#7A5CA8'),
@@ -913,6 +926,10 @@ const darkAnsiTheme: Theme = {
   diffRemovedWord: 'ansi:redBright',
   toolCardBackground: 'ansi:blackBright',
   toolCardBackgroundDim: 'ansi:black',
+  customMessageBackground: 'ansi:magenta',
+  customMessageLabel: 'ansi:magentaBright',
+  customMessageText: 'ansi:white',
+  customMessageHint: 'ansi:blackBright',
   toolDotExec: 'ansi:greenBright',
   toolDotRead: 'ansi:cyanBright',
   toolDotWrite: 'ansi:magentaBright',
@@ -1021,6 +1038,10 @@ const pinkNightTheme: Theme = {
   diffRemovedWord: rgb('#C96B7B'),
   toolCardBackground: rgb('#2E2229'),
   toolCardBackgroundDim: rgb('#241A20'),
+  customMessageBackground: darkTheme.customMessageBackground,
+  customMessageLabel: darkTheme.customMessageLabel,
+  customMessageText: darkTheme.customMessageText,
+  customMessageHint: darkTheme.customMessageHint,
   toolDotExec: rgb('#7FB596'),
   toolDotRead: rgb('#7FB6C9'),
   toolDotWrite: rgb('#C29BDF'),
@@ -1111,6 +1132,10 @@ const pinkDayTheme: Theme = {
   diffRemovedWord: rgb('#E6A3B0'),
   toolCardBackground: rgb('#F9ECF1'),
   toolCardBackgroundDim: rgb('#F2E0E9'),
+  customMessageBackground: lightTheme.customMessageBackground,
+  customMessageLabel: lightTheme.customMessageLabel,
+  customMessageText: lightTheme.customMessageText,
+  customMessageHint: lightTheme.customMessageHint,
   toolDotExec: rgb('#4E7A5A'),
   toolDotRead: rgb('#3F7E8F'),
   toolDotWrite: rgb('#7A5CA8'),
@@ -1165,8 +1190,8 @@ const pinkDayTheme: Theme = {
 /**
  * Sakura Pink in the 16 standard ANSI colors, for terminals without truecolor.
  * Magenta carries brand, matching the truecolor variants. Role base:
- * `dark-ansi`, deliberately: the 16-color space has no pink slots, so 56 of
- * the 81 keys are the base's own values and only the ones listed here shift.
+ * `dark-ansi`, deliberately: the 16-color space has no pink slots, so most
+ * roles keep the base's values and only the ones listed here shift.
  * `cursor` stays empty like every other built-in (the inverse-video caret).
  */
 const pinkAnsiTheme: Theme = {

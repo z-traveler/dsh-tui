@@ -17,9 +17,11 @@
 import { markChannelReadDirty } from '../adapter/channel/read-view.js'
 import type { BackgroundJobState, ChatRow, SubagentState, ToolCallView } from '../adapter/ports/channel-view.js'
 import type { AgentEvent, AgentEventOf } from '../agent/events.js'
+import type { TuiCardRecord, TuiCardView } from '../agent/cards.js'
 import { isSuppressedPresentation } from '../agent/presentation.js'
 import { createActivityProjection } from './activity.js'
-import { createChannelProjection, textOfBlocks, type ProjectionState } from './projection.js'
+import { latestCardUpserts, restoreCardRow, withoutShownCards } from './card-row.js'
+import { createChannelProjection, textOfBlocks, type ProjectionState, type ProjectionRenderer } from './projection.js'
 
 /** Whether the durable record can restore a row (the fold predicate). */
 export function anchoredRow(row: ChatRow): boolean {
@@ -30,13 +32,22 @@ export function anchoredRow(row: ChatRow): boolean {
     case 'assistant':
     case 'reasoning':
       return row.anchor !== undefined
+    case 'card':
+      // A card's identity is in the record, so any snapshot of it restores.
+      return row.card !== undefined
     default:
       return false
   }
 }
 
-/** Restore folded rows from a durable record; returns the rows restored. */
-export function restoreFoldedRows(rows: ChatRow[], record: readonly AgentEvent[]): number {
+/** Restore folded rows from a durable record; returns the rows restored.
+ *  `present` re-derives a Custom Card row's view (the host registry's current
+ *  presenter): a fold drops the presentation, not the card. */
+export function restoreFoldedRows(
+  rows: ChatRow[],
+  record: readonly AgentEvent[],
+  present?: (record: TuiCardRecord) => TuiCardView | undefined,
+): number {
   const folded = rows.filter(row => row.folded === true)
   if (folded.length === 0) return 0
   const users = new Map<string, string>()
@@ -66,6 +77,7 @@ export function restoreFoldedRows(rows: ChatRow[], record: readonly AgentEvent[]
         break
     }
   }
+  const cards = latestCardUpserts(record)
   let restored = 0
   for (const row of folded) {
     let found = false
@@ -108,6 +120,9 @@ export function restoreFoldedRows(rows: ChatRow[], record: readonly AgentEvent[]
         found = true
         break
       }
+      case 'card':
+        found = restoreCardRow(row, cards, present)
+        break
       default:
         break
     }
@@ -162,7 +177,11 @@ function scratchState(thinkingFold: ProjectionState['thinkingFold']): Projection
 }
 
 /** Paint an older history slice into fresh rows (settled, no live effects). */
-export function projectHistorySlice(events: readonly AgentEvent[], thinkingFold: ProjectionState['thinkingFold']): ChatRow[] {
+export function projectHistorySlice(
+  events: readonly AgentEvent[],
+  thinkingFold: ProjectionState['thinkingFold'],
+  deps: { sessionCards?: boolean; renderer?: ProjectionRenderer } = {},
+): ChatRow[] {
   if (events.length === 0) return []
   const state = scratchState(thinkingFold)
   const rowIds = { value: 0 }
@@ -176,6 +195,8 @@ export function projectHistorySlice(events: readonly AgentEvent[], thinkingFold:
     inputConvergence: { cancelInFlight: false },
     selectionAttached: () => undefined,
     activity,
+    ...(deps.sessionCards === undefined ? {} : { sessionCards: deps.sessionCards }),
+    ...(deps.renderer === undefined ? {} : { renderer: deps.renderer }),
   })
   try {
     projector.apply(events, { replay: true })
@@ -192,6 +213,7 @@ export function projectHistorySlice(events: readonly AgentEvent[], thinkingFold:
  * Returns the rows prepended.
  */
 export function prependHistoryRows(rows: ChatRow[], older: readonly ChatRow[]): number {
+  older = withoutShownCards(rows, older)
   if (older.length === 0) return 0
   let floor = 0
   for (const row of rows) if (row.id < floor) floor = row.id

@@ -25,7 +25,7 @@ import { BACKGROUND_START_ACK, isSubagentToolName, parseJobOutputId, todoPanelIt
 import { harnessToolResultView, prepareReplayEvents, toolErrorText } from '../channel/transcript.js'
 import type { ToolCallView, ToolResultView, ToolsRegistryLike } from '../channel/types.js'
 import { CompactionPreviews } from '../compat/compaction-previews.js'
-import { contextNoticeEvents, createCommandResults, skillInvocationEvents } from './session-card-facts.js'
+import { contextNoticeEvents, createCommandResults, customCardEvents, skillInvocationEvents } from './session-card-facts.js'
 import { isCompactionCheckpointSource, toolResultPayload } from '../compat/messages.js'
 import { transcriptImagesOf } from '../transcript-images.js'
 import { isTeamToolName, TEAM_SPAWN_TOOL, teamMessageOf, teamToolCallView, teamToolResultView } from '../team-tools.js'
@@ -75,6 +75,7 @@ export function dshEmits(type: AgentEventType): boolean {
     case 'user.message':
     case 'skill.invocation':
     case 'context.notice':
+    case 'card.upsert':
     case 'command.result':
     case 'pending.changed':
     case 'assistant.attempt.start':
@@ -424,6 +425,8 @@ export function createDshTranslator(deps: DshTranslatorDeps) {
   const translateEvent = (event: SessionEvent): readonly AgentEvent[] => {
     compactionPreviews.observe(event)
     const type = (event as { type: string }).type
+    const card = customCardEvents(event)
+    if (card !== undefined) return card
     // Top-level `goal/change` events are how the goal service records durable
     // goal mutations (create/edit/pause/resume/complete/block/clear) —
     // confirmed in production logs. The pinned peer's SessionEvent union

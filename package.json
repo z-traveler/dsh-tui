@@ -86,6 +86,14 @@
       "types": "./lib/types/panels.d.ts",
       "import": "./lib/types/panels.js"
     },
+    "./cards": {
+      "types": "./lib/types/cards.d.ts",
+      "import": "./lib/types/cards.js"
+    },
+    "./cards/dsh": {
+      "types": "./lib/types/cards-dsh.d.ts",
+      "import": "./lib/types/cards-dsh.js"
+    },
     "./extensions": {
       "types": "./lib/types/extensions.d.ts",
       "import": "./lib/types/extensions.js"

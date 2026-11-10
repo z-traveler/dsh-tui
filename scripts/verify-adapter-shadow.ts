@@ -155,6 +155,7 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
   },
   TuiRendererRuntime: {
     register: { kind: 'capability', capability: 'host.renderers.register' },
+    registerCard: { kind: 'capability', capability: 'host.renderers.register' },
   },
   TuiShortcutRuntime: {
     register: { kind: 'capability', capability: 'host.shortcuts.register' },
@@ -809,6 +810,7 @@ try {
   assert.throws(() => p3Status.set('x', 'y'), /shadow policy denies/)
   assert.throws(() => p3Shortcuts.register('ctrl+shift+x', { description: 'x', handler: () => undefined }), /shadow policy denies/)
   assert.throws(() => p3Renderers.register('foo/bar', () => undefined), /shadow policy denies/)
+  assert.throws(() => p3Renderers.registerCard('foo/bar', () => undefined), /shadow policy denies/)
   assert.throws(() => p3Themes.register({ name: 'x', base: 'dark' } as never), /shadow policy denies/)
   assert.throws(() => p3Toast.show('x'), /shadow policy denies/)
   assert.throws(() => p3CommandTrees.register({ root: 'x', children: () => [] } as never), /shadow policy denies/)
@@ -974,6 +976,7 @@ try {
   assert.throws(() => p3Status.set('x', 'y'), /shadow policy denies/)
   assert.throws(() => p3Shortcuts.register('ctrl+shift+x', { description: 'x', handler: () => undefined }), /shadow policy denies/)
   assert.throws(() => p3Renderers.register('foo/bar', () => undefined), /shadow policy denies/)
+  assert.throws(() => p3Renderers.registerCard('foo/bar', () => undefined), /shadow policy denies/)
   assert.throws(() => p3Themes.register({ name: 'x', base: 'dark' } as never), /shadow policy denies/)
   assert.throws(() => p3Toast.show('x'), /shadow policy denies/)
   assert.throws(() => p3CommandTrees.register({ root: 'x', children: () => [] } as never), /shadow policy denies/)

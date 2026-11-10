@@ -19,6 +19,8 @@ type Props = {
   highlight: CliHighlight | null
   /** Override terminal width (useful for testing). */
   forceWidth?: number
+  /** Render a cell's raw HTML as literal source (a recorded card body). */
+  preserveHtml?: boolean
 }
 
 type Cell = {
@@ -48,8 +50,9 @@ function lineWidth(text: string): number {
 function makeCell(
   tokens: Token[] | undefined,
   highlight: CliHighlight | null,
+  preserveHtml: boolean,
 ): Cell {
-  const formatted = tokens?.map(token => formatToken(token, 0, null, null, highlight)).join('') ?? ''
+  const formatted = tokens?.map(token => formatToken(token, 0, null, null, highlight, preserveHtml)).join('') ?? ''
   const plain = stripAnsi(formatted)
   const words = plain.split(/\s+/).filter(Boolean)
   const minWidth = Math.max(
@@ -155,18 +158,18 @@ function renderVertical(
 }
 
 /** Render a markdown table with ANSI-aware cells and a narrow-terminal fallback. */
-export function MarkdownTable({ token, highlight, forceWidth }: Props): React.ReactNode {
+export function MarkdownTable({ token, highlight, forceWidth, preserveHtml = false }: Props): React.ReactNode {
   const { columns: actualWidth } = useTerminalSize()
   const terminalWidth = Math.max(0, forceWidth ?? actualWidth)
   const columnCount = Math.max(token.header.length, ...token.rows.map(row => row.length), 0)
   if (columnCount === 0) return <Text>{''}</Text>
 
-  const emptyCell = (): Cell => makeCell(undefined, highlight)
+  const emptyCell = (): Cell => makeCell(undefined, highlight, preserveHtml)
   const headerCells = Array.from({ length: columnCount }, (_, index) =>
-    index < token.header.length ? makeCell(token.header[index]!.tokens, highlight) : emptyCell(),
+    index < token.header.length ? makeCell(token.header[index]!.tokens, highlight, preserveHtml) : emptyCell(),
   )
   const rowCells = token.rows.map(row =>
-    Array.from({ length: columnCount }, (_, index) => row[index] ? makeCell(row[index]!.tokens, highlight) : emptyCell()),
+    Array.from({ length: columnCount }, (_, index) => row[index] ? makeCell(row[index]!.tokens, highlight, preserveHtml) : emptyCell()),
   )
   const allColumns = [headerCells, ...rowCells]
   const minWidths = Array.from({ length: columnCount }, (_, index) => Math.max(...allColumns.map(row => row[index]!.minWidth)))

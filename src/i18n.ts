@@ -1895,7 +1895,7 @@ const dict = {
   // 折叠时一行标题 + 一行摘要；展开后正文完整铺开。
   'command-card-rows': { zh: '{{n}} 行', en: '{{n}} rows' },
 
-  // ── components/messages/SkillCardRow.tsx（显式技能加载卡片）──────────
+  // ── components/messages/CustomCardRow.tsx（自定义卡片／技能卡适配）──
   // 默认一行只报 `<标签> 名字 · 已加载指令`；正文靠既有 Ctrl+O/逐行展开。
   'skill-card-label': { zh: '技能', en: 'skill' },
   'skill-card-loaded': { zh: '已加载指令', en: 'instructions loaded' },

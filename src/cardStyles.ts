@@ -46,7 +46,7 @@ import { createLiveSetting, type ToolBackground } from './tuiDisplayPrefs.js'
 
 /** Transcript 内容类型（覆盖范围见本文件头的方案说明）。纯呈现分类：
  *  只描述一行怎么画，不表达任何领域事实。 */
-export const CARD_KINDS = ['user', 'assistant', 'thinking', 'tool', 'subagent', 'job', 'summary', 'notice', 'other'] as const
+export const CARD_KINDS = ['user', 'assistant', 'thinking', 'tool', 'subagent', 'job', 'summary', 'notice', 'custom', 'other'] as const
 export type CardKind = (typeof CARD_KINDS)[number]
 
 /** 当前会报告执行状态的类型（`ToolRow.status` / `SubagentStatus` /
@@ -202,7 +202,7 @@ export interface CardStyleConfig {
 export const DEFAULT_CARD_STYLE_CONFIG: CardStyleConfig = Object.freeze({})
 
 interface PresetPalette {
-  readonly paddingX: number
+  readonly paddingX: Readonly<Partial<Record<CardKind, number>>>
   readonly paddingY: Readonly<Partial<Record<CardKind, number>>>
   /** 类型自己的默认面；缺省即不涂底。 */
   readonly faces: Readonly<Partial<Record<CardKind, CardBackground>>>
@@ -253,15 +253,16 @@ const BLOCK_STATE_FACES: Readonly<Record<CardStatus, CardBackground>> = Object.f
 const PRESETS: Readonly<Record<CardStylePreset, PresetPalette>> = Object.freeze({
   // legacy 就是升级前的样子：无边框、无内边距、无额外间距，工具卡只吃
   // `dsh-tui.toolBackground`（见 presetFace）。
-  legacy: { paddingX: 0, paddingY: {}, faces: {}, states: {}, minimumGap: gapsOf(0), jobProgressStyle: 'bar' },
-  // pi-like：无边框、水平/上下内边距都是 0（正文与原组件的 `❯`/`⎿`/子代理
+  legacy: { paddingX: {}, paddingY: {}, faces: {}, states: {}, minimumGap: gapsOf(0), jobProgressStyle: 'bar' },
+  // pi-like：无边框，原行水平/上下内边距为 0（正文与原组件的 `❯`/`⎿`/子代理
   // 自有缩进对齐）；用户/工具/子代理整块底色，相邻卡片之间留一行不着色的
   // 呼吸空间（`minimumGap`，已有的转场空行不再叠加）；后台任务默认既无普通
   // 面也无状态面，组内也与 legacy 一样紧贴（`job: 0`）。助手/思考/摘要保持
   // 无填充。
   'pi-like': {
-    paddingX: 0,
-    paddingY: {},
+    // Pi 的 custom/skill 消息不同于工具卡：紫色面，横纵各一格内边距。
+    paddingX: { custom: 1 },
+    paddingY: { custom: 1 },
     faces: {
       // 用户卡面不借悬停/选中高亮（dark 的 `userMessageBackgroundHover` 是
       // #3B5BDB 高饱和蓝，也不是"近透明"）：默认面是正文色极淡地混在实际
@@ -272,6 +273,7 @@ const PRESETS: Readonly<Record<CardStylePreset, PresetPalette>> = Object.freeze(
       // （见 `diffBodyAppearance`），用户显式 background 不带这个标记。
       tool: { fill: 'toolCardBackgroundDim', presetFace: true },
       subagent: { fill: 'toolCardBackgroundDim', presetFace: true },
+      custom: { fill: 'customMessageBackground', presetFace: true },
     },
     states: { tool: BLOCK_STATE_FACES, subagent: BLOCK_STATE_FACES },
     minimumGap: gapsOf(1, { job: 0 }),
@@ -473,7 +475,7 @@ function resolveKind(
         ? { style: 'single', color: pick(layers, 'borderColor') ?? 'merged', leftOnly: true }
         : undefined
       : border === 'none' ? undefined : { style: border, color: pick(layers, 'borderColor') ?? DEFAULT_BORDER_COLOR },
-    paddingX: clampOr(pick(layers, 'paddingX'), 0, CARD_PADDING_X_MAX, palette.paddingX),
+    paddingX: clampOr(pick(layers, 'paddingX'), 0, CARD_PADDING_X_MAX, palette.paddingX[kind] ?? 0),
     paddingY: clampOr(pick(layers, 'paddingY'), 0, CARD_PADDING_Y_MAX, palette.paddingY[kind] ?? 0),
     gap: clampOr(requestedGap, 0, CARD_GAP_MAX, 0),
     // 显式 gap 保留“额外间距”的加法语义：写了就以它为准，不再叠加方案

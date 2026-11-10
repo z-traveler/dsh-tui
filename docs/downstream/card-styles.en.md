@@ -30,7 +30,9 @@ Within an object, precedence is **preset → `common` → `kinds.<kind>`**, incl
 | Preset | Defaults |
 | --- | --- |
 | `legacy` (default) | Existing appearance and folding; `toolBackground` still controls tool backgrounds |
-| `pi-like` | Ordinary cards are borderless; context notices keep a left rail; horizontal and vertical padding 0 (the original `❯`/`⎿` prefixes and the subagent card's own indent line up with legacy); a subtly distinct user face, soft state faces for tool/subagent cards, and transparent jobs by default with groups sitting flush like legacy; at least one uncoloured breathing row between other cards (an existing transition row is not stacked); assistant/thinking/summary/other unfilled |
+| `pi-like` | Ordinary cards are borderless; context notices keep a left rail; subtly distinct user and soft tool/subagent state faces retain their original indent and zero padding. `custom` (generic cards, skills, adapted commands) uses a separate purple face with one cell of horizontal/vertical padding and separate expanded label/title/body. Jobs remain transparent and flush within groups; other cards have at least one uncoloured breathing row. Assistant/thinking/summary/`other` stay unfilled. |
+
+Custom-card theme roles are `customMessageBackground` / `customMessageLabel` / `customMessageText` / `customMessageHint`, separate from tool state faces, with dark/light defaults based on Pi custom messages. No `kinds.custom` override is required; explicit overrides still win. These custom colors follow Pi 1.4.0: light prose/label contrast against the face is approximately 3.98:1 / 4.36:1, not a 4.5:1 AA claim. Darken those roles in a custom theme if stronger contrast is needed. Existing tool-state AA gates are unchanged.
 
 Neither preset changes folding defaults. `pi-like` takes over tool backgrounds instead of using `toolBackground`. Overrides still win. It does not switch themes: dark palettes use a small fixed near-black table (neutral running, very faint grey-green success, very faint dusty-rose failure), while light palettes keep the theme's neutral running surface with pale sage/rose success/failure; lower colour tiers fall back to distinguishable slots so body text stays readable — see below. The user face and Edit code area follow the **terminal background** instead; see below.
 
@@ -46,6 +48,7 @@ Neither preset changes folding defaults. `pi-like` takes over tool backgrounds i
 | `job` | Background tasks | `defaultExpanded` for initial group expansion; grouping conditions unchanged; `progressStyle` controls the conversation card's progress form (see below) |
 | `notice` | Context notices such as `tool-jobs` and `subagent-settled` | Existing click, selection Enter and Ctrl+O expansion; no new fold configuration |
 | `summary` | Compaction summary | `defaultExpanded`; folded text preview has no line-count control |
+| `custom` | Generic custom cards, skills, adapted command results | Existing host Ctrl+O/selection-Enter/click |
 | `other` | Notices, interruptions, local echoes/output, turn usage | None |
 
 Each kind and `common` accept:
@@ -120,6 +123,8 @@ Inside tmux, startup automatically queries the clients attached to this pane's s
 ## Edit / diff body
 
 Under the `pi-like` preset face, an Edit-style diff card renders differently from `legacy`: the header keeps its light execution-state fill while the code area (unified body and split panes) returns to the **actual terminal background** reported by `useTerminalBackground()` (a selected/hovered row paints the real highlight fill underneath, see below), so the state fill no longer darkens the code. Split add/del rows paint their own very faint substrate instead — grey-green for additions, dusty rose for deletions — while context rows keep the terminal background. That substrate stays in every state: plain, selected and hovered, so moving the pointer onto the card never erases the add/del distinction. Syntax highlighting, diff parsing, alignment, and the word-level algorithm are untouched: unchanged code is never painted red/green as a whole line, and split changed words remain bold with semantic colours. Unified and split share one small presentation module (`src/components/diffAppearance.ts`); unified and the 16-colour tier have no line substrate and keep the previous text behaviour (the 16-colour tier degrades honestly to word colours only).
+
+Only a body that really carries a comparison takes the terminal background: a patch row, or an old/new pair with a before-image (`oldText !== null`). A `write` that creates a file is all `+` rows with no syntax highlighting, so the substrate would only strip the card face from every body row and leave the header as a lone tinted strip; it keeps the whole card face like `read`/`bash`.
 
 It is enabled only for `pi-like` when the effective face comes from the preset: `legacy` and effective personal `background`/`states` faces keep their original appearance. A selected/hovered row still paints the real highlight fill underneath the diff body (selection = `messageActionsBackground`, hover = `toolCardBackground`): the header, the card's thick gutter and context rows keep the selection/hover cue there, so it is never swallowed by a black sub-box. Split changed rows keep their own content-layer substrate (the same layering as `legacy`), so the add/del distinction survives; changed words are always re-picked against their own row fill and never cleared by the highlight, while context and other unchanged text keep their syntax colours exactly as when unselected.
 

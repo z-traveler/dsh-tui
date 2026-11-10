@@ -201,11 +201,11 @@ check('notice has its own neutral face and one-cell rail, with explicit override
   assert.equal(off.border, undefined)
 })
 
-check('pi-like keeps padding 0 and leaves the reading kinds unfilled', () => {
+check('pi-like distinguishes custom messages from tool and reading surfaces', () => {
   const styles = pi()
   for (const kind of CARD_KINDS) {
-    assert.equal(styles.kinds[kind].paddingX, 0, `${kind} keeps the original prefix/gutter column`)
-    assert.equal(styles.kinds[kind].paddingY, 0, `${kind} takes no vertical padding`)
+    assert.equal(styles.kinds[kind].paddingX, kind === 'custom' ? 1 : 0, `${kind} takes its own message padding`)
+    assert.equal(styles.kinds[kind].paddingY, kind === 'custom' ? 1 : 0, `${kind} takes its own vertical padding`)
     assert.equal(styles.kinds[kind].minimumGap, kind === 'job' ? 0 : 1, `${kind} gets its preset breathing rows`)
     if (kind === 'notice') assert.deepEqual(styles.kinds[kind].border, { style: 'single', color: 'merged', leftOnly: true })
     else assert.equal(styles.kinds[kind].border, undefined, `${kind} has no border under pi-like`)
@@ -221,6 +221,7 @@ check('pi-like keeps padding 0 and leaves the reading kinds unfilled', () => {
   for (const kind of ['assistant', 'thinking', 'summary', 'other'] as const) {
     assert.equal(styles.kinds[kind].background, undefined, `${kind} stays unfilled`)
   }
+  assert.deepEqual(styles.kinds.custom.background, { fill: 'customMessageBackground', presetFace: true })
 })
 
 check('pi-like owns the legacy tool background for the tool and subagent states', () => {

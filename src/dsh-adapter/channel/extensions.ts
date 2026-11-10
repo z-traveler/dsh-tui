@@ -38,6 +38,7 @@ import { DEFAULT_SESSION_MODES, resolveSessionModes } from '../../sessionModes.j
 import { installedMeetsVersion } from '../contract.js'
 import { createDshSession } from '../backend/session.js'
 import { createDshTranslator, dshPricingWindow } from '../backend/translate.js'
+import { getHostRenderers, type TuiRendererRuntime } from '../renderers.js'
 import { concreteService } from '../host-access.js'
 import { teamServiceActive, withTeamCommandVisibility } from '../team-mode.js'
 import { getHostMessageObserver, type TuiMessageObserverRuntime } from '../message-observer.js'
@@ -384,6 +385,9 @@ export function attachDshExtensions(
       call: (name, rawArgs) => dshNative().presentCallView(name, rawArgs),
       result: (name, rawArgs, data) => dshNative().presentResultView(name, rawArgs, data),
     },
+    // A folded Custom Card is re-presented by whichever presenters the host
+    // has mounted at restore time (the tuiRenderers row may compose later).
+    cardPresenter: () => getHostRenderers(ctx.get('tuiRenderers') as TuiRendererRuntime | undefined)?.presentCard,
     foldBack,
   })
   core.extend({

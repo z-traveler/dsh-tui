@@ -31,6 +31,8 @@ import {
   type AdapterRuntimeOptions,
 } from '../adapter/kernel/runtime.js'
 import { adapterRuntimeFor } from '../adapter/kernel/runtime-context.js'
+import type { TuiCardPresenter, TuiCardRecord, TuiCardView } from '../agent/cards.js'
+import { TuiCardPresenters } from './card-presenters.js'
 
 /** What a renderer returns: an optional title row plus body lines. */
 export interface TuiEntryRenderResult {
@@ -47,6 +49,8 @@ export type TuiEntryRenderer = (payload: unknown) => TuiEntryRenderResult | unde
 export interface TuiRendererHost {
   register(type: string, renderer: TuiEntryRenderer): () => void
   render(type: string, payload: unknown): TuiEntryRenderResult | undefined
+  hasCard(type: string): boolean
+  presentCard(record: TuiCardRecord): TuiCardView
 }
 
 const TYPE_PATTERN = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/u
@@ -84,6 +88,7 @@ export class TuiRendererRuntime extends Service {
     const state: RendererState = {
       renderers: new Map(),
       failedTypes: new Set(),
+      cards: new TuiCardPresenters(ctx.logger),
       host: undefined,
       logger: ctx.logger,
       runtime: adapterRuntimeFor(ctx),
@@ -107,9 +112,18 @@ export class TuiRendererRuntime extends Service {
         }
       },
       render: (type, payload) => renderEntry(runtime, type, payload),
+      hasCard: type => state.cards.has(type),
+      presentCard: record => state.cards.present(record),
     })
     state.host = host
     hostRenderers.set(runtime, state)
+  }
+
+  /** Map a Custom Card business type to a pure Card Presentation (see
+   * `./card-presenters.ts`). */
+  registerCard(type: string, presenter: TuiCardPresenter, identity?: Context): () => void {
+    assertCapabilityShadowPolicy('host.renderers.register', rendererStateFor(this).runtime.mode, rendererStateFor(this).runtime.slices)
+    return rendererStateFor(this).cards.register(this.ctx, this, type, presenter, identity)
   }
 
   /**
@@ -189,6 +203,7 @@ interface RendererState {
   readonly runtime: AdapterRuntimeOptions
   readonly renderers: Map<string, TuiEntryRenderer>
   readonly failedTypes: Set<string>
+  readonly cards: TuiCardPresenters
   host: TuiRendererHost | undefined
   readonly logger: Context['logger']
 }

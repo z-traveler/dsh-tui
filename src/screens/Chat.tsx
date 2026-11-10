@@ -327,6 +327,7 @@ const SELECTABLE_KINDS = new Set<ChatRow['kind']>([
   'command',
   'skill',
   'context-notice',
+  'card',
 ])
 
 /** Shared empty list for mode-gated derived rows (stable reference, so

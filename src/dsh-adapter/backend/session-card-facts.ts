@@ -1,14 +1,32 @@
 /**
- * Session fact cards (downstream): decodes the DSH records behind command,
- * skill and context notice cards into neutral events. Called from the DSH
- * translator (`translate.ts`): user messages ask `skillInvocationEvents` and
+ * Session fact cards and Custom Cards (downstream): decodes the DSH records
+ * behind command, skill, context notice and Custom Card rows into neutral
+ * events. Called from the DSH translator (`translate.ts`): every event asks
+ * `customCardEvents` first, user messages ask `skillInvocationEvents` and
  * `contextNoticeEvents`, the command lifecycle goes through
  * `createCommandResults`.
  */
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { NO_EVENTS, type AgentEvent, type AgentEventOf } from '../../agent/events.js'
+import { asTuiCardRecord, TUI_CARD_RECORD_TYPE } from '../../agent/cards.js'
 import { skillInvocationName } from '../compat/messages.js'
+import { pluginRecordOf } from '../compat/pluginRecords.js'
+
+/**
+ * A Custom Card snapshot: ONLY the dedicated carrier is decoded, so no other
+ * plugin record silently becomes a card. An invalid snapshot is skipped (the
+ * rest of the log is unaffected); every other plugin record still takes the
+ * translator's generic renderer seam. Undefined: not a card record.
+ */
+export function customCardEvents(event: SessionEvent): readonly AgentEvent[] | undefined {
+  const pluginRecord = pluginRecordOf(event)
+  if (pluginRecord === undefined || pluginRecord.type !== TUI_CARD_RECORD_TYPE) return undefined
+  const record = asTuiCardRecord(pluginRecord.data)
+  return record === undefined
+    ? NO_EVENTS
+    : [{ type: 'card.upsert', record, seq: pluginRecord.seq, time: pluginRecord.time }]
+}
 
 /**
  * A user-explicit skill load: core records ONE durable source kind for both

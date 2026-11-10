@@ -550,6 +550,8 @@ const GROUPS = {
 // 后再单独登记。
   ],
   'session-workspace': [
+    ['verify-custom-card-api', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-api.ts']],
+    ['verify-custom-card-carrier', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-carrier.ts']],
     ["verify-backend-startup", ['node', '--import', 'tsx/esm', 'scripts/verify-backend-startup.ts']],
 // D-1 装配点（backend-assembly.ts）：profile 声明的已装 bundle 的 `x-dsh-tui` Backend 声明变成
 // 注册表条目——真 Cordis 组合 + 假 profile/假 bundle：五态（compatible / degraded 记待决 /
@@ -878,6 +880,11 @@ const GROUPS = {
     ["verify-command-hold-overlay", ['node', '--import', 'tsx/esm', 'scripts/verify-command-hold-overlay.tsx']],
   ],
   'channel-ui': [
+    ['verify-custom-card-visual', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-visual.tsx']],
+    ['verify-custom-card-density', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-density.tsx']],
+    ['verify-card-reading', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-card-reading.tsx']],
+    ['verify-card-reading-rows', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-card-reading-rows.tsx']],
+    ['verify-custom-card-flow', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-flow.tsx']],
 // L4 composition boundary plus report/metadata lifetime fences.
     ["verify-channel-composition", ['node', '--import', 'tsx/esm', 'scripts/verify-channel-composition.ts']],
 // 状态行的读侧：会话键控、变更通知、宿主发布值的防御性收窄、绑定时的基线读取

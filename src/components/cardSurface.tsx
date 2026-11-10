@@ -22,12 +22,13 @@
 import React from 'react'
 import { Box, useTheme } from '../ui.js'
 import type { Props as BoxProps } from './design-system/ThemedBox.js'
-import { getTheme } from '../theme.js'
+import { getTheme, type Theme } from '../theme.js'
 import { useTerminalBackground } from './design-system/ThemeProvider.js'
 import { TerminalSizeContext, type TerminalSize } from '../ink/components/TerminalSizeContext.js'
 import { useTerminalSize } from '../ink/hooks/use-terminal-size.js'
 import type { Color } from '../ink/styles.js'
 import type { BorderStyle } from '../ink/render-border.js'
+import type { TuiCardDensity } from '../agent/cards.js'
 import type { ToolBackground } from '../tuiDisplayPrefs.js'
 import {
   cardBackgroundColor,
@@ -83,6 +84,9 @@ export interface CardSurface {
   /** `useTerminalBackground()` 报的实际终端底色（`#rrggbb`），与用户卡面
    *  同一个值，不另查终端；需要贴底的呈现（diff 代码区）用它。 */
   readonly terminalBackground: `#${string}`
+  /** 解析这一帧卡面所用的主题（同一个 `useTheme()`），供需要真实颜色值的
+   *  呈现（diff 词色对比）复用，不另查主题。 */
+  readonly theme: Theme
   /** 卡片内容列数：边框与水平内边距扣宽后的唯一真源。卡片自己算宽度预算
    *  时用它替换 `useTerminalSize().columns`。 */
   readonly columns: number
@@ -111,17 +115,25 @@ export function useCardStyles(toolBackground: ToolBackground = 'none'): Resolved
  * `status` 是领域自己报告的状态原文（`ToolRow.status`、`SubagentStatus`、
  * `BackgroundJobStatus`），映射只有 `cardStatusOf` 一处：映射不到的状态
  * （cancelled / killed / stopping / 未知）保持普通底色。
+ *
+ * `density` 来自展示快照（`TuiCardView.density`）：声明紧凑密度的这一张卡片
+ * 不画配置出来的卡面，其它卡片与自己不声明时都不受影响。
  */
 export function useCardSurface(
   kind: CardKind,
-  options: { readonly toolBackground?: ToolBackground; readonly status?: string | undefined } = {},
+  options: {
+    readonly toolBackground?: ToolBackground
+    readonly status?: string | undefined
+    readonly density?: TuiCardDensity | undefined
+  } = {},
 ): CardSurface {
   const styles = useCardStyles(options.toolBackground)
   const [themeName] = useTheme()
   const terminalBackground = useTerminalBackground()
   const size = useTerminalSize()
-  const style = styles.kinds[kind]
-  const background = cardBackgroundOf(styles, kind, cardStatusOf(options.status))
+  const compact = options.density === 'compact'
+  const style = compact ? compactFace(styles.kinds[kind]) : styles.kinds[kind]
+  const background = compact ? undefined : cardBackgroundOf(styles, kind, cardStatusOf(options.status))
   const foregroundColor = style.foreground === undefined ? undefined : asColor(colorOf(style.foreground, getTheme(themeName)))
   const backgroundColor = cardBackgroundColor(
     background,
@@ -144,6 +156,7 @@ export function useCardSurface(
     backgroundColor: asColor(backgroundColor),
     foregroundColor,
     terminalBackground,
+    theme: getTheme(themeName),
     columns,
     contentSize,
     narrowed,
@@ -165,6 +178,15 @@ export function CardContent({ surface, children }: {
 }): React.ReactNode {
   if (!surface.narrowed) return children
   return <TerminalSizeContext.Provider value={surface.contentSize}>{children}</TerminalSizeContext.Provider>
+}
+
+/**
+ * 紧凑密度（`TuiCardView.density: 'compact'`）的卡面：只把配置出来的底色、
+ * 边框、内边距与间隔归零，主题角色、折叠与阅读仍是这一张卡片原来的那些。
+ * 它只作用声明了密度的卡片，不改任何全局配置。
+ */
+function compactFace(style: CardStyle): CardStyle {
+  return { ...style, background: undefined, border: undefined, paddingX: 0, paddingY: 0, gap: 0, minimumGap: 0 }
 }
 
 /**
