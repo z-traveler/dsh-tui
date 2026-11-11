@@ -39,6 +39,8 @@ export class StartupOpenError extends Error {
 
 /** Launch configuration belongs to channel construction, not the composition root. */
 export interface ChannelLaunchOptions {
+  /** Host notification after an online fork or rewind creates a session. */
+  onSessionDerived?: (event: import('../tui-sessions.js').TuiSessionDerived) => void
   /** Host notification effect with the last settled reply's preview, when present. */
   onTaskComplete?: (preview?: string) => void
   model: string

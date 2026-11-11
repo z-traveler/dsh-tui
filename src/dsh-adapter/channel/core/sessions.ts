@@ -43,6 +43,7 @@ export function createCoreSessionActions(deps: {
   catalog: SessionCatalog | undefined
   prefs: ChannelLaunchOptions['sessionPrefs']
   resumeCommand: ChannelLaunchOptions['resumeCommand']
+  onSessionDerived: ChannelLaunchOptions['onSessionDerived']
   /** The core `/resume` transaction (session-switch.ts). */
   resume(sessionId: string, kind: 'resume' | 'rewind'): Promise<ResumeResult>
   /** Whether `/resume` is offered (the backend's `open` and catalog). */
@@ -215,6 +216,7 @@ export function createCoreSessionActions(deps: {
         notify(t(WORKING_GATE_NOTICES.fork), { color: 'warning' })
         return false
       }
+      const sourceSessionId = deps.session().ref.sessionId
       let forked: { readonly sessionId: string }
       try {
         forked = await fork.fork()
@@ -223,6 +225,7 @@ export function createCoreSessionActions(deps: {
         return false
       }
       if (!deps.owner.current()) return true
+      deps.onSessionDerived?.({ kind: 'fork', sourceSessionId, sessionId: forked.sessionId })
       const command = deps.resumeCommand?.(forked.sessionId) ?? `/resume ${forked.sessionId}`
       notify(t('fork-done', { id: forked.sessionId, command }), { timeoutMs: 8000 })
       return true
@@ -268,6 +271,7 @@ export function createCoreSessionActions(deps: {
       }
       if (kind === 'files' || outcome.session.sessionId === session.ref.sessionId) return null
       const forkId = outcome.session.sessionId
+      deps.onSessionDerived?.({ kind: 'rewind', sourceSessionId: session.ref.sessionId, sessionId: forkId })
       const forkKept = (): null => {
         if (deps.owner.current()) {
           notify(t('rewind-fork-kept', { command: deps.resumeCommand?.(forkId) ?? `/resume ${forkId}` }), { color: 'warning', timeoutMs: 10000 })
