@@ -145,6 +145,11 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
     section: { kind: 'capability', capability: 'host.settings.section' },
     subscribe: { kind: 'capability', capability: 'host.settings.subscribe' },
   },
+  TuiSessionsRuntime: {
+    current: { kind: 'exempt', reason: 'activation-checked read-only host binding snapshot; no backend operation or session mutation' },
+    subscribe: { kind: 'exempt', reason: 'activation-owned local binding listener with disposal; observes host facts without dispatching a backend operation' },
+    onDerived: { kind: 'exempt', reason: 'activation-owned local derivation listener with disposal; observes completed operations and cannot create a fork or rewind' },
+  },
   TuiStatusRuntime: {
     set: { kind: 'capability', capability: 'host.status.set' },
     // Footer fields mutate the same status surface as set(); reusing the

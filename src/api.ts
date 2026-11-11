@@ -47,6 +47,8 @@ export type {
   TuiSessionSwitchEvent,
   TuiSessionSwitchDecision,
   TuiSessionSwitchedEvent,
+  TuiSessionSnapshot,
+  TuiSessionDerived,
   TuiCompactEvent,
   TuiCompactDecision,
   TuiDialogAnswer,

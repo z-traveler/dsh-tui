@@ -26,6 +26,7 @@ export function createForkSessionAction(
     settleCompaction(): Promise<void>
     notify: ChannelState['notify']
     source(): Session
+    onSessionDerived?: (event: import('../tui-sessions.js').TuiSessionDerived) => void
     createDetachedHandle(create: () => Promise<AgentHandle>): Promise<{ handle: AgentHandle; release(): Promise<void> }>
   },
 ) {
@@ -115,6 +116,9 @@ export function createForkSessionAction(
       // user's to resume somewhere else.
       reservation.abandon()
     }
+    if (!deps.owner.current()) return false
+    deps.onSessionDerived?.({ kind: 'fork', sourceSessionId: String(source.id), sessionId: String(childId) })
+    if (!deps.owner.current()) return false
     const profile = resolveDshProfileName()
     const boot = profile === undefined ? 'dsh --config cordis.yml' : `dsh --profile ${profile}`
     const command = process.platform === 'win32'

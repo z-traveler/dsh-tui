@@ -880,6 +880,7 @@ const GROUPS = {
     ["verify-command-hold-overlay", ['node', '--import', 'tsx/esm', 'scripts/verify-command-hold-overlay.tsx']],
   ],
   'channel-ui': [
+    ['verify-tui-sessions', ['node', '--import', 'tsx/esm', 'scripts/verify-tui-sessions.ts']],
     ['verify-custom-card-visual', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-visual.tsx']],
     ['verify-custom-card-density', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-density.tsx']],
     ['verify-card-reading', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-card-reading.tsx']],

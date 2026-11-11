@@ -186,7 +186,9 @@ function assemble(script: Script) {
   }
   const agent = makeAgent('a1', makeEvents(), () => mark('snapshot'))
   live.set(String(agent.session.id), agent)
+  const derived: Array<{ kind: string; sourceSessionId: string; sessionId: string }> = []
   const channel = createChannel(ctx as never, agent as never, {
+    onSessionDerived: event => derived.push(event),
     model: 'model-a',
     cwd: '/tmp/demo',
     provider: 'fake-provider',
@@ -205,7 +207,7 @@ function assemble(script: Script) {
     )
     return next()[Symbol.asyncIterator]()
   }
-  return { order, stamps, compaction, channel, agent, handlers, emit, stream, live }
+  return { order, stamps, compaction, channel, agent, handlers, emit, stream, live, derived }
 }
 const toasts = (channel: { notifications: readonly { text: string }[] }) =>
   channel.notifications.map(item => item.text).join('\n')
@@ -253,7 +255,7 @@ const toasts = (channel: { notifications: readonly { text: string }[] }) =>
 
 // ==== 场景 3：逐行 rewind —— 取消必须先于快照 ================================
 {
-  const { order, stamps, compaction, channel } = assemble({ kind: 'hang-until-abort' })
+  const { order, stamps, compaction, channel, derived } = assemble({ kind: 'hang-until-abort' })
   channel.compact()
   const started = await settle(() => compaction.calls.length === 1)
   check('scene3: compactNow invoked before row rewind', started)
@@ -261,6 +263,7 @@ const toasts = (channel: { notifications: readonly { text: string }[] }) =>
   stamps.delete('snapshot')
   const restored = await channel.rewindTo({ seq: 5, text: '回答 1' })
   check('scene3: row rewind succeeds', restored === '回答 1', JSON.stringify(order))
+  check('scene3: rewind publishes source and child', derived.length === 1 && derived[0]?.kind === 'rewind' && derived[0]?.sourceSessionId === 'a1' && derived[0]?.sessionId === channel.sessionRef.sessionId)
   const abortedAt = compaction.calls[0]?.abortedAt
   const snapshotAt = stamps.get('snapshot')
   check(
@@ -472,6 +475,32 @@ const toasts = (channel: { notifications: readonly { text: string }[] }) =>
   check('scene14: the legacy end bracket clears the manual row', await settle(() => channel.compaction === undefined))
   check('scene14: the bracket does not cancel the request', compaction.calls[0]?.abortedAt === undefined)
   channel.releaseContributions()
+}
+
+// The public binding follows the actual background and live-agent adoption paths.
+{
+  const { Context } = await import('@deepseek-ai/cordis')
+  const { TuiSessionsRuntime, attachTuiSessionsChannel } = await import('../src/dsh-adapter/tui-sessions.js')
+  const root = new Context()
+  const { channel, agent } = assemble({ kind: 'hang-until-abort' })
+  attachTuiSessionsChannel(root, channel)
+  const service = root.plugin(TuiSessionsRuntime)
+  await service
+  let pluginCtx: InstanceType<typeof Context> | undefined
+  const plugin = root.plugin({ name: 'binding-probe', inject: ['tuiSessions'], apply(ctx) { pluginCtx = ctx } })
+  await plugin
+  const seen: Array<string | undefined> = []
+  pluginCtx!.tuiSessions.subscribe(value => seen.push(value?.sessionId))
+  check('session seam: initial DSH session', seen.at(-1) === String(agent.session.id))
+  const backgrounded = await channel.backgroundCurrent()
+  check('session seam: /bg follows the new foreground', backgrounded.ok && seen.at(-1) === channel.sessionRef.sessionId && seen.at(-1) !== String(agent.session.id))
+  const returned = await channel.resumeTo(agent.session.id)
+  check('session seam: returning to the live agent follows the binding', returned.ok && seen.at(-1) === String(agent.session.id))
+  channel.releaseContributions()
+  check('session seam: releasing the channel clears the binding', seen.at(-1) === undefined)
+  await plugin.dispose()
+  await service.dispose()
+  await root.fiber.dispose()
 }
 
 process.exit(failed)

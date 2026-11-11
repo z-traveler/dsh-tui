@@ -41,6 +41,7 @@ import TuiRendererRuntime from './renderers.js'
 import TuiToastRuntime from './toast.js'
 import TuiThemeRuntime from './themes.js'
 import TuiInputCompletionRuntime from './input-completions.js'
+import { TuiSessionsRuntime } from './tui-sessions.js'
 import { installDecisionGuard } from './decision-guard.js'
 import { readGrantStore } from '../adapter/standard/grants.js'
 import { adapterRuntimeFor } from '../adapter/kernel/runtime-context.js'
@@ -56,4 +57,5 @@ export function apply(ctx: Context): void {
   ctx.plugin(TuiToastRuntime)
   ctx.plugin(TuiThemeRuntime)
   ctx.plugin(TuiInputCompletionRuntime)
+  ctx.plugin(TuiSessionsRuntime)
 }

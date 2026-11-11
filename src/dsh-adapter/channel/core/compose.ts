@@ -903,6 +903,7 @@ export function createCoreChannel(
     catalog: options.sessionCatalog,
     prefs: options.sessionPrefs,
     resumeCommand: options.resumeCommand,
+    onSessionDerived: options.onSessionDerived,
     resume: (sessionId, kind) => sessionSwitch.resumeSession(sessionId, kind),
     // `/resume` (the browser's open) also needs the catalog, the same rule
     // as the capability snapshot; a rewind adopts its fork by `open` alone.

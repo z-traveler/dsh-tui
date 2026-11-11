@@ -733,6 +733,7 @@ export function attachDshExtensions(
     notify,
     adoptForkedAgent,
     notifySessionSwitched: core.sessionSwitch.notifySessionSwitched,
+    onSessionDerived: options.onSessionDerived,
   })
 
   const rewindToAction = createRewindToAction(ctx, state, {
@@ -742,6 +743,7 @@ export function attachDshExtensions(
     notify,
     adoptForkedAgent,
     notifySessionSwitched: core.sessionSwitch.notifySessionSwitched,
+    onSessionDerived: options.onSessionDerived,
   })
 
   const forkSessionAction = createForkSessionAction(ctx, state, {
@@ -749,6 +751,7 @@ export function attachDshExtensions(
     settleCompaction: () => settleManualCompaction(),
     notify,
     source: () => binding.agent.session,
+    onSessionDerived: options.onSessionDerived,
     createDetachedHandle,
   })
 

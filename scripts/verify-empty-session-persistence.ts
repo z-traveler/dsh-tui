@@ -607,16 +607,24 @@ async function verify(compression: 'zstd' | 'none'): Promise<SessionId> {
         treeSource.agent.session.append('turn/end', { turn, reason: { kind: 'completed' } })
       }
       await ctx.sessions.flush(treeSource.agent.session)
-      const treeChannel = createChannel(ctx, treeSource.agent, { handle: treeSource, cwd: root, provider: 'scripted', model: 'scripted', activity: false })
+      const treeDerived: Array<{ kind: string; sourceSessionId: string; sessionId: string }> = []
+      const treeChannel = createChannel(ctx, treeSource.agent, { handle: treeSource, cwd: root, provider: 'scripted', model: 'scripted', activity: false, onSessionDerived: event => treeDerived.push(event) })
       try {
         const row = treeChannel.rows.filter(row => row.kind === 'user' && row.label === undefined)[index]!
         assert.equal(await treeChannel.rewindToNode(String(treeSource.agent.session.id), row.seq!, 'rewind'), row.text)
         const child = ctx.agents.get(SessionId(treeChannel.agentId))!
+        assert.deepEqual(treeDerived[0], { kind: 'rewind', sourceSessionId: String(treeSource.agent.session.id), sessionId: String(child.session.id) })
         assert.equal(isUnstoredFreshSession(child.session), index === 0, 'tree chooses fresh or seeded creation from the actual cut')
         await sleep(250) // 固定窗:探针 — an empty child must stay absent beyond JSONL's 200ms drain timer.
         assert.equal(existsSync(artifact(child.session)), index !== 0)
         const expected = treeSource.agent.session.snapshotEvents().slice(0, rewindTarget(treeSource.agent.session.snapshotEvents(), row.seq!).boundary + 1)
-        if (index !== 0) assert.deepEqual((await stored(child.session)).slice(0, expected.length), expected)
+        if (index !== 0) {
+          assert.deepEqual((await stored(child.session)).slice(0, expected.length), expected)
+          const sourceId = String(treeSource.agent.session.id)
+          const firstRow = treeChannel.rows.find(row => row.kind === 'user' && row.seq !== undefined)!
+          assert.equal(await treeChannel.rewindToNode(sourceId, firstRow.seq!, 'fork'), '')
+          assert.deepEqual(treeDerived[1], { kind: 'fork', sourceSessionId: sourceId, sessionId: treeChannel.sessionRef.sessionId })
+        }
       } finally { treeChannel.releaseContributions() }
     }
     console.log('PASS /tree: policy-only cuts stay unpublished and conversation cuts retain their seed')

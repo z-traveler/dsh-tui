@@ -46,6 +46,7 @@ export function createRewindToAction(
     notify: ChannelState['notify']
     adoptForkedAgent(candidate: AgentSession, capture: ReturnType<Binding['capture']>, seed: readonly SessionEvent[], agentPreset: string | undefined, childId: SessionId): string
     notifySessionSwitched(kind: 'rewind', sessionId: string, previousSessionId: string): void
+    onSessionDerived?: (event: import('../tui-sessions.js').TuiSessionDerived) => void
   },
 ) {
   return async (row: ChatRow, mode: string | null = null): Promise<string | null> => {
@@ -144,6 +145,7 @@ export function createRewindToAction(
     try {
       const sourceSessionId = deps.adoptForkedAgent(candidate, adoption, snapshotLiveSessionEvents(dshHandleOf(candidate).agent.session), composed.agentPreset, childId)
       reservation.settle()
+      deps.onSessionDerived?.({ kind: 'rewind', sourceSessionId, sessionId: String(childId) })
       try {
         void dispatchTuiDecision(ctx, 'tui/rewind-done', {
           text: row.text,

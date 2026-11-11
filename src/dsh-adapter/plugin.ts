@@ -11,6 +11,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { Config } from './index.js'
 import { configValues, createSettingsScope, resolveSettingsNamespace, type RuntimeConfig } from './compat/settings.js'
 import { createChannel } from './channel.js'
+import { attachTuiSessionsChannel, tuiSessionDerivedNotifier } from './tui-sessions.js'
 import { channelOwnerCurrent } from './channel/owner.js'
 import { createDshSession } from './backend/session.js'
 import { createTuiSettingsService, type DelegateSettings } from './tui-settings.js'
@@ -1810,6 +1811,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
   let settleComposition: (ok: boolean) => void = () => undefined
   const compositionSettled = new Promise<boolean>(resolve => { settleComposition = resolve })
   const rawChannel = createChannel(ctx, startupSession, {
+    onSessionDerived: tuiSessionDerivedNotifier(ctx),
     // The namespace this boot actually registered the settings section under
     // (the Config owner's Loader id; custom ids are supported). Chat and the
     // channel's own settings reads look the section up by it.
@@ -1926,6 +1928,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
   // Normalize to the composition root: the Kernel and its Channel driver
   // query the registry through the root context, never through this plugin's
   // child activation context.
+  const detachTuiSessions = attachTuiSessionsChannel(ctx, rawChannel)
+  ctx.effect(() => detachTuiSessions)
   const unregisterTuiChannel = registerTuiChannel(compositionRoot(ctx), rawChannel)
   ctx.effect(() => () => { unregisterTuiChannel() })
   const adapterRuntime = adapterRuntimeFor(ctx)
