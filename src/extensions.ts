@@ -47,6 +47,8 @@ export type {
   TuiDialogSelectRequest,
   TuiDialogSnapshot,
 } from './dsh-adapter/dialogs.js'
+export { TuiSessionsRuntime } from './dsh-adapter/tui-sessions.js'
+export type { TuiSessionSnapshot, TuiSessionDerived } from './dsh-adapter/tui-sessions.js'
 export { TuiStatusRuntime, TuiStatusStore } from './dsh-adapter/status.js'
 export type {
   TuiStatusEntry,

@@ -120,7 +120,8 @@ try {
   const route = { provider: 'fixture', model: 'fixture' }
   const handle = await original.agents.create({ sessionId: SessionId('fork-source'), meta: { cwd: root }, agentOptions: route })
   const source = handle.agent.session
-  const channel = createChannel(original, handle.agent, { handle, ...route, cwd: root, activity: false })
+  const derived: Array<{ kind: string; sourceSessionId: string; sessionId: string }> = []
+  const channel = createChannel(original, handle.agent, { handle, ...route, cwd: root, activity: false, onSessionDerived: event => derived.push(event) })
   channels.push(channel)
   channel.renameSession('Source conversation')
   closeTurnWithDelivery(source, 1)
@@ -128,6 +129,7 @@ try {
   const originalEvents = source.snapshotEvents()
   const originalHeader = source.header
   const copyId = await fork(channel, original)
+  assert.deepEqual(derived, [{ kind: 'fork', sourceSessionId: String(source.id), sessionId: String(copyId) }])
   assert.equal(channel.sessionId, source.id, '/fork preserves the foreground Session')
   assert.equal(channel.agentId, source.id)
   assert.equal(channel.sessionTitle, 'Source conversation')
@@ -170,6 +172,60 @@ try {
   assert.deepEqual(nestedResumed.agent.session.snapshotEvents().slice(0, nested.events.length), nested.events)
   assert.equal(nestedResumed.agent.status, 'idle')
   console.log('PASS detached /fork and nested /fork: V4 cold read, real resume, exact seed, lineage, titles and unchanged foreground')
+
+  // Hold the real detached handle release across a channel replacement. The
+  // resulting child remains persisted, but its old owner must not publish to
+  // the new activation or retain the mount reservation.
+  const { createForkSessionAction } = await import('../src/dsh-adapter/channel/session-fork.js')
+  const { channelOwnerCurrent } = await import('../src/dsh-adapter/channel/owner.js')
+  const { attachTuiSessionsChannel, publishTuiSessionDerived, TuiSessionsRuntime } = await import('../src/dsh-adapter/tui-sessions.js')
+  const { ownMounts } = await import('../src/sessionMounts.js')
+  attachTuiSessionsChannel(original, channel)
+  const service = original.plugin(TuiSessionsRuntime)
+  await service
+  const released = Promise.withResolvers<void>()
+  const proceed = Promise.withResolvers<void>()
+  let childId = ''
+  const notices: string[] = []
+  const raceFork = createForkSessionAction(original, channel, {
+    owner: { current: () => channelOwnerCurrent(channel) },
+    settleCompaction: async () => {},
+    notify: text => { notices.push(text) },
+    source: () => source,
+    onSessionDerived: event => publishTuiSessionDerived(original, event),
+    createDetachedHandle: async create => {
+      const detached = await create()
+      childId = String(detached.agent.session.id)
+      return { handle: detached, release: async () => {
+        await detached.dispose()
+        released.resolve()
+        await proceed.promise
+      } }
+    },
+  })
+  const pending = raceFork()
+  await released.promise
+  assert.ok(ownMounts().includes(childId), 'reservation remains held while release is pending')
+  channel.releaseContributions()
+  const replacement = createChannel(original, handle.agent, { handle, cwd: root, activity: false })
+  channels.push(replacement)
+  attachTuiSessionsChannel(original, replacement)
+  const received: unknown[] = []
+  const listener = original.plugin({ name: 'replacement-session-listener', inject: ['tuiSessions'], apply(ctx) {
+    ctx.tuiSessions.onDerived(event => received.push(event))
+  } })
+  await listener
+  proceed.resolve()
+  const result = await pending
+  assert.equal(ownMounts().includes(childId), false, 'reservation is released after the offline title write')
+  assert.equal(original.agents.get(SessionId(childId)), undefined, 'detached agent is released')
+  assert.equal((await readCold(original, SessionId(childId))).header.parentSession, source.id, 'created fork survives the owner teardown')
+  assert.deepEqual(received, [], 'a new activation receives no derivation from the disposed channel')
+  assert.deepEqual(notices, [], 'a disposed channel emits no completion notice')
+  assert.equal(result, false, 'disposed channel reports no completed action')
+  await listener.dispose()
+  await service.dispose()
+  console.log('PASS detached /fork release race: replacement sees no stale notification; fork and cleanup survive')
 } finally {
   for (const channel of channels) channel.releaseContributions()
   for (const ctx of contexts.reverse()) await ctx.fiber.dispose()

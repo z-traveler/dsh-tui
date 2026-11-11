@@ -43,6 +43,7 @@ export function createTreeRewindAction(
     notify: ChannelState['notify']
     adoptForkedAgent(candidate: AgentSession, capture: ReturnType<Binding['capture']>, seed: readonly SessionEvent[], agentPreset: string | undefined, childId: SessionId): string
     notifySessionSwitched(kind: 'rewind' | 'fork', sessionId: string, previousSessionId: string): void
+    onSessionDerived?: (event: import('../tui-sessions.js').TuiSessionDerived) => void
   },
 ) {
   return async (sessionId: string, seq: number, mode: 'rewind' | 'fork' = 'rewind'): Promise<string | null> => {
@@ -175,6 +176,7 @@ export function createTreeRewindAction(
     try {
       const sourceSessionId = deps.adoptForkedAgent(candidate, adoption, replay, composed.agentPreset, childId)
       reservation.settle()
+      deps.onSessionDerived?.({ kind: mode === 'fork' ? 'fork' : 'rewind', sourceSessionId: sessionId, sessionId: String(childId) })
       deps.notifySessionSwitched(mode === 'fork' ? 'fork' : 'rewind', String(childId), sourceSessionId)
       return restoredText
     } catch (error) {
