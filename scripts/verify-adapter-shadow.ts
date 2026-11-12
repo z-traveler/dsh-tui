@@ -126,9 +126,17 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
   },
   TuiSceneRuntime: {
     register: { kind: 'capability', capability: 'host.scenes.register' },
+    // Modal types are registered/opened through the same scene surface as
+    // full-screen scenes; reusing the effect class is the seam decision (no
+    // new capability bit).
+    registerModal: { kind: 'capability', capability: 'host.scenes.register' },
     open: { kind: 'capability', capability: 'host.scenes.open' },
+    openModal: { kind: 'capability', capability: 'host.scenes.open' },
     close: { kind: 'capability', capability: 'host.scenes.close' },
     active: { kind: 'capability', capability: 'host.scenes.active' },
+    // Read-only marker for the modal options surface; it produces no effect of
+    // its own, so it rides the same read-only scene capability as `active`.
+    modalOptionsVersion: { kind: 'capability', capability: 'host.scenes.active' },
     subscribe: { kind: 'capability', capability: 'host.scenes.subscribe' },
   },
   TuiPanelRuntime: {

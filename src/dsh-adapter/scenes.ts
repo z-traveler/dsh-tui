@@ -5,6 +5,9 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { ChannelUi as Channel } from '../adapter/channel/ui-policy.js'
 import { activationFiber, bindCallerEffect, compositionRoot, concreteService, requirePluginCaller } from './host-access.js'
 import { componentIdentityOf } from './component-identity.js'
+import type { TuiModalDescriptor, TuiModalHost, TuiModalOpenResult } from './modal-stack.js'
+import type { TuiModalOptions } from '../modal-options.js'
+import { TuiModalRegistry } from './modal-registry.js'
 import {
   assertCapabilityShadowPolicy,
   type AdapterRuntimeOptions,
@@ -51,6 +54,8 @@ export interface TuiSceneDescriptor {
 /** Host-only scene controls used by the channel; omitted from the plugin export. */
 export interface TuiSceneHost {
   readonly active: TuiSceneDescriptor | undefined
+  /** Modal window stack on top of the conversation (host-only). */
+  readonly modal: TuiModalHost
   register(descriptor: TuiSceneDescriptor): () => void
   list(): readonly TuiSceneDescriptor[]
   open(id: string): boolean
@@ -74,6 +79,9 @@ export const name = 'dsh-tui-scenes'
  * dsh-commands handler: `ctx.tuiScenes.open('my-scene')` plus a silent
  * `success` result, so the conversation stays untouched while the scene
  * takes the whole terminal the way the trajectory scene does.
+ *
+ * `registerModal`/`openModal` stack windows on top of the conversation
+ * instead (see `./modal-registry.ts`).
  */
 export class TuiSceneRuntime extends Service {
   constructor(ctx: Context) {
@@ -83,16 +91,21 @@ export class TuiSceneRuntime extends Service {
     const state: SceneState = {
       scenes: new Map(),
       owners: new Map(),
+      modals: new TuiModalRegistry(),
       listeners: new Set(),
       current: undefined,
       host: undefined,
       logger: ctx.logger,
       runtime: adapterRuntimeFor(ctx),
     }
+    // Disposing this row takes every open window with it: no instance may
+    // outlive the scope that created it.
+    ctx.effect(() => () => { state.modals.closeAll() })
     state.host = Object.freeze({
       get active() {
         return sceneStateFor(runtime).current
       },
+      modal: state.modals.host,
       register(descriptor: TuiSceneDescriptor) {
         const state = sceneStateFor(runtime)
         const id = descriptor.id.trim().toLowerCase()
@@ -212,6 +225,33 @@ export class TuiSceneRuntime extends Service {
       : undefined
   }
 
+  /** Register a modal window type; returns the dispose function (caller
+   *  scopes it with `ctx.effect`). See `./modal-registry.ts`. */
+  registerModal(descriptor: TuiModalDescriptor, identity?: Context): () => void {
+    assertCapabilityShadowPolicy('host.scenes.register', sceneStateFor(this).runtime.mode, sceneStateFor(this).runtime.slices)
+    return sceneStateFor(this).modals.register(this.ctx, this, descriptor, identity)
+  }
+
+  /** Open one modal window instance of the named registration; `options`
+   *  override the descriptor's own for this instance only. */
+  openModal(id: string, options?: TuiModalOptions): Promise<TuiModalOpenResult> {
+    assertCapabilityShadowPolicy('host.scenes.open', sceneStateFor(this).runtime.mode, sceneStateFor(this).runtime.slices)
+    return sceneStateFor(this).modals.open(this.ctx, this, id, options)
+  }
+
+  /**
+   * Capability marker for the modal options surface: `1` means descriptor
+   * options, per-open overrides, `updateOptions`/`setHidden`/`focus`/`getBounds`
+   * on the handle, and the host's visibility/bounds/focus projection are all
+   * present. An older host has no such member (and drops the second
+   * `openModal` argument on the floor), so a plugin that wants custom geometry
+   * must check this before opening.
+   */
+  get modalOptionsVersion(): 1 {
+    assertCapabilityShadowPolicy('host.scenes.active', sceneStateFor(this).runtime.mode, sceneStateFor(this).runtime.slices)
+    return 1
+  }
+
   /** UI-side change feed: fired after every open/close/dispose transition. */
   subscribe(listener: () => void): () => void {
     assertCapabilityShadowPolicy('host.scenes.subscribe', sceneStateFor(this).runtime.mode, sceneStateFor(this).runtime.slices)
@@ -229,6 +269,7 @@ interface SceneState {
   readonly runtime: AdapterRuntimeOptions
   readonly scenes: Map<string, TuiSceneDescriptor>
   readonly owners: Map<string, object>
+  readonly modals: TuiModalRegistry
   readonly listeners: Set<{ owner: object | undefined; listener: () => void }>
   current: TuiSceneDescriptor | undefined
   host: TuiSceneHost | undefined
