@@ -14,6 +14,7 @@ package-lock.json
 /standalone/dist/
 .tmp/
 /.cache/
+/.scratch/
 .dsh-prompt-debug.json
 HANDOVER.md
 .local/
