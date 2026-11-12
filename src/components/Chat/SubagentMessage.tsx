@@ -1,6 +1,6 @@
 import React from 'react'
-import { Box, Text, useAnimationFrame } from '../../ui.js'
-import type { SubagentRow } from '../../dsh-adapter/channel.js'
+import { Box, Text, useAnimationFrame, useTerminalSize } from '../../ui.js'
+import type { SubagentRow, SubagentState } from '../../adapter/ports/channel-view.js'
 import type { Theme } from '../../theme.js'
 import { t } from '../../i18n.js'
 import { resolvePreset } from '../activityFrames.js'
@@ -8,14 +8,14 @@ import { toolNameColor } from '../messages/AssistantToolUseMessage.js'
 import { stringWidth } from '../../ink/stringWidth.js'
 import { isMinimalUiMode } from '../../minimalUiMode.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
-import { CardContent, cardMarginTop, useCardSurface } from '../cardSurface.js'
+import { CardBox, useCardSurface } from '../cardSurface.js'
 import { compactStatusMarker } from '../compactStatusMarker.js'
 import { THINKING_SPINNER_FRAMES, THINKING_SPINNER_INTERVAL_MS } from '../../terminal-utils/figures.js'
+import { CARD_INDENT, subagentCardBudget } from './subagentCardBudget.js'
+import { ActivityRow, subagentMessageBoxHeight, type SubagentCardDensity } from './subagentDockLayout.js'
 
 /** The waterfall window is a Kimi Code style constant-height region. */
 const WATERFALL_ROWS = 3
-/** Card's own left indent (on top of the configured horizontal padding). */
-const CARD_INDENT = 2
 /** The `│ ` gutter prefix inside the content area. */
 const WATERFALL_GUTTER = 4
 
@@ -23,11 +23,11 @@ function duration(ms = 0): string {
   const seconds = Math.floor(ms / 1000)
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60}s`
 }
-function tokens(row: SubagentRow): string {
+function tokens(row: Pick<SubagentRow, 'tokens'>): string {
   const total = row.tokens?.total ?? ((row.tokens?.input ?? 0) + (row.tokens?.output ?? 0) || 0)
   return total > 0 ? `${total} tok` : '- tok'
 }
-function status(row: SubagentRow): { glyph: string; label: string; color: keyof Theme | undefined } {
+function status(row: Pick<SubagentRow, 'status'>): { glyph: string; label: string; color: keyof Theme | undefined } {
   const minimalUi = isMinimalUiMode()
   if (row.status === 'completed') return { glyph: minimalUi ? '✓' : '🟢', label: t('subagent-status-completed'), color: minimalUi ? undefined : 'success' }
   if (row.status === 'failed') return { glyph: minimalUi ? '×' : '🔴', label: t('subagent-status-failed'), color: minimalUi ? undefined : 'error' }
@@ -47,12 +47,15 @@ function clipLine(text: string, maxWidth: number): string {
     // never split in half.
     const next = text.codePointAt(index)!
     const char = String.fromCodePoint(next)
-    const charWidth = stringWidth(char)
+    const charWidth = char === '\r' || char === '\n' ? 1 : stringWidth(char)
     if (width + charWidth > maxWidth - 1) break
     width += charWidth
     index += char.length
   }
-  return index < text.length ? `${text.slice(0, index)}…` : text
+  // Normalize only the visible prefix: a long streamed reply must not be
+  // scanned/allocated in full on every animation tick. Newlines occupy a space.
+  const visible = text.slice(0, index).replace(/[\r\n]/g, ' ')
+  return index < text.length ? `${visible}…` : visible
 }
 
 /**
@@ -64,8 +67,12 @@ function clipLine(text: string, maxWidth: number): string {
  * working-activity preset (`/activity`), so the indicator follows the same
  * setting as the main spinner. Pi-like always uses a single-cell braille spinner.
  */
-export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onClick, onOpenView }: {
-  subagent: SubagentRow
+export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onClick, onOpenView, density, grouped = false }: {
+  subagent: SubagentRow | SubagentState
+  /** Absent = unchanged transcript card; dock densities use this same renderer. */
+  density?: SubagentCardDensity
+  /** The dock owns the single surrounding surface and already narrowed its columns. */
+  grouped?: boolean
   marginTopOnTurn: boolean
   activityFrames?: string
   isExpanded: boolean
@@ -82,138 +89,126 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   // The card's face follows the reported status: a cancel/unknown run keeps the
   // ordinary face and its own glyph (cardStatusOf maps neither).
   const card = useCardSurface('subagent', { status: subagent.status })
-  const columns = card.columns
+  const size = useTerminalSize()
+  const columns = grouped ? size.columns : card.columns
   const piLike = card.preset === 'pi-like'
   const [viewportRef, time] = useAnimationFrame(settled ? null : piLike ? THINKING_SPINNER_INTERVAL_MS : 120)
   const info = { ...status(subagent), ...(piLike ? compactStatusMarker(subagent.status, isMinimalUiMode()) : {}) }
   const [hovered, setHovered] = React.useState(false)
   const clickable = onClick !== undefined
-  const elapsed = subagent.completedAt ? subagent.durationMs : Date.now() - subagent.startedAt
+  const elapsed = subagent.completedAt
+    ? 'outputLines' in subagent ? subagent.durationMs : subagent.completedAt - subagent.startedAt
+    : Date.now() - subagent.startedAt
   const lastRunning = [...subagent.toolCalls].reverse().find(tool => tool.status === 'running')
   const previousDone = lastRunning
     ? subagent.toolCalls[subagent.toolCalls.indexOf(lastRunning) - 1]
     : subagent.toolCalls[subagent.toolCalls.length - 1]
   const preset = React.useMemo(() => resolvePreset(activityFrames), [activityFrames])
-  const activity = settled ? [] : subagent.outputLines.slice(-WATERFALL_ROWS)
+  const waterfallRows = density === 'collapsed' ? 0 : density === 'compact' ? 1 : WATERFALL_ROWS
+  const output = 'outputLines' in subagent ? subagent.outputLines : subagent.output
+  const activity = settled || waterfallRows === 0 ? [] : output.slice(-waterfallRows)
   const runningGlyph = piLike
     ? THINKING_SPINNER_FRAMES[Math.floor(time / THINKING_SPINNER_INTERVAL_MS) % THINKING_SPINNER_FRAMES.length]!.trimStart()
     : preset.frames[Math.floor(time / preset.intervalMs) % preset.frames.length] ?? '·'
-  // `card.columns` is already net of the border and configured padding; the
-  // +2 indent below eats into it too, so a card whose content is indented
-  // must subtract it or the constant-height rows ask the renderer for two
-  // columns it doesn't have (its truncate then silently drops the tail).
-  // Legacy (no border, no padding, no indent beyond its own) keeps its old
-  // budget byte-for-byte; pi-like cards keep their own 2-column indent inside
-  // the (padding-less) content box, so their budget is the net one.
-  const indented = card.narrowed || card.preset === 'pi-like'
-  const rowWidth = Math.max(20, (columns ?? 80) - (indented ? CARD_INDENT : 0) - WATERFALL_GUTTER)
-  // Card chrome reduces the header budget; keep the task title instead of
-  // letting every metadata column wrap vertically. pi-like keeps the compact
-  // header even without padding (its preset is what the layout belongs to);
-  // legacy without chrome keeps its original tree/budget. `narrowed` stays the
-  // size contract — the preset flag is not a substitute for it.
-  const compact = card.preset === 'pi-like' || card.narrowed
-  const headerWrap = compact ? 'truncate' : undefined
-  const showStatus = !compact || columns >= 60
-  const showModel = !compact || columns >= 90
-  const showCounts = !compact || columns >= 110
+  const { indent, compact, headerWrap, showStatus, showModel, showCounts } = subagentCardBudget(card, columns, { grouped, docked: density !== undefined })
+  const rowWidth = Math.max(20, (columns ?? 80) - indent - WATERFALL_GUTTER)
   const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : piLike ? runningGlyph : ` ${runningGlyph}`}</Text>
 
   // 点击打开详情场景；hover 不刷整行背景（转录视觉保持安静），只把状态
   // glyph 提亮为品牌色作为可点指示。
-  return <Box
+  return <CardBox surface={grouped ? undefined : card}
     flexDirection="column"
-    marginTop={cardMarginTop(marginTopOnTurn, card.style)}
+    marginTop={grouped ? 0 : marginTopOnTurn ? 1 : 0}
+    flexShrink={density === undefined ? undefined : 0}
+    height={subagentMessageBoxHeight(card.style, density, grouped)}
     // The card's own indent is content, not surface: it rides on top of the
     // configured horizontal padding (which already narrowed `columns`).
-    paddingLeft={card.box.paddingX + CARD_INDENT}
-    backgroundColor={card.box.backgroundColor}
-    borderStyle={card.box.borderStyle}
-    borderColor={card.box.borderColor}
-    paddingX={card.box.paddingX}
-    paddingY={card.box.paddingY}
+    paddingLeft={grouped ? CARD_INDENT : card.box.paddingX + CARD_INDENT}
     ref={viewportRef}
     onClick={onClick}
     onMouseEnter={clickable ? () => setHovered(true) : undefined}
     onMouseLeave={clickable ? () => setHovered(false) : undefined}
   >
-    <CardContent surface={card}>
-      <Box flexDirection="row" gap={1} height={compact ? 1 : undefined}>
-        {compact ? <Box flexShrink={0}>{statusGlyph}</Box> : statusGlyph}
-        <Text wrap={headerWrap} bold color={hovered && clickable ? 'accent' : undefined}>{`${t('subagent-card-prefix')}${subagent.description}`}</Text>
-        {showModel && <>
-          <Text dimColor>·</Text><Text wrap={headerWrap}>{subagent.model ?? subagent.provider ?? 'default'}</Text>
-          {subagent.effort && <><Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.effort}</Text></>}
-          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{duration(elapsed)}</Text>
-        </>}
-        {showCounts && <>
-          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{tokens(subagent)}</Text>
-          <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.toolCalls.length} tools</Text>
-        </>}
-        {showStatus && <><Text dimColor>·</Text><Text wrap={headerWrap} color={info.color}>{info.label}</Text></>}
-        {onOpenView !== undefined && (
-          <Box
-            flexShrink={0}
-            marginLeft={1}
-            onClick={(event: ClickEvent) => {
-              // 拦截冒泡：这一格是「主屏查看」，不是卡片点击（→详情）。
-              event.stopImmediatePropagation()
-              onOpenView()
-            }}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-          >
-            {/* 字形位（与面板 ⤢ 全屏同一词汇）：卡片行是恒定高度的水流行，
-                长标签会把状态列顶折行；完整名称留给 Dashboard/Detail 入口。 */}
-            <Text color={hovered ? 'accent' : 'subtle'}>{'⤢'}</Text>
-          </Box>
-        )}
-      </Box>
-      {!settled && (lastRunning ?? previousDone) !== undefined && (
-        <Text wrap="truncate">
-          {lastRunning !== undefined ? (
-            <>
-              {previousDone !== undefined && (
-                <>
-                  <Text dimColor>{'  · '}</Text>
-                  <Text color="success">✓</Text>
-                  <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
-                  <Text dimColor>{' · '}</Text>
-                </>
-              )}
-              {lastRunning.argsPreview === undefined && (
-                <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
-              )}
-              {lastRunning.argsPreview !== undefined && (
-                <>
-                  <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
-                  <Text dimColor>{` (${clipLine(lastRunning.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - lastRunning.name.length - 6))})`}</Text>
-                </>
-              )}
-            </>
-          ) : (
-            previousDone !== undefined && (
+    <Box flexDirection="row" gap={1} height={compact ? 1 : undefined}>
+      {compact ? <Box flexShrink={0}>{statusGlyph}</Box> : statusGlyph}
+      <Text wrap={headerWrap} bold color={hovered && clickable ? 'accent' : undefined}>{`${t('subagent-card-prefix')}${subagent.description}`}</Text>
+      {showModel && <>
+        <Text dimColor>·</Text><Text wrap={headerWrap}>{subagent.model ?? subagent.provider ?? 'default'}</Text>
+        {subagent.effort && <><Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.effort}</Text></>}
+        <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{duration(elapsed)}</Text>
+      </>}
+      {showCounts && <>
+        <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{tokens(subagent)}</Text>
+        <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.toolCalls.length} tools</Text>
+      </>}
+      {showStatus && <><Text dimColor>·</Text><Text wrap={headerWrap} color={info.color}>{info.label}</Text></>}
+      {onOpenView !== undefined && (
+        <Box
+          flexShrink={0}
+          marginLeft={1}
+          onClick={(event: ClickEvent) => {
+            // 拦截冒泡：这一格是「主屏查看」，不是卡片点击（→详情）。
+            event.stopImmediatePropagation()
+            onOpenView()
+          }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        >
+          {/* 字形位（与面板 ⤢ 全屏同一词汇）：卡片行是恒定高度的水流行，
+              长标签会把状态列顶折行；完整名称留给 Dashboard/Detail 入口。 */}
+          <Text color={hovered ? 'accent' : 'subtle'}>{'⤢'}</Text>
+        </Box>
+      )}
+    </Box>
+    {!settled && density !== 'collapsed' && (lastRunning ?? previousDone) !== undefined && (
+      <ActivityRow fixed={density !== undefined}><Text wrap="truncate">
+        {lastRunning !== undefined ? (
+          <>
+            {previousDone !== undefined && (
               <>
                 <Text dimColor>{'  · '}</Text>
                 <Text color="success">✓</Text>
                 <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
-                {previousDone.argsPreview !== undefined && (
-                  <Text dimColor>{` (${clipLine(previousDone.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - previousDone.name.length - 6))})`}</Text>
-                )}
+                <Text dimColor>{' · '}</Text>
               </>
-            )
-          )}
-        </Text>
-      )}
-      {!settled && Array.from({ length: WATERFALL_ROWS }, (_, index) => (
-        // key 不含 time：含 time 的 key 让每个 animation tick 都变成
-        // unmount+mount，DOMElement/Yoga node churn 且 nodeCache 失配扩大
-        // terminal damage。内容更新走 in-place diff。
-        <Text key={`${subagent.agentId}-wf-${index}`} dimColor wrap="truncate">{`  │ ${clipLine(activity[index] ?? '', rowWidth)}`}</Text>
-      ))}
-      {settled && subagent.status === 'failed' && subagent.error && (
-        <Text color="error" wrap="truncate">{`  └ ${clipLine(subagent.error, rowWidth)}`}</Text>
-      )}
-    </CardContent>
-  </Box>
+            )}
+            {lastRunning.argsPreview === undefined && (
+              <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
+            )}
+            {lastRunning.argsPreview !== undefined && (
+              <>
+                <Text color={toolNameColor(lastRunning.name)}>{lastRunning.name}</Text>
+                <Text dimColor>{` (${clipLine(lastRunning.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - lastRunning.name.length - 6))})`}</Text>
+              </>
+            )}
+          </>
+        ) : (
+          previousDone !== undefined && (
+            <>
+              <Text dimColor>{'  · '}</Text>
+              <Text color="success">✓</Text>
+              <Text color={toolNameColor(previousDone.name)}>{previousDone.name}</Text>
+              {previousDone.argsPreview !== undefined && (
+                <Text dimColor>{` (${clipLine(previousDone.argsPreview.replace(/\s+/g, ' ').trim(), Math.max(10, rowWidth - previousDone.name.length - 6))})`}</Text>
+              )}
+            </>
+          )
+        )}
+      </Text></ActivityRow>
+    )}
+    {!settled && Array.from({ length: waterfallRows }, (_, index) => (
+      // key 不含 time：含 time 的 key 让每个 animation tick 都变成
+      // unmount+mount，DOMElement/Yoga node churn 且 nodeCache 失配扩大
+      // terminal damage。内容更新走 in-place diff。
+      <ActivityRow key={`${subagent.agentId}-wf-${index}`} fixed={density !== undefined}>
+        <Text dimColor wrap="truncate">{`  │ ${clipLine(activity[index] ?? '', rowWidth)}`}</Text>
+      </ActivityRow>
+    ))}
+    {/* Keep replies next to the header when there is no tool. The spare slot
+        trails them, keeping the input and following agents stable on tool start. */}
+    {!settled && density !== undefined && density !== 'collapsed' && (lastRunning ?? previousDone) === undefined && <Box height={1} flexShrink={0} />}
+    {settled && subagent.status === 'failed' && subagent.error && (
+      <Text color="error" wrap="truncate">{`  └ ${clipLine(subagent.error, rowWidth)}`}</Text>
+    )}
+  </CardBox>
 }

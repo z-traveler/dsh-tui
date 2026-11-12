@@ -15,6 +15,7 @@ import { TeamMessageBubble } from './messages/TeamMessageBubble.js'
 import { AssistantTextLeafRow, ThinkingLeafRow, ToolLeafRow } from './messages/TranscriptLeaves.js'
 import { liveOutputMaxLines, liveOutputRows } from './messages/liveOutputLines.js'
 import { SubagentMessage } from './Chat/SubagentMessage.js'
+import { isPinnedLiveSubagent, PinnedSubagentReference, pushPinnedSubagentSignature } from './PinnedSubagentReference.js'
 import { JobCard } from './Chat/JobCard.js'
 import { JobGroupHeader } from './Chat/JobGroupHeader.js'
 import { isMinimalUiMode } from '../minimalUiMode.js'
@@ -240,6 +241,7 @@ function signatureParts(
   sessionCwd: string | undefined,
   fullscreen: boolean,
   cardHeightKey: string,
+  pinLiveSubagents: boolean,
 ): Array<string | number | boolean> {
   signatureScratch.length = 0
   // Universal height inputs: width reflows every row; kind switches height
@@ -295,6 +297,7 @@ function signatureParts(
       break
     }
     case 'subagent':
+      if (pushPinnedSubagentSignature(signatureScratch, pinLiveSubagents, row.subagent)) break
       // 卡片高度输入：running→settled 折叠 waterfall+tool 行（5→1 行），
       // failed 增加 error 行。缺这些字段的话 offscreen 结算后 cached
       // height 永不过期 → 滚回 blank band / 滚不到底。
@@ -414,6 +417,7 @@ export function MessageList({
   onTimeline,
   failureHintRowId,
   failureHint,
+  pinLiveSubagents = false,
   onOpenSubagent,
   onOpenSubagentView,
   onOpenJobs,
@@ -522,6 +526,8 @@ export function MessageList({
   failureHintRowId?: number | null
   /** Footnote text, e.g. `ctrl+t for the full trajectory`. */
   failureHint?: string
+  /** The live card is above input; preserve only its static transcript anchor. */
+  pinLiveSubagents?: boolean
   /** 打开子代理详情场景（transcript 内点击子代理卡）。 */
   onOpenSubagent?: (agentId: string) => void
   /** 从转录里的子代理卡打开主屏只读 Agent View。 */
@@ -941,6 +947,7 @@ export function MessageList({
         sessionCwd,
         fullscreen,
         cardHeightKey,
+        pinLiveSubagents,
       )
       const cachedParts = sigs.get(row.id)
       let same = false
@@ -1638,6 +1645,7 @@ export function MessageList({
               fullscreen={fullscreen}
               turnUsage={row.turnUsage}
               subagent={subagent}
+              pinLiveSubagents={isPinnedLiveSubagent(pinLiveSubagents, subagent)}
               job={job}
               jobGroup={jobGroup}
               onToggleRow={onToggleRow}
@@ -1745,6 +1753,7 @@ type MemoRowProps = SessionCardFields & {
   // SubagentRow, stable ref (subagent lifecycle events update the store, not
   // the row ref itself, so a plain ref compare stays correct).
   subagent: SubagentRow | undefined
+  pinLiveSubagents: boolean
   // JobRow, same update contract as SubagentRow (replaced per job commit).
   job: JobRow | undefined
   /** Group decoration for a run of consecutive job cards (see JobGroupRow). */
@@ -1831,6 +1840,7 @@ function TranscriptRow({
   fullscreen,
   turnUsage,
   subagent,
+  pinLiveSubagents,
   job,
   jobGroup,
   onToggleRow,
@@ -2148,6 +2158,7 @@ function TranscriptRow({
       )
     case 'subagent':
       if (!subagent) return null
+      if (isPinnedLiveSubagent(pinLiveSubagents, subagent)) return <PinnedSubagentReference subagent={subagent} boxRef={ref} onClick={openSubagent} />
       return (
         <Box flexDirection="column" ref={ref}>
           <SubagentMessage
