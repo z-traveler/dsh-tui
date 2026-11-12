@@ -66,6 +66,7 @@ export const EFFECT_LEDGER_FILE = join(DATA_DIR, EFFECT_LEDGER_NAME)
 export const LEDGER_RESOURCE_KINDS = [
   'command',
   'scene',
+  'modal',
   'shortcut',
   'status',
   'status-field',
