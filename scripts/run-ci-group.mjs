@@ -1574,6 +1574,10 @@ const GROUPS = {
 // 插件场景渲染崩溃边界：Thrower 场景必须被 PluginSceneBoundary 接住——
 // onError 精确一次、崩溃场景停止绘制、进程存活；健康场景不受影响。
     ["verify-plugin-scene-boundary", ['node', '--import', 'tsx/esm', 'scripts/verify-plugin-scene-boundary.tsx']],
+    ["verify-plugin-modal-runtime", ['node', '--import', 'tsx/esm', 'scripts/verify-plugin-modal-runtime.ts']],
+    ["verify-plugin-modals", ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-plugin-modals.tsx']],
+    ["verify-modal-layout", ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-modal-layout.ts']],
+    ["verify-plugin-modal-options", ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-plugin-modal-options.tsx']],
 // ctx.tuiPanels 全链（§18 Phase 6）：准入/前缀 id/预算/重复 id ledger/
 // open 限速/跨插件所有权/订阅过滤/崩溃禁用/释放撤下 + 无头渲染冒烟
 // （插件面板抛错出错误卡、3 次崩溃出禁用卡、Chat 侧不受影响）。

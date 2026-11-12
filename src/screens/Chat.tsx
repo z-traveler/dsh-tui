@@ -113,6 +113,8 @@ import { ActivityLine, contextPressurePct } from '../components/ActivityLine.js'
 import { ModelPicker } from '../components/ModelPicker.js'
 import { HelpMenu } from '../components/HelpMenu.js'
 import { PluginSceneBoundary } from '../components/PluginSceneBoundary.js'
+import { usePluginModals } from '../components/PluginModals.js'
+import type { TuiModalHost } from '../dsh-adapter/modal-stack.js'
 import { PluginStatusViewBoundary } from '../components/PluginStatusViewBoundary.js'
 import { ImagePreviewOverlay } from '../components/ImagePreviewOverlay.js'
 import { SkillsPicker, SkillsPickerLoading } from '../components/SkillsPicker.js'
@@ -451,6 +453,7 @@ export function Chat({
   injectControllerRef,
   promptControllerRef: promptControllerRefProp,
   renderScene,
+  modalHost,
   openHomeOnBoot,
   launchpadOnBoot,
   onboardingOnBoot,
@@ -458,6 +461,7 @@ export function Chat({
 }: {
   channel: Channel
   renderScene?: (id: string, channel: Channel) => React.ReactNode
+  modalHost?: TuiModalHost
   questionStore: QuestionStore
   /**
    * The approval seam's UI store — the DSH `ApprovalStore` or a backend
@@ -4885,6 +4889,17 @@ export function Chat({
     && !supervisorOpen && !treeOpen && !settingsOpen && !jobsPanelOpen
     && !sceneOpen && !subagentDashboardOpen && subagentDetailId === null
     && !btwSceneOpen
+  // A single gate drives both admission and input/visibility. Hidden windows
+  // remain mounted outside the early-return screen chain, never invisible owners.
+  const pluginModals = usePluginModals(modalHost, channel, () => {
+    if (questionStore.getSnapshot() !== null || approvals.getSnapshot() !== null || dialogs.getSnapshot() !== null) return 'host-interaction'
+    if (channel.pluginScene !== undefined || supervisorOpen || settingsOpen || treeOpen || jobsPanelOpen
+      || subagentDetailId !== null || subagentDashboardOpen || sceneOpen || agentView !== null
+      || launchpadShown || onboardingOpen || btwSceneOpen) return 'not-chat'
+    if (promptEditorOpen || starModal !== null || couponVisible || helpOpen || overlay.kind !== 'none'
+      || btwOverlayVisible || recap !== null) return 'host-overlay'
+    return undefined
+  })
   const couponRootRef = React.useRef<DOMElement | null>(null)
   const couponGeometryRef = React.useRef<{ visible: boolean; height: number; columns: number; rows: number } | null>(null)
   React.useLayoutEffect(() => {
@@ -4953,6 +4968,7 @@ export function Chat({
   React.useEffect(() => () => clearInterruptWatchdog(), [clearInterruptWatchdog])
 
   useInput((input, key, event) => {
+    if (pluginModals.handleInput(input, key, event)) return
     // 开屏"求 star"弹窗开着时键盘全归它（↑/↓/Enter/Esc 由它自己的
     // useInput 处理），滚轮也不许滚动它身后的转录——和下面的整屏界面
     // 同一套让位规则。
@@ -6573,7 +6589,7 @@ export function Chat({
   const withTitle = (content: React.ReactNode): React.ReactNode => (
     <RevealScopeContext.Provider value={revealScope}>
       <ChatTitle title={channel.sessionTitle} working={channel.working} focused={terminalFocused} />
-      {content}
+      {pluginModals.frame(content)}
     </RevealScopeContext.Provider>
   )
   const screenOpen = channel.pluginScene !== undefined || supervisorOpen || settingsOpen
@@ -7173,7 +7189,8 @@ export function Chat({
 
   const pinLiveSubagents = channel.subagentInputDock && !promptReplacementOpen && !promptEditorOpen
   return withTitle(
-    <Box ref={couponRootRef} flexDirection="column" flexGrow={1} width="100%">
+    <Box ref={couponRootRef} flexDirection="column" flexGrow={1} width="100%"
+      onKeyDownCapture={pluginModals.captureBackgroundKeys}>
       {/* 分栏布局：geometry 为 null（收起 / 窄屏 / inline / 编辑器展开）
           时 SidePanelLayout 原样渲染 children，与现状逐字节一致；分栏时
           左栏拿到 chatColumns 的 TerminalSizeContext 覆盖与出血边界。 */}
@@ -7535,7 +7552,7 @@ export function Chat({
           suspended={promptReplacementOpen}
           // 选择器、搜索框或侧栏持有键盘焦点时，让对应输入框接管原生
           // 光标与 IME 锚点，避免主输入框在后续提交中抢回声明。
-          cursorParking={overlay.kind === 'none' && sidePanel.focus !== 'panel'}
+          cursorParking={overlay.kind === 'none' && sidePanel.focus !== 'panel' && !pluginModals.active}
           // 宠物面板是活动面板时，通知由它的头顶气泡「说出来」，输入框上方
           // 不再重复弹同一条（error 色除外——可能要行动的信号永远走 toast）。
           // 渲染期判定（split + activePanelId），与气泡同一次提交切换，不会

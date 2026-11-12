@@ -28,6 +28,7 @@ import type { AgentSession } from '../agent/session.js'
 import { createStartingSession } from '../agent/starting-session.js'
 import { mountFailureText } from '../sessions/resumeFailure.js'
 import { createChannelSceneOutlet } from './channel-scene-outlet.js'
+import { getHostSceneRuntime, type TuiSceneRuntime } from './scenes.js'
 import { mountChannelUi } from './channel-ui.js'
 import { bindChannelCommands } from './channel/commands.js'
 import { registerTuiChannel } from '../adapter/channel/host-registry.js'
@@ -3453,6 +3454,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
   const buildChat = (): React.ReactElement => React.createElement(Chat, {
     channel,
     renderScene: createChannelSceneOutlet(() => rawChannel.pluginScene),
+    modalHost: getHostSceneRuntime(ctx.get('tuiScenes') as TuiSceneRuntime | undefined)?.modal,
     questionStore,
     approvalStore: panelApprovals,
     injectControllerRef,
