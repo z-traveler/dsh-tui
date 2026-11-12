@@ -1887,6 +1887,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
     // Command/skill transcript cards are on by default; an explicit false
     // restores the upstream transcript.
     sessionCards: config.sessionCards,
+    subagentInputDock: config.subagentInputDock,
     // Same precedence for the agent preset: cordis.yml `preset` over the
     // persisted `/preset` choice; undefined adopts the roster default.
     get configuredPreset() { return rowFacts.config === undefined ? config.preset : rowFacts.config.preset },
@@ -2070,6 +2071,8 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         // shape at the apply site, so junk can only ever fall back to the
         // defaults (the settings document must never fail to load over it).
         cardStyles: Schema.any(),
+        // Keep unset distinct from false so deployment opt-in survives scope defaults.
+        subagentInputDock: Schema.boolean(),
         scrollGutter: Schema.union(['timeline', 'scrollbar', 'hidden']).default('timeline'),
         // Preset names AND custom `NxM` specs (the settings field's parse
         // gate keeps junk out of the user layer; the transform normalizes
@@ -2244,6 +2247,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       /** Conversation card styles (settings `dsh-tui.cardStyles`, deployment
        *  block in cordis.yml); normalized at the apply site. */
       cardStyles?: CardStyleConfig
+      subagentInputDock?: boolean
       scrollGutter?: ScrollGutterMode
       pageMargin?: PageMarginSetting
       foldTerminalCommand?: boolean
@@ -2349,6 +2353,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       // the store normalizes both (see cardStyles.ts). Cards that consume it sit
       // above the channel's version bump, hence the module-level store.
       applyCardStyles(cardStyleConfigFrom(value.cardStyles, config.cardStyles))
+      channel.setSubagentInputDock(value.subagentInputDock ?? config.subagentInputDock ?? false)
       channel.setScrollGutter(normalizeScrollGutter(value.scrollGutter ?? config.scrollGutter))
       // Page margin: the channel carries the mode (tests observe it), the
       // module store drives the actual inset box above Chat — keep both in
@@ -2596,6 +2601,12 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
         },
         {
           ...settingField('toolBackground'),
+        },
+        {
+          ...settingField('subagentInputDock'),
+          format(value: unknown): string {
+            return String(typeof value === 'boolean' ? value : config.subagentInputDock === true)
+          },
         },
         {
           ...settingField('scrollGutter'),

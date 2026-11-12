@@ -163,6 +163,7 @@ import { RecapPanel } from '../components/RecapPanel.js'
 import { isValidSessionColor, SESSION_COLOR_NAMES } from '../terminal-utils/sessionColors.js'
 import { TipsPanel } from '../components/TipsPanel.js'
 import { SubagentDashboard } from '../components/SubagentDashboard.js'
+import { SubagentInputDock } from '../components/SubagentInputDock.js'
 import { JobsPanel } from '../components/JobsPanel.js'
 import { SubagentDetailScene } from '../components/SubagentDetailScene.js'
 import { FileActionsPanel, FILE_ACTION_COUNT } from '../components/FileActionsPanel.js'
@@ -7165,6 +7166,7 @@ export function Chat({
     )
     : null
 
+  const pinLiveSubagents = channel.subagentInputDock && !promptReplacementOpen && !promptEditorOpen
   return withTitle(
     <Box ref={couponRootRef} flexDirection="column" flexGrow={1} width="100%">
       {/* 分栏布局：geometry 为 null（收起 / 窄屏 / inline / 编辑器展开）
@@ -7287,6 +7289,7 @@ export function Chat({
           onTimeline={setTimeline}
           onOpenSubagent={setSubagentDetailId}
           onOpenSubagentView={openSubagentViewFromCard}
+          pinLiveSubagents={pinLiveSubagents}
           onOpenJobs={openJobsPanel}
           onOpenFile={openFileActions}
           sessionCwd={channel.cwd}
@@ -7514,6 +7517,10 @@ export function Chat({
         ) : questionPanelNode !== null ? (
           questionPanelNode
         ) : null}
+        {pinLiveSubagents && (
+          <SubagentInputDock subagents={channel.subagents} activityFrames={channel.activityFrames}
+            onOpen={setSubagentDetailId} onOpenView={agentId => { openAgentView(agentId, { kind: 'chat', returnFocus: 'prompt' }) }} onOpenDashboard={openSubagentDashboard} />
+        )}
         <HudPlacement placement={channel.minimalUi ? 'below' : channel.statusBar?.placement}
           style={channel.minimalUi ? 'native' : channel.statusBar?.style} powerline={channel.statusBar?.powerline} suspended={promptReplacementOpen} statusText={statusEntries.map(entry => entry.text).join(' · ')}>
         <PromptInput

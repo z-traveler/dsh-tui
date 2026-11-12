@@ -880,6 +880,11 @@ const GROUPS = {
     ["verify-command-hold-overlay", ['node', '--import', 'tsx/esm', 'scripts/verify-command-hold-overlay.tsx']],
   ],
   'channel-ui': [
+    ['verify-subagent-input-dock', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-subagent-input-dock.tsx']],
+    ['verify-subagent-dock-scenes', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-subagent-dock-scenes.tsx']],
+    ['verify-original-subagent-dock', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-original-subagent-dock.tsx']],
+    ['verify-subagent-dock-stability', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-subagent-dock-stability.tsx']],
+    ['verify-subagent-reference-height', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-subagent-reference-height.tsx']],
     ['verify-tui-sessions', ['node', '--import', 'tsx/esm', 'scripts/verify-tui-sessions.ts']],
     ['verify-custom-card-visual', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-visual.tsx']],
     ['verify-custom-card-density', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-density.tsx']],

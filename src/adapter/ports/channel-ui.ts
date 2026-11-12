@@ -338,6 +338,9 @@ export interface ChannelUi {
    *  transcript keeps the upstream shape: registry commands use local reports,
    *  and injected skill/notice bodies stay model-facing only. */
   readonly sessionCardsEnabled: boolean
+  /** Downstream opt-in live-subagent view above the composer. */
+  readonly subagentInputDock: boolean
+  setSubagentInputDock(enabled: boolean): void
   /**
    * Current same-session goal projection, when a goal exists. Derived live
    * from the durable goal events in the session log — top-level

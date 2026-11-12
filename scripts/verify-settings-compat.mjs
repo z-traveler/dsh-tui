@@ -279,7 +279,7 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
         })
       })
     } }
-    await root.loader.create({ id: entryId, name: 'cordis:fixture', config: { diffLayout: 'split', shortcuts: { paste: 'alt+v' } } })
+    await root.loader.create({ id: entryId, name: 'cordis:fixture', config: { diffLayout: 'split', subagentInputDock: true, shortcuts: { paste: 'alt+v' } } })
     await root.loader.await()
     assert.notEqual(owner.fiber, child.fiber, 'injection has its own lifecycle')
     assert.equal(effectiveComboString('paste'), 'alt+v')
@@ -325,6 +325,16 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
     assert.equal(powerlineField.parse('{"modelIcons":"G"}'), undefined)
     assert.deepEqual(powerlineField.parse(''), { kind: 'clear' })
     assert.equal(powerlineField.parse('{"icons":"ascii"}').value.icons, 'ascii')
+    const dockField = section.fields.find(field => field.path.join('.') === 'subagentInputDock')
+    assert.ok(dockField, 'the production section exposes the subagent dock')
+    const dockWrites = []
+    const inheritedDockForm = new SettingsForm({ ...host, write: async (_ns, ops) => { dockWrites.push(ops) } },
+      { ...view, value: {}, user: {} }, [dockField])
+    assert.equal(inheritedDockForm.field(dockField).text, 'true', `${registry}: absent user key displays deployment-enabled dock as on`)
+    inheritedDockForm.edit(dockField, inheritedDockForm.field(dockField).text === 'true' ? 'false' : 'true')
+    assert.equal(await inheritedDockForm.save(), true)
+    assert.deepEqual(dockWrites, [[{ op: 'set', path: ['subagentInputDock'], value: false }]], `${registry}: one toggle disables an inherited enabled dock`)
+    assert.equal(dockField.format(false), 'false', 'explicit user opt-out displays off')
     const form = new SettingsForm(host, view, section.fields)
     assert.equal(form.available, true, 'real describe() supplies the editable TUI section')
     assert.equal(form.field(diffField).text, 'split', 'the settings page shows the effective value')
@@ -362,6 +372,17 @@ if (modernSchema) for (const registry of ['service', 'local']) for (const entryI
     // createSettingsScope 内联 schema）；`local` 注册表路径经它读值，键集必须与
     // Config.statusBar 一致，否则那条路径上同样读不到 / 存不住。
     assert.ok(legacyScopeSchema, `${registry}: the production wiring built its legacy settings scope schema`)
+    // Downstream dock: an absent user preference must not shadow deployment
+    // opt-in. Exercise the real scope schema and real apply statement together.
+    const dockStatement = displayBody.statements.find(node => node.getText(source).includes('channel.setSubagentInputDock('))
+    assert.ok(dockStatement)
+    const applyDock = new Function('channel', 'config', 'value', dockStatement.getText(source))
+    const dockValues = []
+    const dockChannel = { setSubagentInputDock: value => dockValues.push(value) }
+    applyDock(dockChannel, { subagentInputDock: true }, legacyScopeSchema({}))
+    applyDock(dockChannel, {}, legacyScopeSchema({}))
+    applyDock(dockChannel, { subagentInputDock: true }, legacyScopeSchema({ subagentInputDock: false }))
+    assert.deepEqual(dockValues, [true, false, false], `${registry}: dock respects deployment opt-in, default-off and explicit user opt-out`)
     assert.deepEqual(
       Object.keys(legacyScopeSchema.dict.statusBar.dict).sort(),
       Object.keys(Config.dict.statusBar.dict).sort(),
