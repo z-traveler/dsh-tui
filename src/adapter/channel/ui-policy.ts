@@ -9,7 +9,7 @@ type MethodKeys<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknow
 export type ChannelPreferences = Pick<ChannelUi,
   | 'setDiffLayout' | 'setThinkingFold' | 'setJobGroupFold' | 'setToolBackground' | 'setScrollGutter'
   | 'setPageMargin' | 'setFoldTerminalCommand' | 'setPromptSessionLabel'
-  | 'setExpandEditor' | 'setSmoothStreaming' | 'setStatusBar' | 'setWhale' | 'setWhaleIdle' | 'setWhaleGirl' | 'setMinimalUi' | 'setMinimal' | 'setSplashFont' | 'setBrand'
+  | 'setSubagentInputDock' | 'setExpandEditor' | 'setSmoothStreaming' | 'setStatusBar' | 'setWhale' | 'setWhaleIdle' | 'setWhaleGirl' | 'setMinimalUi' | 'setMinimal' | 'setSplashFont' | 'setBrand'
 >
 export const CHANNEL_UI_EFFECTS = Object.freeze({
   'setDiffLayout': 'mutate',
@@ -29,6 +29,7 @@ export const CHANNEL_UI_EFFECTS = Object.freeze({
   'setSplashFont': 'mutate',
   'setBrand': 'mutate',
   'setWhaleGirl': 'mutate',
+  'setSubagentInputDock': 'mutate',
   'setMinimalUi': 'mutate',
   // Deprecated pre-rename alias of setMinimalUi (see the port's doc comment).
   'setMinimal': 'mutate',
@@ -230,6 +231,7 @@ export const CHANNEL_UI_PROPERTIES = [
   'activityEnabled',
   'contextBarEnabled',
   'sessionCardsEnabled',
+  'subagentInputDock',
   'goal',
   'todos',
   'loadedContext',

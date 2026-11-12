@@ -115,6 +115,8 @@ export interface Config {
    *  into transcript cards (default true). Set false to keep local command
    *  reports and hide injected skill/notice bodies from the transcript. */
   sessionCards?: boolean
+  /** Downstream opt-in: pin live subagent cards above the composer. */
+  subagentInputDock?: boolean
   /** Run in the terminal's alternate screen (full-screen terminal layout).
    *  Defaults to true — the fullscreen surface is the more complete one
    *  (mouse, timeline rail, scrollbar gutter, selection copy), so fresh
@@ -366,6 +368,7 @@ export const Config: Schema<Config, RuntimeConfig<Config>> = editableConfig<Conf
   // Command/skill/context-notice cards are enabled by default; an explicit false
   // keeps the upstream transcript.
   sessionCards: Schema.boolean().default(true),
+  subagentInputDock: Schema.boolean().default(false),
   fullscreen: Schema.boolean().default(true),
   terminalImages: Schema.boolean().default(true),
   // No `.default()` on purpose (same rule as recapOnOpen): an unset key must

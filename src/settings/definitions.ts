@@ -549,6 +549,14 @@ export const SETTING_DEFINITIONS = {
     kind: 'boolean',
     group: 'status-bar',
   },
+  'subagentInputDock': {
+    label: 'Pin running subagents above input',
+    descriptions: { zh: '运行中的子代理固定在输入框上方' },
+    group: 'conversation',
+    hint: 'Move original live cards above input; keep static history references while running and restore history cards on completion. Height-bounded, off by default.',
+    hintDescriptions: { zh: '把原生实时卡片移到输入框上方；运行时历史位置只留静态引用，结束后恢复历史卡片。高度有界，默认关闭。' },
+    kind: 'boolean',
+  },
   'taskNotifications': {
     label: 'Notifications',
     descriptions: { zh: '通知' },
