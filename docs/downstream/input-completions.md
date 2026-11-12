@@ -1,13 +1,11 @@
-# 插件输入补全 / Plugin input completions
-
-## 中文
+# 插件输入补全
 
 `@deepseek-harness-tui/dsh-tui/input-completions` 是正常可安装 Cordis 插件使用的
 通用输入补全接缝。插件只声明触发规则、查询和有序候选；草稿 token、光标、菜单、
 选择与替换仍由 TUI 宿主拥有。技能发现、排序、用户权限过滤和 `#skill:name` 的
 插入值属于技能插件，不在 TUI 内实现。
 
-### 注册
+## 注册
 
 [`src/dsh-adapter/extensions.ts`](../../src/dsh-adapter/extensions.ts) 的
 `dsh-tui-extensions` 行挂载 `ctx.tuiInputCompletions`。在插件的 `apply` 中注册：
@@ -49,7 +47,7 @@ export function apply(ctx: Context) {
 `ctx.effect(() => ctx.tuiInputCompletions.register(provider))`；返回值是同一注销函数。
 不需要新增授权文件或 grant 配置。
 
-### 契约
+## 契约
 
 - `trigger(token)` 只收到宿主算出的**当前空白分隔 token**和其内的光标
   (`{ text, cursor }`)，拿不到完整草稿；任何 `[Image #N]` 形状的文字覆盖的 token（包括手打占位文本）都不会
@@ -71,53 +69,10 @@ export function apply(ctx: Context) {
 - Enter/Tab 在菜单打开时只接受候选（忙碌时也不会进入 steer/queue）；Esc 只关闭
   菜单并保留草稿。点击、上下键、滚轮和窗口滚动沿用内建补全菜单。
 
-### 验证
+## 验证
 
 `node --import tsx/esm scripts/verify-input-completions.tsx` 使用真实 Cordis
 activation 和挂载的 `PromptInput`，覆盖注册/注销、多来源优先级与来源标签、query
 上下文与 abort、来源报错隔离、陈旧草稿/光标/会话/来源结果、后缀与
 `@path#L12`/`[Image #1]` 保护、忙碌时 Enter/Tab、Esc、内建 `/`/`@` 优先级、
 点击以及卸载。`scripts/verify-adapter-shadow.ts` 校验宿主能力矩阵。
-
-## English
-
-`@deepseek-harness-tui/dsh-tui/input-completions` is the normal-install plugin seam
-for generic composer completions. A plugin declares a trigger, an async query and
-ordered candidates; the TUI host keeps the draft token, caret, menu, selection and
-replacement. Skill discovery, ranking, user-permission filtering and the actual
-`#skill:name` insertion belong to the skill plugin.
-
-The `dsh-tui-extensions` row mounts `ctx.tuiInputCompletions`. Register from
-`apply()` exactly as in the TypeScript example above; the registration is bound to
-the calling Cordis activation, so disabling/unloading the plugin unregisters the
-source, closes its menu and aborts host-side queries. No grant file is involved.
-
-`trigger(token)` sees only the host-computed whitespace token and token-local caret
-(`{ text, cursor }`); a token intersecting any `[Image #N]`-shaped text (including a typed literal) never
-triggers. It returns `{ query }`, the fragment between its trigger and the caret.
-`query({ query, context }, signal)` receives a frozen `{ backendId, sessionId, cwd }`
-and an abort signal, and returns `{ id, name, description?, replacement }[]` or a
-promise of it. The provider gets no draft writer, submit/queue API or other source's
-surface.
-
-Each query waits for all matching sources before displaying its menu, so a slow
-source delays it; there is no query timeout. Cancellation, source changes and
-unloading immediately release the host wait and abort the signal, even if a
-provider ignores it. The host cannot forcibly stop non-cooperative plugin code.
-
-All matching sources contribute, ordered by numeric priority descending (default 0),
-ties in registration order, candidate order preserved per source. Every row carries
-its source `label` once more than one source contributes; equal text from different
-sources is never merged. Only the token prefix through the caret is replaced; text after the caret is
-preserved even inside the same word. Surrounding text,
-`@path#L12` and `[Image #1]` survive. `/` and `@` menus keep priority. Enter/Tab
-accept without submit/steer/queue (even while busy); Escape only closes the menu;
-click, arrow keys, wheel and the window follow the built-in menus. Draft, caret,
-session/binding generation and source-generation changes reject stale results even
-for an identical query, and selection survives by the stable source-qualified item
-key.
-
-Verification: `node --import tsx/esm scripts/verify-input-completions.tsx` (real
-Cordis activation + mounted `PromptInput`); `scripts/verify-adapter-shadow.ts`
-checks the host capability matrix. The default startup launchpad and the chat
-composer consume the same host facade, query lifecycle and menu component.

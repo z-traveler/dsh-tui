@@ -90,3 +90,21 @@ pnpm smoke                      # 通用无头屏幕组装冒烟
 ## 编辑本文件
 
 `CLAUDE.md` 是指向 `AGENTS.md` 的符号链接；编辑真身。每条规则保持自包含，细节链接到权威文档；表达在清晰存活时优先精简。
+
+## 私有下游
+
+本仓库是 dsh-TUI 的私有下游：`z` 分支是上游稳定标签加一串下游功能提交，每个功能一个提交。下游功能清单、上游接入点和各功能文档见 [docs/downstream/README.md](docs/downstream/README.md)；工作区通用规则见 `../AGENTS.md`。
+
+- 开发、提交整理、验收与跟进上游按[下游开发流程](docs/downstream/development.md)；制包、安装与回退按[发布流程](docs/downstream/release.md)。
+- 修改已有下游功能前先读其文档。新逻辑放独立模块，上游文件只加调用点和声明。
+- 下游功能只记录在 `docs/downstream/`（中文）、`docs/adr/` 与 `GLOSSARY.md`；不改上游 README、`docs/` 手册与 `guide/`。上文「双语文档同步」只适用于上游功能。
+- 日常只跑改动面相关的定向回归与必要编译，代替上文的逐次全量要求；全量门禁由发布 CI 运行。
+- 小范围外观调整直接修改，用固定演示场景核对可见效果，不为每轮微调拆票或写报告。
+- Omni 集成同时读工作区 `../dsh-omni/AGENTS.md`；本包只提供接缝，不实现 Omni 业务。
+- `.scratch/` 是不入库的本地工作区。
+
+## Agent skills
+
+- **Issue tracker**：本地 Markdown 工单，见 [issue-tracker.md](docs/agents/issue-tracker.md)。
+- **Triage labels**：见 [triage-labels.md](docs/agents/triage-labels.md)。
+- **Domain docs**：见 [domain.md](docs/agents/domain.md)。
