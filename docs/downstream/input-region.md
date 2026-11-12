@@ -1,6 +1,4 @@
-# Input region / 输入区域
-
-## 中文
+# 输入区域
 
 在 `/settings` → **底栏设置** → **输入区域风格**选择 `powerline`；出厂仍为 `native`。
 极简界面保持原生。切换风格不清空草稿或重置光标。消息卡片和侧栏不变。
@@ -9,7 +7,7 @@ HUD 融入顶边，最后一行输入与圆角底边共用一行。工作行上�
 输入框下方保留一空行，再放溢出字段。详情悬停按需浮现，不另占固定提示行。
 未设置 HUD 位置时，原生在框下、Powerline 融入顶边；明确选 `below` 则状态行位于框下。
 
-### 订阅窗口随模型显示
+## 订阅窗口随模型显示
 
 以下省略图标和其他字段；这是展示形式，不是账户余额或真实样例金额：
 
@@ -28,7 +26,7 @@ Claude:  claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 此前独立的 `quota` 字段不再使用；`left/right` 里应保留 `model`。没有上报数据时不造数。
 数据仍由宿主提供；没有新增登录、账户请求或费用/币种换算。原始秒时间戳在原生适配器转换为毫秒，不在 UI 猜测单位。
 
-### 模型图标
+## 模型图标
 
 出厂未配置时用通用 ``。离线演示按用户确认采用 DeepSeek ◆、GPT ◉、Claude ✳ 自定义映射；它们是演示配置，不是官方品牌图标或出厂默认。
 在 **Powerline 外观选项**的现有 JSON 中合入 `modelIcons`，例如以下仅示意语法的自定义项：
@@ -42,7 +40,7 @@ Nerd 模式支持安全的 1–8 显示单元配置；每个图标和 fallback �
 裸单符号 `✳` 等明确为 emoji 呈现（VS16），不让字体自行在一/两格之间选择；显式选择符保留。
 ASCII 模式统一为 `model`，none 模式隐藏图标。真实字体仍需人工确认；显式 VS15、ZWJ/复杂组合及东亚模糊宽度不承诺跨终端完全一致。
 
-### 布局和其他覆盖
+## 布局和其他覆盖
 
 外观选项保存**部分覆盖**；未填值继续跟随预设，留空恢复预设。非法已知样式拒绝保存；手改文件的非法项安全回落。
 原生 **HUD 字段顺序 / HUD 分隔符 / 紧凑状态栏 / 上下文进度条**不控制 Powerline。原有显隐、插件名单和危险权限提示保留。
@@ -60,25 +58,3 @@ ASCII 模式统一为 `model`，none 模式隐藏图标。真实字体仍需人�
 工作行 Token 计数默认关闭。Git 缓存只读，失败不伪装成干净。
 
 恢复原生只需选择 `native`，无需删除覆盖。
-
-## English
-
-Choose **Input region style → powerline** in `/settings` → **Status bar**. Native remains the factory default;
-Minimal UI stays native. Style switches preserve the draft/cursor. The HUD fuses with the top edge and the final
-input row shares the bottom edge. A working row has one blank row on each side; all three disappear when idle.
-One blank row separates the editor from overflow. Hover details float; cards/sidebars are unchanged.
-
-Subscription windows are part of the **same indivisible model/effort field**, not a separate `quota` field:
-Codex shows `week:80% (6d)`; Claude shows `5h:80% (2h) week:24% (6d)`; other backends and missing windows show nothing.
-Backend identity/data select the windows, not guessed model brands. Rounded remaining below 10 is red, below 25 yellow,
-otherwise green; reset parentheses are muted. Reset counts ceil to m/h/d or `now` under a minute. Expiry never invents
-replenishment. Hover retains model details and adds exact reset dates. Cost visibility is independent. No login or
-network polling is added; native adapters normalize epoch seconds to milliseconds. No live account was exercised.
-
-`modelIcons` uses first-match case-insensitive regexes on raw model IDs in Nerd mode. Unconfigured models use ``;
-there are no built-in brand defaults. The offline demo uses operator-approved ◆/◉/✳ sample overrides, not official logos. Each icon and the fallback keep their own display-cell width
-plus exactly one gap; wider rules never add padding to narrower icons. Bare text-default emoji symbols such as `✳` get explicit VS16; explicit selectors are preserved.
-ASCII mode uses `model`, none hides icons. Real fonts, VS15/ZWJ/complex clusters and ambiguous CJK widths still need
-manual validation. The JSON above is a partial override, not a preset snapshot; merge it into existing overrides.
-Native order/separator/compact/contextBar do not control this style. Remaining option names/bounds are listed above.
-Choose `native` to restore the original presentation without deleting overrides.
