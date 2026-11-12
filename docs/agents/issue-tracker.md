@@ -1,8 +1,8 @@
 # Issue tracker: Local Markdown
 
-规格与工单使用仓库内的 Markdown 文件，不使用 GitHub Issues。
+规格与工单使用本地 Markdown 文件，不使用 GitHub Issues。
 
-- 功能目录：`.scratch/<feature>/`；规格放 `spec.md`。
+- 功能目录：`.scratch/<feature>/`，该目录不入库；规格放 `spec.md`。需要长期保留的结论按 [下游开发流程](../downstream/development.md) 写入仓库文档。
 - 需要拆票时，每票单独写入 `issues/<NN>-<slug>.md`，从 `01` 编号，不合并成一个 tickets 文件。
 - 分诊用文件顶部的 `Status:`，词表见 [triage-labels.md](triage-labels.md)；讨论追加到 `## Comments`。
 - 技能要求“发布工单”时创建本地文件；要求“读取工单”时按给定路径读取。仅给编号且归属不明时先定位功能目录。
