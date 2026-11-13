@@ -900,6 +900,9 @@ const GROUPS = {
     ['verify-card-reading', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-card-reading.tsx']],
     ['verify-card-reading-rows', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-card-reading-rows.tsx']],
     ['verify-custom-card-flow', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-custom-card-flow.tsx']],
+    ['verify-fast-mode', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-fast-mode.tsx']],
+    ['verify-fast-mode-projection', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-fast-mode-projection.ts']],
+    ['verify-fast-mode-render', ['node', '--import', 'tsx/esm', 'scripts/downstream/verify-fast-mode-render.tsx']],
 // L4 composition boundary plus report/metadata lifetime fences.
     ["verify-channel-composition", ['node', '--import', 'tsx/esm', 'scripts/verify-channel-composition.ts']],
 // 状态行的读侧：会话键控、变更通知、宿主发布值的防御性收窄、绑定时的基线读取

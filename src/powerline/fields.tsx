@@ -8,6 +8,7 @@ import type { PowerlineOptions } from './config.js'
 import { formatPowerlineQuota } from './quota.js'
 import { formatModelIconPrefix } from './modelIcon.js'
 import type { PowerlineGitStatus } from './git.js'
+import { FAST_MODE_MARK, showFastMode } from '../fastMode.js'
 
 export interface PowerlineField {
   key: string
@@ -49,12 +50,14 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
   if (flags.model !== false) {
     const name = channel.modelDisplay ?? channel.model
     const prefix = formatModelIconPrefix(channel.model, options)
+    const fast = showFastMode(channel) ? FAST_MODE_MARK : ''
     const quota = formatPowerlineQuota(channel.rateLimit, channel.sessionRef.backendId)
     const suffix = flags.thinking !== false && channel.reasoningEffort && channel.reasoningEffort !== 'off' ? `:${channel.reasoningEffort}` : ''
     const color = options.modelColors.find(rule => new RegExp(rule.pattern, 'i').test(name))?.color ?? colors.model
     const effort = thinking(suffix, channel.reasoningEffort, colors.thinking)
     const node = <Box flexDirection="row">
       <Text color={color}>{prefix}{name}</Text>
+      {fast !== '' && <Text color="success">{fast}</Text>}
       {suffix !== '' && effortClick !== undefined
         ? <Box onClick={event => { event.stopImmediatePropagation(); effortClick() }}>{effort}</Box> : effort}
       {quota !== undefined && <Box flexDirection="row" onClick={event => event.stopImmediatePropagation()}>
@@ -65,7 +68,7 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
       </Box>}
     </Box>
     // Name, effort and applicable subscription windows share one width budget.
-    add('model', `${prefix}${name}${suffix}${quota === undefined ? '' : ` ${quota.text}`}`, node, `${name}${suffix}`, modelClick, quota?.detail)
+    add('model', `${prefix}${name}${fast}${suffix}${quota === undefined ? '' : ` ${quota.text}`}`, node, `${name}${suffix}`, modelClick, quota?.detail)
   }
   if (flags.contextUsage !== false && used !== undefined && capacity !== undefined && capacity > 0) {
     const percent = 100 * used / capacity

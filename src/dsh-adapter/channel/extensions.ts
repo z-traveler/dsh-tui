@@ -56,6 +56,7 @@ import { channelCommands } from './commands.js'
 import { createManualCompaction } from './compaction.js'
 import type { CoreChannel } from './core/compose.js'
 import { createExternalCommandInvoker } from './external-commands.js'
+import { createFastModeStatus } from './fast-mode.js'
 import { createJobProjection } from './job-projection.js'
 import { createDetachedHandleFactory } from './lifetime-resources.js'
 import { createLoadedContextRefresher } from './loaded-context.js'
@@ -620,6 +621,7 @@ export function attachDshExtensions(
   // Event subscription routing is a distinct binding owner. Its hooks run in
   // every core bind: owner-level child listeners once, then the activity seed,
   // activation of that agent's model selection, and foreground raw subscribers.
+  const fastModeStatus = createFastModeStatus(ctx, state, owner)
   const bindingEvents = createBindingEvents(ctx, {
     owner,
     binding,
@@ -628,6 +630,7 @@ export function attachDshExtensions(
     seedContextOccupancy: options.seedContextOccupancy,
     seedTeam: options.seedTeam,
     onBind: agent => toolScope.apply(agent),
+    seedFastMode: fastModeStatus.seed,
     inputConvergence: core.inputConvergence,
     modelSelection,
     modelActions,
