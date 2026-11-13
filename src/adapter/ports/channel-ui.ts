@@ -117,6 +117,13 @@ export interface ChannelUi {
    *  UI renders this instead of `model` when present; attribution and
    *  matching keep using `model`. */
   readonly modelDisplay: string | undefined
+  /** Backend-owned request intent; valid only for this exact displayed route. */
+  readonly fastMode: {
+    readonly enabled: boolean
+    readonly applicable: boolean
+    readonly provider?: string
+    readonly model?: string
+  } | undefined
   /** Provider route of the live agent. */
   readonly provider: string
   /** Raw cordis.yml `provider` key (undefined when unset) — the boot-time

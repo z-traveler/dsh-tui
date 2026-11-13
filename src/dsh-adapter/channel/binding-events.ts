@@ -41,6 +41,7 @@ export function createBindingEvents(ctx: Context, deps: {
   seedTeam?(session: unknown): void
   /** Re-apply per-agent registry state (the preset's tool carve-out). */
   onBind?(agent: Agent): void
+  seedFastMode?(session: Agent['session']): void
   inputConvergence: InputConvergence
   modelSelection: ReturnType<typeof createModelSelection>
   modelActions: { applyPreferredEffort(preserveSessionEffort?: boolean): Promise<void>; dropModelNodeCache?(): void }
@@ -164,6 +165,7 @@ export function createBindingEvents(ctx: Context, deps: {
         deps.state.provider = selected.provider
         deps.state.model = selected.model
       }
+      deps.seedFastMode?.(deps.binding.agent.session)
       const recorded = deps.binding.agent.session.requestHeader?.()?.config
       // Reattachment keeps a live pin; an adopted header also owns the
       // absence of a pin. A child on a different route still seeds normally.

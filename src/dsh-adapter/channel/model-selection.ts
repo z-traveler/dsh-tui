@@ -3,6 +3,7 @@ import type { Agent, ModelSelection } from '@deepseek-ai/dsh-agent'
 import { boundContextSummary, createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { snapshotLiveSessionEvents } from '../compat/liveSession.js'
 import { createChannelOwner, type ChannelOwner } from './owner.js'
+import { publishFastRouteChange } from './fast-mode.js'
 
 /**
  * The foreground selection facade. Modern hosts read the Agent-owned durable
@@ -62,7 +63,10 @@ export function createModelSelection(ctx: Context, deps: {
   /** Write the next step's route, through the durable seam when the host has one. */
   const write = (entry: Entry, value: ModelSelection | undefined): void => {
     if (entry.seam === undefined) {
+      const agent = deps.agent()
+      const previous = entry.ref.current ?? agent.options
       entry.ref.current = value
+      publishFastRouteChange(ctx, agent.session, previous, value)
     } else if (value !== undefined && !sameRoute(value, entry.seam.current())) {
       entry.seam.select(value)
     }
