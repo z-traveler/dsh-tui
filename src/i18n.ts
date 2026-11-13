@@ -415,6 +415,7 @@ const dict = {
   'model-switch-while-working': { zh: '回合运行中，无法切换模型', en: 'Cannot switch models while a turn is running' },
   'model-switch-legacy-unavailable': { zh: '同会话切换模型需要 DSH >= 0.1.2-alpha.3，请先升级 DSH', en: 'Switching models within a session requires DSH >= 0.1.2-alpha.3; upgrade DSH first' },
   'model-switch-failed': { zh: '模型切换失败 · {{err}}', en: 'Model switch failed · {{err}}' },
+  'fast-mode-fallback': { zh: '{{model}} 拒绝 Fast 档位，本次已去掉优先档位重试；会话开关保持不变', en: '{{model}} rejected Fast; this request retried without priority. Session mode is unchanged.' },
   'model-usage': { zh: '用法：/model <provider/model>（如 deepseek/deepseek-flash）', en: 'Usage: /model <provider/model> (e.g. deepseek/deepseek-flash)' },
   'model-unknown': { zh: '未知模型「{{spec}}」· /model 查看全部', en: 'Unknown model "{{spec}}" · /model to view all' },
   'compact-unavailable': { zh: '压缩不可用——当前 leaf 没有压缩服务', en: 'Compaction unavailable · no compaction service in this leaf' },
