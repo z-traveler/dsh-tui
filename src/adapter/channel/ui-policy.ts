@@ -246,6 +246,7 @@ export const CHANNEL_UI_PROPERTIES = [
   'mode',
   'modeIndex',
   'modelDisplay',
+  'fastMode',
   'agentPreset',
   'selection',
   'attachedContexts'

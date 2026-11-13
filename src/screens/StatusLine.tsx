@@ -1,6 +1,7 @@
 import React from 'react'
 import type { StatusLinePresentation } from '../components/StatusLinePresentation.js'
 import { hudSeparator, orderHudFields } from '../hudLayout.js'
+import { FAST_MODE_MARK, showFastMode } from '../fastMode.js'
 import { Box, Text, useTerminalSize, useTheme } from '../ui.js'
 import type { Color } from '../ink/styles.js'
 import { formatTokens } from '../terminal-utils/format.js'
@@ -519,7 +520,7 @@ const selectionBadge = formatSelectionBadge(channel.selection)
   const builtinLeft: FieldPart[] = [
     ...(startingPart !== undefined ? [startingPart] : []),
     ...(statusBar.model
-      ? [{ key: 'model', id: 'model' as const, flexShrink: 0, ...(modelPicker === undefined ? {} : { onClick: modelPicker.onOpen }), node: <Text color="inactiveShimmer">{channel.modelDisplay ?? channel.model}</Text> }]
+      ? [{ key: 'model', id: 'model' as const, flexShrink: 0, ...(modelPicker === undefined ? {} : { onClick: modelPicker.onOpen }), node: <><Text color="inactiveShimmer">{channel.modelDisplay ?? channel.model}</Text>{showFastMode(channel) && <Text color="success">{FAST_MODE_MARK}</Text>}</> }]
       : []),
     ...(tpsPart !== undefined ? [tpsPart] : []),
     ...(jobsPart !== undefined ? [jobsPart] : []),

@@ -470,6 +470,9 @@ export function createCoreChannel(
     get minimal(): boolean {
       return state.minimalUi
     },
+    get fastMode() {
+      return state.fastModeSnapshot?.()
+    },
     /**
      * Context occupancy is derived on read, not stored: the cached host
      * projection value (a map lookup) combined with this channel's own
