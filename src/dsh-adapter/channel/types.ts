@@ -87,6 +87,8 @@ type MutableChannelView = { -readonly [K in keyof ChannelUi]: ChannelUi[K] }
 
 /** Internal writable store; command signatures are owned once by ChannelUi. */
 export interface ChannelState extends Omit<MutableChannelView, 'rows' | 'notifications' | 'todos' | 'pending' | 'tpsSamples' | 'subagents' | 'backgroundJobs' | 'pluginScene' | 'traceEvents' | 'trajectorySource'> {
+  /** Live optional backend read face; not a second copy of Fast intent. */
+  fastModeSnapshot?: () => ChannelUi['fastMode']
   /** False defers a concrete default until the capability catalog becomes available. */
   setDefaultEffort(id: string | undefined): void | false
 
