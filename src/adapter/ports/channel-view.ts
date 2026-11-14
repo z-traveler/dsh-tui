@@ -1079,9 +1079,12 @@ export interface ComposerSubmission {
 
 /** UI-safe projection of one settled DSH registry command. Keeping the
  * result kind across the adapter boundary lets the composer retain a
- * rejected image draft instead of treating the error text as success. */
+ * rejected image draft instead of treating the error text as success.
+ * `draftText` is a live draft-replacement intent from a registered
+ * command-draft mapper (`ctx.tuiInput`): it rides on the reply to the command
+ * the user just ran in THIS process, never on a restored or replayed card. */
 export type ExternalCommandOutcome =
-  | { readonly kind: 'success'; readonly text: string; readonly consumeDraft: true }
+  | { readonly kind: 'success'; readonly text: string; readonly consumeDraft: true; readonly draftText?: string }
   | { readonly kind: 'error'; readonly text: string; readonly consumeDraft: boolean }
 
 /** The observable outcome of adopting a persisted session. */

@@ -197,6 +197,9 @@ const METHOD_POLICY: Record<string, Record<string, MethodPolicy>> = {
   TuiInputCompletionRuntime: {
     register: { kind: 'capability', capability: 'host.input-completions.register' },
   },
+  TuiInputRuntime: {
+    registerCommandDraft: { kind: 'capability', capability: 'host.tui-input.register-command-draft' },
+  },
   TuiToastRuntime: {
     show: { kind: 'capability', capability: 'host.toast.show' },
   },

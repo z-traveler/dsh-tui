@@ -129,6 +129,7 @@ export type {
   TuiInputCompletionToken,
   TuiInputCompletionTrigger,
 } from './input-completions.js'
+export type { TuiCommandDraftMapper, TuiCommandDraftPacket } from './tui-input.js'
 export type {
   TuiWorkspaceKind,
   TuiWorkspaceTarget,
