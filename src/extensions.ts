@@ -88,6 +88,11 @@ export type {
   TuiInputCompletionToken,
   TuiInputCompletionTrigger,
 } from './dsh-adapter/input-completions.js'
+// Command-draft mappers run through the composer-owning host seam
+// (`./tui-input` also carries the Context augmentation). The host resolver
+// stays internal: plugins only call registerCommandDraft() and receive types.
+export { TuiInputRuntime } from './dsh-adapter/command-drafts.js'
+export type { TuiCommandDraftMapper, TuiCommandDraftPacket } from './dsh-adapter/command-drafts.js'
 // The host-integration seam: the foreground binding reader/change callback and
 // the per-launch prompt editor extension. The host side (publish/prepare
 // accessors) stays behind the adapter boundary.

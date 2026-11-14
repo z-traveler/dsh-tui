@@ -7,6 +7,7 @@ import { assertCapabilityShadowPolicy } from '../../adapter/kernel/runtime.js'
 import { t } from '../../i18n.js'
 import { firstStaleComposerToken, orderedComposerImages, type ComposerImages } from './composer-images.js'
 import type { ChannelImageBlock, ComposerImageRef, ExternalCommandOutcome, MentionAttachments } from './types.js'
+import { resolveCommandDraft, type TuiInputRuntime } from '../command-drafts.js'
 
 type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
 type RegistryImage = { type: 'image'; mediaType: ImageMediaType; data: string; name?: string }
@@ -224,16 +225,29 @@ export function createExternalCommandInvoker(
       // replacement session after /new, resume, rewind, or model switch.
       if (!deps.bindingCurrent(capture)) return { kind: 'error', text: '', consumeDraft: false }
       if (execution === undefined) return undefined
-      return execution.result.kind === 'success'
-        ? { kind: 'success', text: execution.result.text ?? '', consumeDraft: true }
-        : {
-            kind: 'error',
-            text: execution.result.text,
-            // Upstream composers retain image-bearing handler failures so
-            // the user can fix the grammar without rebuilding attachments;
-            // imageless handler errors remain consumed durable outcomes.
-            consumeDraft: batch.kind === 'ready' ? batch.images.length === 0 : true,
-          }
+      if (execution.result.kind !== 'success') {
+        return {
+          kind: 'error',
+          text: execution.result.text,
+          // Upstream composers retain image-bearing handler failures so
+          // the user can fix the grammar without rebuilding attachments;
+          // imageless handler errors remain consumed durable outcomes.
+          consumeDraft: batch.kind === 'ready' ? batch.images.length === 0 : true,
+        }
+      }
+      const text = execution.result.text ?? ''
+      // Only this settled local reply maps a draft: a registered mapper sees
+      // the command that actually ran here, so a restored card, a replay or
+      // another client's command can never fill the composer.
+      const draftText = resolveCommandDraft(ctx.get('tuiInput') as TuiInputRuntime | undefined, {
+        name,
+        ...(rawInput === '' ? {} : { args: rawInput }),
+        outcome: 'success',
+        text,
+      })
+      return draftText === undefined
+        ? { kind: 'success', text, consumeDraft: true }
+        : { kind: 'success', text, consumeDraft: true, draftText }
     } catch (error) {
       return {
         kind: 'error',

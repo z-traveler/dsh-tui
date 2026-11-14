@@ -70,6 +70,10 @@
       "types": "./lib/types/input-completions.d.ts",
       "import": "./lib/types/input-completions.js"
     },
+    "./tui-input": {
+      "types": "./lib/types/tui-input.d.ts",
+      "import": "./lib/types/tui-input.js"
+    },
     "./preset-patch": {
       "types": "./lib/types/preset-patch.d.ts",
       "import": "./lib/types/preset-patch.js"

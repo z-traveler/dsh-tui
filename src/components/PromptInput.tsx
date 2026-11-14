@@ -40,6 +40,7 @@ import type {
 import type { TranscriptImage } from '../dsh-adapter/transcript-images.js'
 import type { AttachedContext } from '../adapter/ports/channel-view.js'
 import type { TuiInputCompletionHost } from '../dsh-adapter/input-completions.js'
+import type { CommandRunResult } from './commandDraftFill.js'
 import { isBootSafeCommand, isHiddenCommandName, isLocalCommandName, isUnavailableLocalCommand, parseCommandName, workingHoldOf } from '../commands.js'
 import { appendHistory, HISTORY_LIMIT, historyProjectKey, loadHistoryOldestFirst } from '../history.js'
 import { mentionAtCaret } from '../utils/mentions.js'
@@ -506,12 +507,15 @@ export interface PromptInputProps {
   /**
    * Execute a slash command (built-in or plugin-registered) with its raw
    * argument text; returns false when the input should be sent to the model.
+   * An async dispatch may settle with a `CommandDraftFill` intent
+   * (`commandDraftFill.ts`): the command line it submitted is consumed and its
+   * text replaced by the mapped draft.
    */
   onRunCommand(
     name: string,
     rawInput: string,
     images: readonly ComposerImageRef[],
-  ): boolean | Promise<boolean>
+  ): boolean | Promise<CommandRunResult>
   /** Message-selection mode (Shift+↑): the input ignores keys while active. */
   selectionActive: boolean
   /**
@@ -1700,6 +1704,24 @@ export function PromptInput({
     setFileSelected(0)
   }
 
+  /**
+   * Replace the delivered command line with the draft a command-draft mapper
+   * (`ctx.tuiInput`) returned for it. One atomic step with the consumption:
+   * the command text never sits beside the result, the fill is not undoable
+   * (like a recall), and it is a DRAFT — nothing here submits, queues, binds
+   * images or asks the model for anything. A big text folds through the same
+   * block as a paste so every line is kept and the caret ends after it.
+   */
+  const fillDeliveredDraft = (text: string): void => {
+    syncImageGeneration()
+    discardDraftImages()
+    updateFoldBlock(null)
+    setInput(text, text.length, 'silent')
+    if (!expandedRef.current && isBigInput(text)) updateFoldBlock({ start: 0, end: text.length })
+    setSelectedCommand(0)
+    setFileSelected(0)
+  }
+
   const sameImageRefs = (
     left: readonly ComposerImageRef[],
     right: readonly ComposerImageRef[],
@@ -2147,7 +2169,8 @@ export function PromptInput({
       // while the command was running or a replacement session's draft.
       const attempt = { token: Symbol('command-attempt'), generation, revision, editSequence }
       pendingCommandRef.current = attempt
-      void handled.then((consume) => {
+      void handled.then((result) => {
+        const consume = result === true || (typeof result === 'object' && result.consumeDraft === true)
         if (
           !consume
           || !draftImageLeaseIsCurrent(lease)
@@ -2156,9 +2179,11 @@ export function PromptInput({
         rememberHistory(text.trim(), images)
         const currentText = valueRef.current
         const currentImages = imageRefsFor(currentText)
-        if (currentText === draftText && sameImageRefs(currentImages, draftImages)) {
-          clearDeliveredDraft()
-        }
+        if (currentText !== draftText || !sameImageRefs(currentImages, draftImages)) return
+        // A mapped draft replaces the consumed line; every other settled
+        // command keeps the plain clear.
+        if (typeof result === 'object') fillDeliveredDraft(result.draftText)
+        else clearDeliveredDraft()
       }).catch((error: unknown) => {
         if (!draftImageLeaseIsCurrent(lease)) return
         channel.notify(error instanceof Error ? error.message : String(error), {

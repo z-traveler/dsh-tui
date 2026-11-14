@@ -191,7 +191,7 @@ export function apply(ctx: Context) {
       name: '@z-traveler/dsh-context/tui'
 ```
 
-该消费者复用 dsh-context 自己的结果解析，通用 TUI 不知道 `dsh-context/card@1`。它只展示当次报告，不查询最新观察；prompt copy 只显示状态，不能假称已经写入 TUI 草稿。
+该消费者复用 dsh-context 自己的结果解析，通用 TUI 不知道 `dsh-context/card@1`。卡片只展示当次报告，不查询最新观察。写稿与卡片渲染分离：支持输入写稿的业务入口可注册[命令结果到草稿映射](command-drafts.md)，只消费当前 TUI 发起的实时命令回执。`prompt copy` 卡片仅表示请求状态，不能凭它宣称草稿已写入；历史卡片不会再次写稿。
 
 ## 卡面与主题
 
