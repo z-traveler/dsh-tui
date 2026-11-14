@@ -8,6 +8,7 @@
 - `z` 是上游稳定标签之上的一串功能提交，每个功能一个提交，提交信息使用 conventional 前缀。功能清单见 [README.md](README.md)。
 - 新需求从最新 `z` 建 `feature/<功能>` 分支，并在工作区 `.worktree/dsh-tui/<功能>/` 建对应工作树；同一需求只用这一个分支，不另开串联分支。
 - 合入前把功能分支整理好：修改已有功能时，将改动并入该功能在 `z` 上的提交（`git commit --fixup` 后 `rebase --autosquash`）；新功能整理为一个提交。整理后 rebase 到最新 `z` 并以 fast-forward 合入，`z` 不产生 merge 提交。改写 `z` 后用 `--force-with-lease` 推送。
+- `z` 顶端已打发布标签后，改动以新提交追加在顶端，不改写已发布的历史，以免标签脱离 `z`；这些提交在下次跟进上游时再并入对应功能提交。
 - 交付完成后移除工作树和已合入的分支。
 
 ## 需求与记录
@@ -23,10 +24,11 @@
 - 新逻辑放进独立模块，上游文件只加调用点和配置声明；不复制上游组件。
 - 新增的外观与布局默认保持上游行为，通过配置启用。卡片类改动须同时适配 `legacy` 与 `pi-like` 卡面。
 - 代码、注释、标识符与测试名不提及 Pi 等外部参照；参照来源只写在文档中。
+- 读取未在 `inject` 中声明的可选 Cordis 服务用 `ctx.get('<服务>')` 探测；直接读 `ctx.<服务>` 会在该服务已注册时抛错，导致启动失败。测试须覆盖「服务已注册、但调用方激活未注入」的情形。
 
 ## 验证与验收
 
-1. **定向验证**：运行改动面相关的 `scripts/downstream/verify-*` 与上游聚焦脚本，加上必要编译；不逐次跑全量。
+1. **定向验证**：运行改动面相关的 `scripts/downstream/verify-*` 与上游聚焦脚本，加上必要编译；不逐次跑全量。改动 `channel/`、`dsh-adapter/` 等共享路径时，另跑包含它的 CI 回归分组（`node scripts/run-ci-group.mjs <组> --shard <n>/<总数>`）：上游测试常用最小假宿主调用这些路径，定向脚本覆盖不到。
 2. **可见效果**：终端可见改动用 `scripts/downstream/*-demo.tsx` 的固定演示场景核对。演示默认使用 `pi-like` 卡面和中文内容，覆盖多实例、更新、失败、窄屏，以及 inline 与 fullscreen 两种模式。演示与真实运行不一致时，先查明是演示问题还是实现问题。
 3. **真实环境**：用户要求真实环境验收时，`node scripts/downstream/run-local-dst.mjs` 编译仓库代码，临时挂载到正式 `dsh-tui` profile 并沿用其凭据与会话，退出时恢复原包。运行期间不要用同一 profile 再启动 TUI。
 4. **交付入口**：交给用户的命令先由 agent 原样运行，确认启动无报错、功能可见，并说明要操作什么、观察什么。
@@ -38,5 +40,7 @@
 2. 用 `git range-diff` 逐个核对新旧功能提交。
 3. 编译、typecheck，运行全部 `scripts/downstream/verify-*` 及冲突文件相关的上游脚本；共享渲染或 `Chat` 有冲突时补跑上游 CI 回归。
 4. 通过后推进 `z`，同时把 `main` fast-forward 到上游并推送。
+
+上游标签用 `git fetch upstream --tags` 获取。本仓库启用了 `fetch.prune`，对 origin 使用显式标签 refspec 拉取会删除本地的上游 `v*` 标签。
 
 初次检出执行 `git submodule update --init --recursive`、`pnpm install --frozen-lockfile --ignore-scripts` 与 `pnpm compile`。
