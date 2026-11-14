@@ -87,6 +87,7 @@ import { PowerlineWorking } from '../powerline/Working.js'
 import { OverlayAbove } from '../components/OverlayAbove.js'
 import { TooltipLayer } from '../components/Tooltip.js'
 import { PromptInput, composerImageRefsForText, type PromptController } from '../components/PromptInput.js'
+import { commandDraftFillOf, type CommandRunResult } from '../components/commandDraftFill.js'
 import { turnUsageParts } from '../components/TurnUsageRow.js'
 import { AgentTranscriptScene } from './AgentTranscriptScene.js'
 import { agentViewStore } from '../components/sidePanel/agentViewStore.js'
@@ -2783,9 +2784,9 @@ export function Chat({
     rawInput: string,
     images: readonly ComposerImageRef[] = [],
     render?: { readonly block?: boolean; readonly report?: boolean },
-  ): Promise<boolean> => {
+  ): Promise<CommandRunResult> => {
     const originAgentBinding = channel.agentBindingGeneration
-    return channel.runExternalCommandOutcome(name, rawInput, images).then((outcome) => {
+    return channel.runExternalCommandOutcome(name, rawInput, images).then((outcome): CommandRunResult => {
       if (channel.agentBindingGeneration !== originAgentBinding) return false
       if (outcome === undefined) {
         channel.notify(t('command-not-found', { name }), { color: 'error' })
@@ -2816,7 +2817,9 @@ export function Chat({
           channel.notify(cleaned, outcome.kind === 'error' ? { color: 'error' } : undefined)
         }
       }
-      return outcome.consumeDraft
+      // A command-draft mapper settles this line as a draft replacement; the
+      // composer fills it inside its own completion checks.
+      return commandDraftFillOf(outcome)
     }).catch((error: unknown) => {
       if (channel.agentBindingGeneration !== originAgentBinding) return false
       const detail = cleanCommandError(error)
@@ -3129,7 +3132,7 @@ export function Chat({
     name: string,
     rawInput = '',
     images: readonly ComposerImageRef[] = [],
-  ): boolean | Promise<boolean> => {
+  ): boolean | Promise<CommandRunResult> => {
     if (refusedAtStartup(name)) return true
     switch (name) {
       case 'activity': {

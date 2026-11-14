@@ -16,6 +16,8 @@
  * - `ctx.tuiMentions`  — plugin rows in the composer's `@` completion
  * - `ctx.tuiInputCompletions` — plugin input-completion sources (host-owned
  *   token bounds, menu, keys and replacement; see `input-completions.ts`)
+ * - `ctx.tuiInput` — plugin command-draft mappers for the composer
+ *   (`./tui-input.ts`); the composer still owns the write and its checks
  * - `ctx.tuiSessions` — read-only current binding and fork/rewind notifications
  *   (`./tui-sessions.ts`)
  * - `ctx.tuiIntegration` — the foreground binding (reader + change callback)
@@ -36,8 +38,8 @@
  *
  * Every consumer (`channel.ts`, `Chat.tsx`) reads these with `ctx.get`
  * softly: without this row the TUI degrades to no dialogs/status/shortcuts/
- * renderers/themes/plugin mentions or plugin input completions, and plugin.ts
- * logs the skew warning once for profile launches.
+ * renderers/themes/plugin mentions, plugin input completions or command drafts,
+ * and plugin.ts logs the skew warning once for profile launches.
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -49,6 +51,7 @@ import TuiToastRuntime from './toast.js'
 import TuiThemeRuntime from './themes.js'
 import TuiMentionRuntime from './mention-providers.js'
 import TuiInputCompletionRuntime from './input-completions.js'
+import TuiInputRuntime from './command-drafts.js'
 import { TuiSessionsRuntime } from './tui-sessions.js'
 import TuiIntegrationRuntime from './integration.js'
 import { installDecisionGuard } from './decision-guard.js'
@@ -67,6 +70,7 @@ export function apply(ctx: Context): void {
   ctx.plugin(TuiThemeRuntime)
   ctx.plugin(TuiMentionRuntime)
   ctx.plugin(TuiInputCompletionRuntime)
+  ctx.plugin(TuiInputRuntime)
   ctx.plugin(TuiSessionsRuntime)
   ctx.plugin(TuiIntegrationRuntime)
 }

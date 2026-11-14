@@ -116,7 +116,7 @@ jobs:
         env:
           NODE_ENV: production
         run: |
-          for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts verify-session-cards.tsx verify-card-styles.ts verify-card-rendering.tsx verify-card-demo.tsx verify-custom-card-api.ts verify-custom-card-carrier.ts verify-custom-card-flow.tsx verify-custom-card-density.tsx verify-card-reading-rows.tsx verify-local-dst-profile.mjs; do
+          for script in verify-hud.tsx verify-powerline-input.tsx verify-powerline-layout.ts verify-powerline-git.ts verify-subscription-display.ts verify-model-icon.ts verify-model-icon-width.ts verify-session-cards.tsx verify-card-styles.ts verify-card-rendering.tsx verify-card-demo.tsx verify-custom-card-api.ts verify-custom-card-carrier.ts verify-custom-card-flow.tsx verify-custom-card-density.tsx verify-card-reading-rows.tsx verify-command-drafts.tsx verify-local-dst-profile.mjs; do
             node --import tsx/esm "scripts/downstream/$script" || exit "$?"
           done
           node --import tsx/esm scripts/verify-input-completions.tsx
