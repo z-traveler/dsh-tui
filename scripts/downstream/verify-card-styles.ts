@@ -43,6 +43,52 @@ const legacy = (toolBackground: 'none' | 'subtle' | 'strong' = 'none') => resolv
 const pi = (value: unknown = { preset: 'pi-like' }, toolBackground: 'none' | 'subtle' | 'strong' = 'none') =>
   resolveCardStyles(normalizeCardStyleConfig(value), { toolBackground })
 
+check('tool families keep their selected dark faces without overriding failures or user colours', () => {
+  const styles = pi()
+  const theme = getTheme('dark')
+  for (const [name, fill] of [['Read', '#171F29'], ['Edit', '#211C29'], ['Write', '#172321']] as const) {
+    for (const status of ['running', 'success'] as const) {
+      const background = cardBackgroundOf(styles, 'tool', status)
+      assert.equal(cardBackgroundColor(background, theme, 'dark', undefined, name), fill)
+    }
+    const failure = cardBackgroundOf(styles, 'tool', 'failure')
+    assert.equal(cardBackgroundColor(failure, theme, 'dark', undefined, name), cardBackgroundColor(failure, theme, 'dark'))
+    assert.equal(cardBackgroundColor({ fill: '#123456' }, theme, 'dark', undefined, name), '#123456')
+    for (const level of [1, 2] as const) {
+      chalk.level = level
+      const background = cardBackgroundOf(styles, 'tool', 'success')
+      assert.equal(cardBackgroundColor(background, theme, 'dark', undefined, name), cardBackgroundColor(background, theme, 'dark'))
+    }
+    chalk.level = 3
+    const background = cardBackgroundOf(styles, 'tool', 'success')
+    assert.equal(cardBackgroundColor(background, getTheme('light'), 'light', undefined, name), cardBackgroundColor(background, getTheme('light'), 'light'))
+    assert.equal(cardBackgroundColor(legacy('subtle').kinds.tool.background, theme, 'dark', undefined, name), theme.toolCardBackgroundDim)
+  }
+  const background = cardBackgroundOf(styles, 'tool', 'success')
+  assert.equal(cardBackgroundColor(background, theme, 'dark', undefined, 'Bash'), cardBackgroundColor(background, theme, 'dark'))
+})
+
+check('a diff body fills its actual card face without changing split substrates', () => {
+  const surface = { preset: 'pi-like', presetFace: true, terminalBackground: '#000000' } as const
+  const theme = getTheme('dark')
+  const original = diffBodyAppearance(surface, theme, { active: true })
+  const face = '#211C29'
+  const appearance = diffBodyAppearance(surface, theme, { active: true, background: face })
+  assert.equal(appearance.background, face)
+  assert.equal(appearance.addedLine, original.addedLine)
+  assert.equal(appearance.removedLine, original.removedLine)
+  assert.equal(appearance.addedLineWord, original.addedLineWord)
+  assert.equal(appearance.removedLineWord, original.removedLineWord)
+  for (const word of [appearance.addedWord, appearance.removedWord]) {
+    assert.ok(contrastOf(channelsOf(word)!, channelsOf(face)!) >= 4.5)
+  }
+  const highlighted = diffBodyAppearance(surface, theme, { active: true, background: face, highlight: theme.messageActionsBackground })
+  assert.equal(highlighted.background, theme.messageActionsBackground)
+  assert.equal(highlighted.addedLine, original.addedLine)
+  assert.equal(highlighted.removedLine, original.removedLine)
+  assert.equal(diffBodyAppearance({ ...surface, presetFace: false }, theme, { active: true, background: face }).background, undefined)
+})
+
 interface Rgb { readonly r: number; readonly g: number; readonly b: number }
 
 /** sRGB channels of a rendered colour; `ansi:` names have no channels to read. */

@@ -880,7 +880,7 @@ export function AssistantToolUseMessage({
   // add/del line model.
   // The card's own face and content width (cardSurface.tsx): `columns` is
   // already net of its border and horizontal padding.
-  const card = useCardSurface('tool', { toolBackground, status: tool.status })
+  const card = useCardSurface('tool', { toolBackground, toolName: tool.name, status: tool.status })
   const { columns } = card
   // Interactive rows grow a ▾/▴ disclose column while the pointer dwells
   // (fixed, no layout shift elsewhere). The tooltip resolves at show time —
