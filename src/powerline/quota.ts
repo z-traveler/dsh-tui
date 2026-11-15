@@ -15,11 +15,11 @@ function resetCountdown(deadline: number, now: number): string {
   return `${Math.ceil(seconds / 86400)}d`
 }
 
-/** Model-attached subscription presentation. Native backend identity, not a
- * guessed model brand, selects applicable windows. Deadlines are epoch ms as
- * normalised by native adapters; rendering never resets the reported usage locally. */
+/** Present normalised subscription windows, never infer them from a model name.
+ * Native Codex keeps its weekly-only presentation. Deadlines are epoch ms;
+ * rendering never resets the reported usage locally. */
 export function formatPowerlineQuota(rateLimit: ChannelUi['rateLimit'], backendId: string, now = Date.now()): { text: string; detail: string; parts: ModelQuotaPart[] } | undefined {
-  const names = backendId === 'codex' ? ['seven_day'] : backendId === 'claude' ? ['five_hour', 'seven_day'] : []
+  const names = backendId === 'codex' ? ['seven_day'] : ['five_hour', 'seven_day']
   const parts: ModelQuotaPart[] = [], details: string[] = []
   for (const key of names) {
     const window = rateLimit?.windows.find(item => item.name === key)

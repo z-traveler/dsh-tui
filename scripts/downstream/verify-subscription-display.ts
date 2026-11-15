@@ -23,9 +23,9 @@ check('Claude subscription windows follow five-hour then weekly order', () => {
   assert.equal(render('claude', [window('seven_day', .76, now + 6 * day), window('five_hour', .2, now + 2 * hour)])?.text,
     '5h:80% (2h) week:24% (6d)')
 })
-check('other backends never show stale subscription windows', () => {
-  assert.equal(render('fixture', [window('seven_day', .2, now + day)]), undefined)
-  assert.equal(render('dsh', [window('seven_day', .2, now + day)]), undefined)
+check('normalised subscription windows display without guessing the model brand', () => {
+  assert.equal(render('fixture', [window('seven_day', .2, now + day)])?.text, 'week:80% (1d)')
+  assert.equal(render('dsh', [window('seven_day', .2, now + day)])?.text, 'week:80% (1d)')
 })
 check('missing and unrecognised windows have no placeholder', () => {
   assert.equal(render('codex', []), undefined)
