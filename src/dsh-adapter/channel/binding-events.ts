@@ -42,6 +42,8 @@ export function createBindingEvents(ctx: Context, deps: {
   /** Re-apply per-agent registry state (the preset's tool carve-out). */
   onBind?(agent: Agent): void
   seedFastMode?(session: Agent['session']): void
+  /** Optional subscription quota follower (subscription-quota.ts). */
+  quota?: { bind(): () => void; change(route: { provider: string; model: string }): void; refresh(route: { provider: string; model: string }): void }
   inputConvergence: InputConvergence
   modelSelection: ReturnType<typeof createModelSelection>
   modelActions: { applyPreferredEffort(preserveSessionEffort?: boolean): Promise<void>; dropModelNodeCache?(): void }
@@ -166,6 +168,7 @@ export function createBindingEvents(ctx: Context, deps: {
         deps.state.model = selected.model
       }
       deps.seedFastMode?.(deps.binding.agent.session)
+      if (deps.quota !== undefined) register(deps.quota.bind())
       const recorded = deps.binding.agent.session.requestHeader?.()?.config
       // Reattachment keeps a live pin; an adopted header also owns the
       // absence of a pin. A child on a different route still seeds normally.
@@ -210,10 +213,12 @@ export function createBindingEvents(ctx: Context, deps: {
               deps.modelActions.dropModelNodeCache?.()
               void deps.modelActions.applyPreferredEffort(true)
               deps.seedUpstreamRetry?.(selected.provider)
+              deps.quota?.change(selected)
             }
             deps.state.emit()
           }
         }
+        if (event.type === 'turn/end') deps.quota?.refresh(deps.modelSelection.selection.current ?? deps.state)
         if (event.type === 'request/header' && typeof (native.agent as { model?: { current?: unknown } }).model?.current === 'function') {
           // The projector paints the completed request's effort below. That
           // request may have fixed A/high before a pending B/low was selected.

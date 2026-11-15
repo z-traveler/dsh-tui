@@ -21,6 +21,7 @@
 | Omni 宿主桥接 | 插件注入 `tuiIntegration` | [omni-seams.md](omni-seams.md) | `src/dsh-adapter/foreground.ts`、`integration.ts`、`src/utils/promptEditorLaunch.ts` |
 | 插件模态浮窗 | 插件 `tuiScenes.registerModal/openModal` | [plugin-modals.md](plugin-modals.md) | `src/dsh-adapter/modal-registry.ts`、`modal-stack.ts`、`src/modal-options.ts`、`src/scene-modals.ts`、`src/components/PluginModals.tsx` |
 | Fast 模式展示 | 后端提供 `piAiFast` 投影时自动显示 | [fast-mode.md](fast-mode.md) | `src/fastMode.ts`、`src/dsh-adapter/channel/fast-mode.ts` |
+| DSH 订阅额度 | provider 启用 `subscriptionQuota`，使用 Powerline 输入区 | [subscription-quota.md](subscription-quota.md) | `src/dsh-adapter/channel/subscription-quota.ts`、`src/powerline/quota.ts` |
 
 演示与回归脚本在 `scripts/downstream/`，可复用的演示配置在 `scripts/downstream/fixtures/`。设计决策记在 `docs/adr/`，术语记在根目录 `GLOSSARY.md`。
 

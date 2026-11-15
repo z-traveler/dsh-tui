@@ -25,8 +25,8 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('Run this dem
 function subscriptionSnapshot(backendId: string, index: number): AgentEvent {
   const now = Date.now(), day = 86_400_000
   return { type: 'rate-limit', info: { windows: [
-    { name: 'five_hour', utilization: [.2, .76, .91][index]!, resetsAt: now + (index === 2 ? -60_000 : index === 1 ? 20 * 60_000 : 2 * 3_600_000) },
-    { name: 'seven_day', utilization: (backendId === 'codex' ? [.2, .76, .91] : [.76, .91, .91])[index]!, resetsAt: now + (index === 2 ? -60_000 : index === 1 ? day : 6 * day) },
+    ...(backendId === 'dsh' ? [] : [{ name: 'five_hour', utilization: [.2, .76, .91][index]!, resetsAt: now + (index === 2 ? -60_000 : index === 1 ? 20 * 60_000 : 2 * 3_600_000) }]),
+    { name: 'seven_day', utilization: (backendId === 'claude' ? [.76, .91, .91] : [.2, .76, .91])[index]!, resetsAt: now + (index === 2 ? -60_000 : index === 1 ? day : 6 * day) },
   ] } }
 }
 const host = { on: () => () => undefined, get: () => undefined, logger: { warn() {}, info() {}, debug() {} } }
@@ -34,6 +34,7 @@ const scenes = [
   { backendId: 'fixture', model: 'deepseek-flash' },
   { backendId: 'codex', model: 'gpt-5' },
   { backendId: 'claude', model: 'claude-sonnet-4-5' },
+  { backendId: 'dsh', model: 'gpt-5-codex' },
 ].map(({ backendId, model }) => {
   let receive: Parameters<AgentSession['subscribe']>[0] | undefined
   const sessionId = `hud-demo-${backendId}`

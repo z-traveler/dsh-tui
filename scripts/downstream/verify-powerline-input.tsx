@@ -52,10 +52,11 @@ check('production settings retain the style and partial options after reload', (
 })
 const { TuiStatusStore } = await import('../../src/dsh-adapter/status.js')
 class Input extends PassThrough { isTTY = true; setRawMode() { return this }; ref() { return this }; unref() { return this } }
-for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
+for (const backendId of ['codex', 'dsh']) for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
+  console.log(`Rendering ${backendId} (${fullscreen},${columns})`)
   let receive: Parameters<AgentSession['subscribe']>[0] | undefined
   const session: AgentSession = {
-    ref: { backendId: 'codex', sessionId: 'powerline-fixture' }, cwd: '/fixture/project', status: 'idle', capabilities: { native: {} },
+    ref: { backendId, sessionId: 'powerline-fixture' }, cwd: '/fixture/project', status: 'idle', capabilities: { native: {} },
     history: async () => [
       { type: 'session.ready', sessionId: 'powerline-fixture', cwd: '/fixture/project', model: 'deepseek-flash', effort: 'high', contextWindow: 100_000 },
       { type: 'context.usage', used: 25_000, max: 100_000 },
@@ -130,7 +131,7 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     })
     receive!([{ type: 'session.cwd', cwd: '/fixture/project/moved' }], { replay: false })
     assert.ok(await settled(() => lines().some(line => line.includes('moved'))), lines().join('\n'))
-    check(`HUD follows session directory changes without changing project identity (${fullscreen},${columns})`, () => {
+    check(`HUD follows session directory changes without changing project identity (${backendId},${fullscreen},${columns})`, () => {
       assert.equal(channel.cwd, '/fixture/project')
       assert.equal(channel.workingDirectory, '/fixture/project/moved')
     })
@@ -307,7 +308,7 @@ for (const fullscreen of [false, true]) for (const columns of [60, 180]) {
     receive!([{ type: 'model.changed', model: 'gpt-5', source: 'user' }], { replay: false })
     const reset = Date.now() + 2 * 60 * 60 * 1000
     receive!([{ type: 'rate-limit', info: { windows: [
-      { name: 'five_hour', utilization: .25, resetsAt: reset },
+      ...(backendId === 'codex' ? [{ name: 'five_hour', utilization: .25, resetsAt: reset }] : []),
       { name: 'seven_day', utilization: .4, resetsAt: reset + 70 * 60 * 60 * 1000 },
     ] } }], { replay: false })
     assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('gpt-5:high week:60% (3d)') === true), lines().join('\n'))
