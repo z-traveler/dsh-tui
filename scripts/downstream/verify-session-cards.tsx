@@ -26,6 +26,7 @@
  * 运行：node --import tsx/esm scripts/downstream/verify-session-cards.tsx
  */
 import '../lib/fake-home.mjs'
+import { activateModernEmojiWidths } from '../lib/modern-widths.mjs'
 process.env.FORCE_COLOR = '3'
 process.env.DSH_TUI_LANG = 'zh'
 process.env.DSH_TUI_THEME = 'dark'
@@ -440,6 +441,7 @@ class Input extends PassThrough {
 async function mountChat(node: React.ReactNode, columns: number, fullscreen: boolean) {
   const rows = 40
   const terminal = new XTerm({ cols: columns, rows, scrollback: 200, allowProposedApi: true })
+  activateModernEmojiWidths(terminal)
   class Output extends Writable {
     columns = columns
     rows = rows
