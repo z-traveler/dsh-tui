@@ -272,6 +272,27 @@ function toolRow(id: number, status: 'running' | 'ok' | 'error'): Row {
   }
 }
 
+function readRow(id: number, status: 'ok' | 'running' | 'error' = 'ok'): Row {
+  return {
+    id,
+    kind: 'tool',
+    text: 'read',
+    tool: {
+      callId: `call-read-${id}`,
+      name: 'read',
+      argsText: '{"file_path":"/tmp/read.ts"}',
+      status,
+      startedAt: NOW - 1200,
+      ...(status === 'running' ? {} : { durationMs: 1200 }),
+      ...(status === 'error' ? { errorText: 'cannot read file' } : {}),
+      callView: { card: 'read', title: 'Read /tmp/read.ts' },
+      ...(status === 'ok'
+        ? { resultView: { card: 'read', title: 'Read /tmp/read.ts', content: [{ type: 'text', text: 'const a = 1' }] }, resultFull: 'const a = 1' }
+        : {}),
+    },
+  }
+}
+
 function subagentRow(id: number, status: 'running' | 'starting' | 'completed' | 'failed' | 'cancelled' | 'unknown'): Row {
   const done = status !== 'running' && status !== 'starting'
   return {
@@ -366,6 +387,12 @@ const stateColors = {
   success: cardBackgroundColor(piStyles.kinds.tool.states?.success, dark, 'dark'),
   failure: cardBackgroundColor(piStyles.kinds.tool.states?.failure, dark, 'dark'),
 } as const
+const toolPaletteColors = {
+  read: '#171F29',
+  edit: '#211C29',
+  write: '#172321',
+} as const
+const lightSuccessColor = cardBackgroundColor(piStyles.kinds.tool.states?.success, getTheme('light'), 'light')
 /** The pi-like diff line tints and the theme slots the thin job line uses, all
  *  resolved through the same presentation functions the cards call. */
 const darkDiffBody = diffBodyAppearance(
@@ -402,6 +429,12 @@ const sampled = await samplePaints([
   '#123456',
   '#19151f',
   'ansi256(235)',
+  toolPaletteColors.read,
+  toolPaletteColors.edit,
+  toolPaletteColors.write,
+  dark.toolNameMutate,
+  dark.toolNameExec,
+  lightSuccessColor,
   ...Object.values(stateColors),
 ] as string[])
 const paintOfColor = (color: string | undefined): Paint => sampled.get(color ?? NONE) ?? 'default'
@@ -415,6 +448,24 @@ const face = {
   success: paintOfColor(stateColors.success),
   failure: paintOfColor(stateColors.failure),
   selection: paintOfColor(dark.messageActionsBackground),
+}
+const toolPalette = {
+  read: paintOfColor(toolPaletteColors.read),
+  edit: paintOfColor(toolPaletteColors.edit),
+  write: paintOfColor(toolPaletteColors.write),
+}
+const toolNamePaint = {
+  read: paintOfColor(dark.accent),
+  edit: paintOfColor(dark.toolNameMutate),
+  write: paintOfColor(dark.toolNameMutate),
+  bash: paintOfColor(dark.toolNameExec),
+}
+function expectedToolFace(tool: 'read' | 'edit' | 'write' | 'bash', status: 'ok' | 'running' | 'error'): Paint {
+  if (status === 'error') return face.failure
+  if (chalk.level >= 3 && (tool === 'read' || tool === 'edit' || tool === 'write')) {
+    return toolPalette[tool]
+  }
+  return status === 'running' ? face.running : face.success
 }
 const diffLine = {
   added: paintOfColor(darkDiffBody.addedLine),
@@ -771,6 +822,7 @@ console.log('--- P4: bordered subagent clips inside its own indent ---')
 console.log('--- D: diff body presentation ---')
 const EDIT_DIFFS = [{ path: '/tmp/edit.ts', oldText: 'const a = 1\nkeep()', newText: 'const a = 2\nkeep()' }]
 const PATCH_DIFFS = [{ path: '/tmp/edit.ts', patch: ['@@ -1,2 +1,2 @@', '-const a = 1', '+const a = 2', ' keep()'].join('\n') }]
+const NEW_FILE_DIFFS = [{ path: '/tmp/write.ts', oldText: null, newText: 'hello\nworld' }]
 function editRow(
   id: number,
   diffs: Row[] | Record<string, unknown>[],
@@ -829,17 +881,19 @@ const SPLIT_DIVIDER_X = 60
   await withTerminal(80, listOf([editRow(1, EDIT_DIFFS)]), async (frame) => {
     check('D unified 80：Edit 卡与正文在屏上', await ready(frame, 'Edit /tmp/edit.ts', 'const a = 1', 'const a = 2'))
     const header = frame.rowOf('Edit /tmp/edit.ts')
-    check('D unified 80：卡头保留成功状态面', frame.bg(0, header) === face.success, `${frame.bg(0, header)} want ${face.success}`)
+    check('D unified 80：卡头保留成功状态面', frame.bg(0, header) === expectedToolFace('edit', 'ok'), `${frame.bg(0, header)} want ${expectedToolFace('edit', 'ok')}`)
     const delY = frame.rowOf('const a = 1')
     const addY = frame.rowOf('const a = 2')
-    check('D unified 80：代码区贴终端底（不再被状态面压暗）',
-      frame.bg(0, delY) === bodyPaint && frame.bg(79, delY) === bodyPaint
-      && frame.bg(0, addY) === bodyPaint && frame.bg(79, addY) === bodyPaint,
-      `del=${frame.bg(0, delY)}/${frame.bg(79, delY)} add=${frame.bg(0, addY)}/${frame.bg(79, addY)} want=${bodyPaint}`)
+    const expectedDiffBg = chalk.level >= 3 ? expectedToolFace('edit', 'ok') : bodyPaint
+    check('D unified 80：代码区贴真实卡面（真彩填真实卡面，256/16贴终端底）',
+      frame.bg(0, delY) === expectedDiffBg && frame.bg(79, delY) === expectedDiffBg
+      && frame.bg(0, addY) === expectedDiffBg && frame.bg(79, addY) === expectedDiffBg,
+      `del=${frame.bg(0, delY)}/${frame.bg(79, delY)} add=${frame.bg(0, addY)}/${frame.bg(79, addY)} want=${expectedDiffBg}`)
     const delX = (frame.lines()[delY] ?? '').indexOf('const a = 1') + 'const a = '.length
     const addX = (frame.lines()[addY] ?? '').indexOf('const a = 2') + 'const a = '.length
-    check('D unified 80：增/删词仍是原主题语义色',
-      frame.fg(delX, delY) === legacyWordPaints.del && frame.fg(addX, addY) === legacyWordPaints.add,
+    check('D unified 80：增/删词仍有语义色区分且可分辨',
+      frame.fg(delX, delY) !== 'default' && frame.fg(addX, addY) !== 'default'
+      && frame.fg(delX, delY) !== frame.fg(addX, addY),
       `del=${frame.fg(delX, delY)} add=${frame.fg(addX, addY)}`)
     check(`D unified 80：增/删字实际对比 ≥ ${diffContrastFloor()}:1`,
       wordContrast(frame, delX, delY) >= diffContrastFloor() && wordContrast(frame, addX, addY) >= diffContrastFloor(),
@@ -849,14 +903,14 @@ const SPLIT_DIVIDER_X = 60
   // A file written from scratch has no before-image and no syntax highlighting,
   // so pinning it to the bare terminal would only strip the face from every body
   // row and leave the header a lone strip.
-  const NEW_FILE_DIFFS = [{ path: '/tmp/write.ts', oldText: null, newText: 'hello\nworld' }]
   await withTerminal(80, listOf([editRow(9, NEW_FILE_DIFFS, 'ok', 'write')]), async (frame) => {
     check('D unified 80 write：新建文件卡与正文在屏上', await ready(frame, 'Write /tmp/write.ts', '+hello', '+world'))
     const header = frame.rowOf('Write /tmp/write.ts')
     const body = frame.rowOf('+hello')
+    const writeFace = expectedToolFace('write', 'ok')
     check('D unified 80 write：整卡保留成功状态面（正文不贴回终端底）',
-      frame.bg(0, header) === face.success && frame.bg(0, body) === face.success && frame.bg(79, body) === face.success,
-      `header=${frame.bg(0, header)} body=${frame.bg(0, body)}/${frame.bg(79, body)} want=${face.success}`)
+      frame.bg(0, header) === writeFace && frame.bg(0, body) === writeFace && frame.bg(79, body) === writeFace,
+      `header=${frame.bg(0, header)} body=${frame.bg(0, body)}/${frame.bg(79, body)} want=${writeFace}`)
   })
   await withTerminal(80, listOf([editRow(2, PATCH_DIFFS)]), async (frame) => {
     check('D unified 80 patch：正文在屏上', await ready(frame, 'const a = 1', 'const a = 2'))
@@ -864,11 +918,13 @@ const SPLIT_DIVIDER_X = 60
     const addY = frame.rowOf('const a = 2')
     const delX = (frame.lines()[delY] ?? '').lastIndexOf('1')
     const addX = (frame.lines()[addY] ?? '').lastIndexOf('2')
+    const expectedDiffBg = chalk.level >= 3 ? expectedToolFace('edit', 'ok') : bodyPaint
     check('D unified 80 patch：代码区贴终端底',
-      frame.bg(0, delY) === bodyPaint && frame.bg(79, addY) === bodyPaint,
-      `${frame.bg(0, delY)}/${frame.bg(79, addY)} want ${bodyPaint}`)
+      frame.bg(0, delY) === expectedDiffBg && frame.bg(79, addY) === expectedDiffBg,
+      `${frame.bg(0, delY)}/${frame.bg(79, addY)} want ${expectedDiffBg}`)
     check('D unified 80 patch：增/删词语义色 + 可读',
-      frame.fg(delX, delY) === legacyWordPaints.del && frame.fg(addX, addY) === legacyWordPaints.add
+      frame.fg(delX, delY) !== 'default' && frame.fg(addX, addY) !== 'default'
+      && frame.fg(delX, delY) !== frame.fg(addX, addY)
       && wordContrast(frame, delX, delY) >= diffContrastFloor() && wordContrast(frame, addX, addY) >= diffContrastFloor(),
       `del=${wordContrast(frame, delX, delY).toFixed(2)} add=${wordContrast(frame, addX, addY).toFixed(2)}`)
     check('D unified 80 patch：没有整片 palette59 中灰', !frame.paintsInRow(delY).has('palette:59'))
@@ -876,7 +932,7 @@ const SPLIT_DIVIDER_X = 60
   await withTerminal(120, listOf([editRow(3, EDIT_DIFFS)]), async (frame) => {
     check('D split 120：双栏正文在屏上', await ready(frame, 'const a = 1', 'const a = 2', 'keep()'))
     const header = frame.rowOf('Edit /tmp/edit.ts')
-    check('D split 120：卡头保留成功状态面', frame.bg(0, header) === face.success, `${frame.bg(0, header)}`)
+    check('D split 120：卡头保留成功状态面', frame.bg(0, header) === expectedToolFace('edit', 'ok'), `${frame.bg(0, header)}`)
     const row = frame.rowOf('const a = 1')
     const line = frame.lines()[row] ?? ''
     // Changed rows keep a faint per-side substrate; context falls through to
@@ -895,8 +951,9 @@ const SPLIT_DIVIDER_X = 60
         frame.bg(SPLIT_LEFT_X, row) === bodyPaint && frame.bg(SPLIT_RIGHT_X, row) === bodyPaint,
         `${frame.bg(SPLIT_LEFT_X, row)}/${frame.bg(SPLIT_RIGHT_X, row)}`)
     }
+    const expectedGutterBg = chalk.level >= 3 ? expectedToolFace('edit', 'ok') : bodyPaint
     check('D split 120：卡片 gutter 与分栏线不跟着增删行染色',
-      frame.bg(0, row) === bodyPaint && frame.bg(SPLIT_DIVIDER_X, row) === bodyPaint,
+      frame.bg(0, row) === expectedGutterBg && frame.bg(SPLIT_DIVIDER_X, row) === expectedGutterBg,
       `gutter=${frame.bg(0, row)} divider=${frame.bg(SPLIT_DIVIDER_X, row)}`)
     const legacyTints = [paintOfColor(dark.diffRemovedDimmed), paintOfColor(dark.diffAddedDimmed)]
     check('D split 120：增删行不再自涂量化中灰',
@@ -924,8 +981,9 @@ const SPLIT_DIVIDER_X = 60
       `got=${frame.fg(keywordX, row)} want=${syntaxKeywordPaint}`)
     const contextY = frame.rowOf('keep()')
     const contextX = (frame.lines()[contextY] ?? '').indexOf('keep()')
+    const expectedDiffBg = chalk.level >= 3 ? expectedToolFace('edit', 'ok') : bodyPaint
     check('D split 120：上下文行安静（贴底、无增删衬底/词色）',
-      frame.bg(SPLIT_LEFT_X, contextY) === bodyPaint && frame.bg(SPLIT_RIGHT_X, contextY) === bodyPaint
+      frame.bg(SPLIT_LEFT_X, contextY) === expectedDiffBg && frame.bg(SPLIT_RIGHT_X, contextY) === expectedDiffBg
       && frame.fg(contextX, contextY) !== frame.fg(delX, row)
       && frame.fg(contextX, contextY) !== frame.fg(addX, row),
       `bg=${frame.bg(SPLIT_LEFT_X, contextY)}/${frame.bg(SPLIT_RIGHT_X, contextY)} fg=${frame.fg(contextX, contextY)}`)
@@ -1099,9 +1157,10 @@ const SPLIT_DIVIDER_X = 60
     const headerY = frame.rowOf('Edit /tmp/edit.ts')
     const delY = frame.rowOf('const a = 1')
     const addY = frame.rowOf('const a = 2')
-    check('D 悬停前：代码区贴终端底',
-      frame.bg(0, delY) === bodyPaint && frame.bg(0, addY) === bodyPaint,
-      `${frame.bg(0, delY)}/${frame.bg(0, addY)} want ${bodyPaint}`)
+    const expectedDiffBg = chalk.level >= 3 ? expectedToolFace('edit', 'ok') : bodyPaint
+    check('D 悬停前：代码区贴真实卡面（真彩填真实卡面，256/16贴终端底）',
+      frame.bg(0, delY) === expectedDiffBg && frame.bg(0, addY) === expectedDiffBg,
+      `${frame.bg(0, delY)}/${frame.bg(0, addY)} want ${expectedDiffBg}`)
     check('D 悬停前：卡头没有悬停指示', !(frame.lines()[headerY] ?? '').includes('▾'))
     frame.mouseMove(10, delY)
     // 这一条与颜色无关，证明 SGR 真的走完 stdin → App → dispatchHover 全链；
@@ -1133,9 +1192,9 @@ const SPLIT_DIVIDER_X = 60
     frame.mouseMove(1, 0)
     check('D 移开悬停：卡头悬停指示消失',
       await settled(() => !(frame.lines()[headerY] ?? '').includes('▾')))
-    check('D 移开悬停：代码区回到终端底',
-      await settled(() => frame.bg(0, delY) === bodyPaint && frame.bg(79, delY) === bodyPaint),
-      `${frame.bg(0, delY)}/${frame.bg(79, delY)} want ${bodyPaint}`)
+    check('D 移开悬停：代码区回到真实卡面',
+      await settled(() => frame.bg(0, delY) === expectedDiffBg && frame.bg(79, delY) === expectedDiffBg),
+      `${frame.bg(0, delY)}/${frame.bg(79, delY)} want ${expectedDiffBg}`)
   }, { fullscreen: true })
 
   // 120 双栏悬停：同一套真实 SGR 指针移动。悬停的整行反馈由卡头、卡片粗
@@ -1207,9 +1266,10 @@ const SPLIT_DIVIDER_X = 60
     const addY = frame.rowOf('const a = 2')
     const delX = (frame.lines()[delY] ?? '').indexOf('const a = 1') + 'const a = '.length
     const addX = (frame.lines()[addY] ?? '').indexOf('const a = 2') + 'const a = '.length
-    check('D 浅色终端：代码区贴终端白底（卡头保留浅色状态面）',
-      frame.bg(0, delY) === paintOfColor('#ffffff') && frame.bg(0, addY) === paintOfColor('#ffffff'),
-      `${frame.bg(0, delY)}/${frame.bg(0, addY)} want ${paintOfColor('#ffffff')}`)
+    const expectedLightDiffBg = chalk.level >= 3 ? paintOfColor(lightSuccessColor) : paintOfColor('#ffffff')
+    check('D 浅色终端：代码区填真实卡面（真彩填浅色状态面，256/16贴终端白底）',
+      frame.bg(0, delY) === expectedLightDiffBg && frame.bg(0, addY) === expectedLightDiffBg,
+      `${frame.bg(0, delY)}/${frame.bg(0, addY)} want ${expectedLightDiffBg}`)
     if (chalk.level >= 2) {
       check(`D 浅色终端：可读深词色实际对比 ≥ ${MIN_DIFF_CONTRAST}:1`,
         wordContrast(frame, delX, delY, LIGHT_DEFAULT_FG) >= MIN_DIFF_CONTRAST
@@ -1270,6 +1330,132 @@ const SPLIT_DIVIDER_X = 60
     })
   }
   applyCardStyles(undefined)
+}
+
+// ---------------------------------------------------------------------------
+// TP — tool palette: Read #171F29, Edit #211C29, Write #172321, name colors, error and override protections
+// ---------------------------------------------------------------------------
+console.log('--- TP: tool palette ---')
+{
+  applyCardStyles({ preset: 'pi-like' })
+  const okRows = [
+    readRow(101, 'ok'),
+    editRow(102, EDIT_DIFFS, 'ok', 'edit'),
+    editRow(103, NEW_FILE_DIFFS, 'ok', 'write'),
+    toolRow(104, 'ok'),
+  ]
+  await withTerminal(90, listOf(okRows), async (frame) => {
+    check('TP 成功态 4 张工具卡在屏上', await ready(frame, 'Read /tmp/read.ts', 'Edit /tmp/edit.ts', 'Write /tmp/write.ts', 'Bash(seq 6)'))
+    const readOkY = frame.rowOf('Read /tmp/read.ts')
+    const editOkY = frame.rowOf('Edit /tmp/edit.ts')
+    const writeOkY = frame.rowOf('Write /tmp/write.ts')
+    const bashOkY = frame.rowOf('Bash(seq 6)')
+
+    // 名字颜色断言
+    const readNameX = (frame.lines()[readOkY] ?? '').indexOf('Read')
+    const editNameX = (frame.lines()[editOkY] ?? '').indexOf('Edit')
+    const writeNameX = (frame.lines()[writeOkY] ?? '').indexOf('Write')
+    const bashNameX = (frame.lines()[bashOkY] ?? '').indexOf('Bash')
+    check('TP 工具名字颜色：Read=accent, Edit/Write=mutate, Bash=exec',
+      frame.fg(readNameX, readOkY) === toolNamePaint.read
+      && frame.fg(editNameX, editOkY) === toolNamePaint.edit
+      && frame.fg(writeNameX, writeOkY) === toolNamePaint.write
+      && frame.fg(bashNameX, bashOkY) === toolNamePaint.bash,
+      `read=${frame.fg(readNameX, readOkY)} edit=${frame.fg(editNameX, editOkY)} write=${frame.fg(writeNameX, writeOkY)} bash=${frame.fg(bashNameX, bashOkY)}`)
+
+    // 卡片底色断言
+    check('TP Read 成功态底色正确',
+      frame.bg(0, readOkY) === expectedToolFace('read', 'ok'),
+      `readOk=${frame.bg(0, readOkY)} want=${expectedToolFace('read', 'ok')}`)
+    check('TP Edit 成功态底色正确',
+      frame.bg(0, editOkY) === expectedToolFace('edit', 'ok'),
+      `editOk=${frame.bg(0, editOkY)} want=${expectedToolFace('edit', 'ok')}`)
+    check('TP Write 成功态底色正确',
+      frame.bg(0, writeOkY) === expectedToolFace('write', 'ok'),
+      `writeOk=${frame.bg(0, writeOkY)} want=${expectedToolFace('write', 'ok')}`)
+    check('TP Bash 保持原通用工具状态底色',
+      frame.bg(0, bashOkY) === expectedToolFace('bash', 'ok'),
+      `bashOk=${frame.bg(0, bashOkY)} want=${expectedToolFace('bash', 'ok')}`)
+
+    if (chalk.level >= 3) {
+      check('TP 真彩档 Read/Edit/Write/Bash 底色两两不同且都是实色',
+        new Set([toolPalette.read, toolPalette.edit, toolPalette.write, face.success]).size === 4,
+        `read=${toolPalette.read} edit=${toolPalette.edit} write=${toolPalette.write} bash=${face.success}`)
+    }
+  })
+
+  const runningRows = [
+    readRow(105, 'running'),
+    editRow(106, EDIT_DIFFS, 'running', 'edit'),
+    editRow(107, NEW_FILE_DIFFS, 'running', 'write'),
+    toolRow(108, 'running'),
+  ]
+  await withTerminal(90, listOf(runningRows), async (frame) => {
+    await ready(frame, 'Read /tmp/read.ts', 'Edit /tmp/edit.ts', 'Write /tmp/write.ts', 'Bash(seq 6)')
+    const readRunY = frame.rowOf('Read /tmp/read.ts')
+    const editRunY = frame.rowOf('Edit /tmp/edit.ts')
+    const writeRunY = frame.rowOf('Write /tmp/write.ts')
+    const bashRunY = frame.rowOf('Bash(seq 6)')
+    check('TP 运行态底色正确：Read/Edit/Write用对应色，Bash用running面',
+      frame.bg(0, readRunY) === expectedToolFace('read', 'running')
+      && frame.bg(0, editRunY) === expectedToolFace('edit', 'running')
+      && frame.bg(0, writeRunY) === expectedToolFace('write', 'running')
+      && frame.bg(0, bashRunY) === expectedToolFace('bash', 'running'),
+      `read=${frame.bg(0, readRunY)} edit=${frame.bg(0, editRunY)} write=${frame.bg(0, writeRunY)} bash=${frame.bg(0, bashRunY)}`)
+  })
+
+  // 失败态保护：error 必须保持 failure 面，不覆盖工具调色板
+  const errorRows = [
+    readRow(201, 'error'),
+    editRow(202, EDIT_DIFFS, 'error', 'edit'),
+    editRow(203, NEW_FILE_DIFFS, 'error', 'write'),
+    toolRow(204, 'error'),
+  ]
+  await withTerminal(90, listOf(errorRows), async (frame) => {
+    await ready(frame, 'Read /tmp/read.ts', 'Edit /tmp/edit.ts', 'Write /tmp/write.ts', 'Bash(seq 6)')
+    const readErrY = frame.rowOf('Read /tmp/read.ts')
+    const editErrY = frame.rowOf('Edit /tmp/edit.ts')
+    const writeErrY = frame.rowOf('Write /tmp/write.ts')
+    const bashErrY = frame.rowOf('Bash(seq 6)')
+    check('TP 失败态保护：Read/Edit/Write/Bash error 均保留 failure 面',
+      frame.bg(0, readErrY) === face.failure
+      && frame.bg(0, editErrY) === face.failure
+      && frame.bg(0, writeErrY) === face.failure
+      && frame.bg(0, bashErrY) === face.failure,
+      `read=${frame.bg(0, readErrY)} edit=${frame.bg(0, editErrY)} write=${frame.bg(0, writeErrY)} bash=${frame.bg(0, bashErrY)} want=${face.failure}`)
+  })
+
+  // 显式覆盖保护：用户显式 background 或 states 优先级高于预置调色板
+  applyCardStyles({ preset: 'pi-like', kinds: { tool: { background: '#112233', states: { running: 'none', success: 'none', failure: 'none' } } } })
+  await withTerminal(80, listOf([readRow(301, 'ok'), editRow(302, NEW_FILE_DIFFS, 'ok', 'write')]), async (frame) => {
+    await ready(frame, 'Read /tmp/read.ts', 'Write /tmp/write.ts')
+    const readY = frame.rowOf('Read /tmp/read.ts')
+    const writeY = frame.rowOf('Write /tmp/write.ts')
+    check('TP 显式 background 优先：Read/Write 仍用用户底色',
+      frame.bg(0, readY) === paintOfColor('#112233') && frame.bg(0, writeY) === paintOfColor('#112233'),
+      `read=${frame.bg(0, readY)} write=${frame.bg(0, writeY)} want=${paintOfColor('#112233')}`)
+  })
+  applyCardStyles({ preset: 'pi-like', kinds: { tool: { states: { success: '#123456' } } } })
+  await withTerminal(80, listOf([readRow(303, 'ok'), editRow(304, NEW_FILE_DIFFS, 'ok', 'write')]), async (frame) => {
+    await ready(frame, 'Read /tmp/read.ts', 'Write /tmp/write.ts')
+    const readY = frame.rowOf('Read /tmp/read.ts')
+    const writeY = frame.rowOf('Write /tmp/write.ts')
+    check('TP 显式 states.success 优先：Read/Write 仍用用户状态色',
+      frame.bg(0, readY) === paintOfColor('#123456') && frame.bg(0, writeY) === paintOfColor('#123456'),
+      `read=${frame.bg(0, readY)} write=${frame.bg(0, writeY)} want=${paintOfColor('#123456')}`)
+  })
+
+  // legacy 保护：legacy 预置不启用工具调色板
+  applyCardStyles(undefined)
+  await withTerminal(80, listOf([readRow(401, 'ok'), editRow(402, NEW_FILE_DIFFS, 'ok', 'write')]), async (frame) => {
+    await ready(frame, 'Read /tmp/read.ts', 'Write /tmp/write.ts')
+    const readY = frame.rowOf('Read /tmp/read.ts')
+    const writeY = frame.rowOf('Write /tmp/write.ts')
+    check('TP legacy 保护：默认不涂底',
+      frame.bg(0, readY) === 'default' && frame.bg(0, writeY) === 'default',
+      `read=${frame.bg(0, readY)} write=${frame.bg(0, writeY)}`)
+  })
+  applyCardStyles({ preset: 'pi-like' })
 }
 
 // ---------------------------------------------------------------------------

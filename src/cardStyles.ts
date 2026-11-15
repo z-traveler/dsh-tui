@@ -33,9 +33,9 @@
  * 状态底色也可以逐状态覆盖（`states`），它与卡片的普通 `background` 是两层，
  * 互相关掉不掉，要关就把它设成 `none`。
  *
- * `pi-like` 的 diff 卡正文不在整张状态面上：代码区贴回终端底、split 的增删行
- * 让出衬底，是呈现层的 `components/diffAppearance.ts` 按这里给出的
- * `presetFace`/终端底色决定的，diff 的解析与算法不在这里。
+ * `pi-like` 暗色真彩的 Read/Edit/Write 预置面分别用雾蓝/紫灰/青灰，失败态、
+ * 个人覆盖、浅色和低色档仍保留原色。真彩 diff 正文沿用卡面，split 增删行的
+ * 独立衬底由 `components/diffAppearance.ts` 保留，diff 的解析与算法不在这里。
  */
 import chalk from 'chalk'
 import type { Theme, ThemeName } from './theme.js'
@@ -99,7 +99,7 @@ export interface CardBackground {
   readonly presetState?: CardStatus
   /** 这是预置方案给某类型配的普通卡面（只有 pi-like 的 tool/subagent 带）：
    *  呈现层据此识别「方案底」与用户显式 `background`，例如 diff 卡只在
-   *  方案底下把代码区贴回终端底。个人覆盖的底色不带这个标记。 */
+   *  方案底下采用自适应 diff 正文外观。个人覆盖的底色不带这个标记。 */
   readonly presetFace?: true
   /** 这是预置方案给用户卡片配的默认面（只有 pi-like 的 user 带）：解析时
    *  `fill` 不是铺满的底色而是**色偏**，按 `USER_SURFACE_RATIO` 极淡地混在
@@ -653,16 +653,28 @@ function presetUserColor(tone: string | undefined, polarity: PalettePolarity, te
  * （实际终端底色）上，见 `presetUserColor`。
  *
  * `themeName` 只用来判明暗极性（`isLightThemeActive`），不参与取色；
- * `terminalBackground` 只有预置用户面会用到。
+ * `terminalBackground` 只有预置用户面会用到；`toolName` 仅由工具卡传入，用于
+ * 暗色真彩预置面中的 Read/Edit/Write 分类，失败色与显式覆盖优先。
  */
 export function cardBackgroundColor(
   background: CardBackground | undefined,
   theme: Theme,
   themeName: ThemeName,
   terminalBackground?: string,
+  toolName?: string,
 ): string | undefined {
   if (background === undefined) return undefined
   const polarity: PalettePolarity = isLightThemeActive(themeName) ? 'light' : 'dark'
+  // Only preset tool faces use the family palette; errors and explicit colours
+  // retain their existing state treatment. Lower tiers cannot express these near-black hues.
+  if (chalk.level >= 3 && polarity === 'dark'
+    && (background.presetFace || background.presetState === 'running' || background.presetState === 'success')) {
+    switch (toolName?.toLowerCase()) {
+      case 'read': return '#171F29'
+      case 'edit': return '#211C29'
+      case 'write': return '#172321'
+    }
+  }
   if (background.presetNotice === true) {
     if (chalk.level >= 3) return polarity === 'light' ? '#f3eef7' : '#19151f'
     return chalk.level >= 2 ? polarity === 'light' ? 'ansi256(254)' : 'ansi256(235)' : undefined
