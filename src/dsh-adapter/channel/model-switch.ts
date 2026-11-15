@@ -24,6 +24,8 @@ export function createModelSwitchAction(
     dropModelCompletion(): void
     /** No bind follows an in-session switch, so seed the new route here. */
     seedUpstreamRetry(provider: string): void
+    /** Legacy hosts record no durable selection event; observe the route here. */
+    refreshQuota?(route: { provider: string; model: string }): void
     notify: ChannelState['notify']
   },
 ) {
@@ -64,6 +66,7 @@ export function createModelSwitchAction(
     deps.dropModelCompletion()
     void deps.applyPreferredEffort()
     deps.seedUpstreamRetry(provider)
+    deps.refreshQuota?.({ provider, model })
     if (!writeModelPref(provider, model)) deps.notify(t('model-pref-write-failed'), { color: 'warning' })
     state.emit()
     return true

@@ -57,6 +57,7 @@ import { createManualCompaction } from './compaction.js'
 import type { CoreChannel } from './core/compose.js'
 import { createExternalCommandInvoker } from './external-commands.js'
 import { createFastModeStatus } from './fast-mode.js'
+import { createSubscriptionQuota } from './subscription-quota.js'
 import { createJobProjection } from './job-projection.js'
 import { createDetachedHandleFactory } from './lifetime-resources.js'
 import { createLoadedContextRefresher } from './loaded-context.js'
@@ -579,6 +580,8 @@ export function attachDshExtensions(
   const bindAgent = (): void => { core.feed.bind() }
   const clearStagedImages = core.input.clearStagedImages
 
+  // The foreground route, pending selection included (not the last completed request).
+  const subscriptionQuota = createSubscriptionQuota(ctx, state, owner, () => selection.current ?? state)
   const switchModelAction = createModelSwitchAction(ctx, state, {
     owner,
     binding,
@@ -587,6 +590,7 @@ export function attachDshExtensions(
     applyPreferredEffort: () => modelActions.applyPreferredEffort(),
     dropModelCompletion: () => modelActions.dropModelNodeCache(),
     seedUpstreamRetry,
+    refreshQuota: route => subscriptionQuota.change(route),
     notify,
   })
 
@@ -631,6 +635,7 @@ export function attachDshExtensions(
     seedTeam: options.seedTeam,
     onBind: agent => toolScope.apply(agent),
     seedFastMode: fastModeStatus.seed,
+    quota: subscriptionQuota,
     inputConvergence: core.inputConvergence,
     modelSelection,
     modelActions,
