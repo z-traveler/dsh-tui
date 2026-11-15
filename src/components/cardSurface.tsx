@@ -123,6 +123,7 @@ export function useCardSurface(
   kind: CardKind,
   options: {
     readonly toolBackground?: ToolBackground
+    readonly toolName?: string
     readonly status?: string | undefined
     readonly density?: TuiCardDensity | undefined
   } = {},
@@ -140,6 +141,7 @@ export function useCardSurface(
     getTheme(themeName),
     themeName,
     terminalBackground,
+    kind === 'tool' ? options.toolName : undefined,
   )
   const columns = cardContentWidth(size.columns, style)
   const narrowed = style.paddingX > 0 || style.border !== undefined

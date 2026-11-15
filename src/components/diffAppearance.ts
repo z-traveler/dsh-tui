@@ -1,7 +1,7 @@
 /**
- * diff 卡的正文外观（下游）：pi-like 预置面下，代码区贴回终端底色，只有卡头
- * 保留轻微的执行状态面；双栏的增删行改铺自己的极淡衬底（新增灰绿、删除豆沙
- * 玫瑰），上下文行保持终端底。这一对衬底由主题自己的 `diffAddedWord` /
+ * diff 卡的正文外观（下游）：pi-like 预置面下，真彩代码区沿用整张卡面，
+ * 低色档保留终端底色；双栏增删行继续铺自己的极淡衬底（新增灰绿、删除豆沙
+ * 玫瑰），上下文行沿用正文底。这一对衬底由主题自己的 `diffAddedWord` /
  * `diffRemovedWord` 极少量混入实际终端底色得到，不新增配色表；主体文字继续走
  * 原语法高亮，只有 changed 词使用语义词色。unified 与 split 两条路径都吃这里
  * 返回的同一份数据，diff 的解析、对齐与词级算法一行不动。
@@ -14,8 +14,8 @@
  * 未选中一致。unified 没有行衬底，选中/悬停时按真实高亮底重挑增删词，不额外
  * 整行染色。
  *
- * 词色自适应：暗色代码区直接复用主题的 `diffAddedWord` / `diffRemovedWord`
- * （贴底时对比已 ≥4.5:1），压在新增的行衬底上若不足就只提亮 changed 词，不改
+ * 词色自适应：代码区优先复用主题的 `diffAddedWord` / `diffRemovedWord`，
+ * 压在卡面或行衬底上若对比不足就只提亮 changed 词，不改
  * 整行语法色；浅色终端上这对词色是按深色底挑的浅粉彩，压在同色系的浅底上读不
  * 出来，于是按同一色相把亮度拉向黑/白直到达标。256 色档的增删行发明确的深绿/
  * 玫瑰槽位（不经过会把近黑压成 palette59 中灰的 6×6×6 量化），词色按该槽位的
@@ -92,7 +92,7 @@ export function changedWordColor(
 
 /** 一份 diff 正文的呈现数据，unified 行与 `SplitDiffView` 共用。 */
 export interface DiffBodyAppearance {
-  /** 代码区/正文的底色：pi-like 贴终端底，选中/悬停时就是整行的高亮底；
+  /** 代码区/正文的底色：预置真彩卡面或低色档终端底，选中/悬停时是高亮底；
    *  `undefined` = 不涂底（legacy/用户显式面）。 */
   readonly background: Color | undefined
   /** split 的增删行让出原 `diffAddedDimmed`/`diffRemovedDimmed` 衬底
@@ -282,20 +282,20 @@ function lineTintsOf(theme: Theme, terminalBackground: string): { added?: LineTi
 /**
  * 本帧的 diff 正文外观。`active` 由卡片说明「正文是不是 diff」（错误正文、
  * 终端输出、读文件都不是）；`highlight` 是选中/悬停时整行背后的真实底色
- * （`undefined` = 没有高亮反馈，正文贴终端底）。
+ * （`undefined` = 没有高亮反馈，正文取传入卡面或终端底）。
  */
 export function diffBodyAppearance(
   surface: Pick<CardSurface, 'preset' | 'presetFace' | 'terminalBackground'>,
   theme: Theme,
-  options: { readonly active: boolean; readonly highlight?: string | undefined },
+  options: { readonly active: boolean; readonly highlight?: string | undefined; readonly background?: string | undefined },
 ): DiffBodyAppearance {
   if (!options.active || surface.preset !== 'pi-like' || !surface.presetFace) {
     return LEGACY_APPEARANCE
   }
   const highlight = options.highlight
-  const background = (highlight ?? surface.terminalBackground) as Color
+  const background = (highlight ?? options.background ?? surface.terminalBackground) as Color
   // 行衬底只取决于主题词色与终端底：选中/悬停也照常铺，增删行区别不随指针
-  // 消失；changed 词按各自衬底重挑。unified 没有行衬底，始终用贴终端底/真实
+  // 消失；changed 词按各自衬底重挑。unified 没有行衬底，始终用正文底/真实
   // 高亮底的 `addedWord`/`removedWord`，不为统一视图新建一套染色。
   const tints = lineTintsOf(theme, surface.terminalBackground)
   return {
@@ -349,6 +349,7 @@ export function toolCardAppearance(card: CardSurface, options: {
   const diffBody = diffBodyAppearance(card, theme, {
     active: options.diffs?.some(line => isPatchDiff(line) || line.oldText !== null) === true,
     highlight,
+    background: chalk.level >= 3 ? card.backgroundColor : undefined,
   })
   // pi-like 与个人卡面让上下文窗格透出卡面；默认 legacy 卡保留原来的折叠
   // 上下文底色（含悬停）。
