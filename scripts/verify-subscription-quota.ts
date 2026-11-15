@@ -1,6 +1,6 @@
 /** Subscription quota lifecycle through a real createChannel and a real 0.2.2 AgentLoop, offline.
  * Covers bind, modern route selection, legacy route switch, turn/end, absent/withdrawn service,
- * late answers, expiry and disposal. No network, credentials or real user state.
+ * late answers, cache-expiry retention and disposal. No network, credentials or real user state.
  * Run: node --import tsx/esm scripts/verify-subscription-quota.ts */
 import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'
@@ -181,7 +181,7 @@ await check('service withdrawal clears the view', async () => {
   await close(t.ctx, channel)
 })
 
-await check('expiry hides the snapshot; invalid, rejected or undefined answers show nothing', async () => {
+await check('cache expiry preserves the last allowance without polling; unavailable answers clear it', async () => {
   const t = await open()
   const answers: (() => Promise<Snapshot | undefined>)[] = [
     async () => snap(.3, 60), async () => snap(.3, -1), async () => undefined, async () => { throw new Error('offline') },
@@ -190,7 +190,9 @@ await check('expiry hides the snapshot; invalid, rejected or undefined answers s
   provide(t.ctx, svc)
   const channel = t.open()
   assert.ok(await settled(() => channel.rateLimit !== undefined))
-  assert.ok(await settled(() => channel.rateLimit === undefined), 'a snapshot disappears at expiresAt without further events')
+  await new Promise(resolve => setTimeout(resolve, 120)) // 固定窗:墙钟 经过 provider 的 60ms 缓存期，检查已显示读数的保留语义。
+  assert.deepEqual(windows(channel), [.3], 'cache expiry does not invalidate the last observed allowance')
+  assert.equal(svc.calls.length, 1, 'idle display does not poll the provider')
   for (let call = 2; call <= 4; call++) {
     await t.turn(t.handle.agent, `t${call}`)
     await tick()
@@ -199,7 +201,7 @@ await check('expiry hides the snapshot; invalid, rejected or undefined answers s
   await close(t.ctx, channel)
 })
 
-await check('a hung refresh cannot keep an expired snapshot visible', async () => {
+await check('a pending refresh keeps the last allowance until the new answer arrives', async () => {
   const t = await open()
   const held = deferred<Snapshot | undefined>()
   const svc = service((_route, call) => call === 1 ? snap(.3, 80) : held.promise)
@@ -208,8 +210,10 @@ await check('a hung refresh cannot keep an expired snapshot visible', async () =
   assert.ok(await settled(() => channel.rateLimit !== undefined))
   await t.turn(t.handle.agent, 'x')
   assert.equal(svc.calls.length, 2)
-  assert.ok(await settled(() => channel.rateLimit === undefined), 'expiry fires while the refresh is still pending')
+  await new Promise(resolve => setTimeout(resolve, 120)) // 固定窗:墙钟 跨过旧缓存期，刷新未完成时仍保留最近一次成功读数。
+  assert.deepEqual(windows(channel), [.3])
   held.resolve(snap(.9))
+  assert.ok(await settled(() => windows(channel)?.[0] === .9))
   await close(t.ctx, channel)
 })
 
@@ -224,7 +228,7 @@ await check('a provider arriving after the binding was released is not queried',
   await close(t.ctx)
 })
 
-await check('disposal cancels the timer and ignores late answers', async () => {
+await check('disposal clears the reading and ignores late answers', async () => {
   const t = await open()
   const held = deferred<Snapshot | undefined>()
   const svc = service((_route, call) => call === 1 ? snap(.3, 60_000) : held.promise)

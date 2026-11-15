@@ -1,6 +1,6 @@
 /** Follow an optional `subscriptionQuota` service for the foreground route.
- *  The provider owns credentials, cache and TTL; this owner only fences the
- *  answer to the current binding and route and hides it once `expiresAt` passes. */
+ *  The provider owns credentials and cache freshness. Keep the last successful
+ *  reading between queries; cache expiry is not a change in observed allowance. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ChannelState } from './types.js'
 import type { ChannelOwner } from './owner.js'
@@ -15,7 +15,6 @@ interface QuotaService { query(route: QuotaRoute): Promise<QuotaSnapshot | undef
 /** Local view only: the provider owns the global Context augmentation. */
 interface QuotaContext extends Context { readonly subscriptionQuota?: QuotaService }
 
-const MAX_TIMER_MS = 2 ** 31 - 1
 const keyOf = (route: QuotaRoute): string => `${route.provider}\n${route.model}`
 
 export function createSubscriptionQuota(ctx: Context, state: Pick<ChannelState, 'rateLimit' | 'emit'>, owner: ChannelOwner, route: () => QuotaRoute) {
@@ -24,26 +23,12 @@ export function createSubscriptionQuota(ctx: Context, state: Pick<ChannelState, 
   let live = false
   let service: QuotaService | undefined
   let pendingKey: string | undefined
-  // The displayed snapshot owns its expiry, independent of any newer query.
-  let timer: ReturnType<typeof setTimeout> | undefined
   const hide = (): void => {
-    if (timer !== undefined) clearTimeout(timer)
-    timer = undefined
     if (state.rateLimit === undefined) return
     state.rateLimit = undefined
     state.emit()
   }
   const invalidate = (): void => { token += 1; pendingKey = undefined; hide() }
-  const arm = (expiresAt: number): void => {
-    if (timer !== undefined) clearTimeout(timer)
-    timer = setTimeout(() => {
-      timer = undefined
-      if (!owner.current()) return
-      if (Date.now() < expiresAt) arm(expiresAt)
-      else hide()
-    }, Math.min(Math.max(expiresAt - Date.now(), 0), MAX_TIMER_MS))
-    timer.unref?.()
-  }
   const query = (target: QuotaRoute, reset: boolean): void => {
     if (!owner.current() || !live) return
     const key = keyOf(target)
@@ -60,7 +45,6 @@ export function createSubscriptionQuota(ctx: Context, state: Pick<ChannelState, 
         pendingKey = undefined
         if (snapshot === undefined || !Number.isFinite(snapshot.expiresAt) || snapshot.expiresAt <= Date.now()) { hide(); return }
         state.rateLimit = { windows: snapshot.windows.map(window => ({ name: window.name, utilization: window.utilization, ...(window.resetsAt === undefined ? {} : { resetsAt: window.resetsAt }) })) }
-        arm(snapshot.expiresAt)
         state.emit()
       },
       () => { if (mine === token && owner.current()) { pendingKey = undefined; hide() } },
@@ -95,7 +79,7 @@ export function createSubscriptionQuota(ctx: Context, state: Pick<ChannelState, 
     },
     /** The foreground route changed. */
     change(target: QuotaRoute): void { query(target, true) },
-    /** A turn finished: keep the valid snapshot while querying; failure or expiry hides it. */
+    /** A turn finished: keep the last reading while querying; an unavailable answer hides it. */
     refresh(target: QuotaRoute): void { query(target, false) },
   }
 }
