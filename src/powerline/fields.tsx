@@ -9,6 +9,7 @@ import { formatPowerlineQuota } from './quota.js'
 import { formatModelIconPrefix } from './modelIcon.js'
 import type { PowerlineGitStatus } from './git.js'
 import { FAST_MODE_MARK, showFastMode } from '../fastMode.js'
+import { displayWorkingDirectory } from '../sessions/format.js'
 
 export interface PowerlineField {
   key: string
@@ -82,7 +83,7 @@ export function buildPowerlineFields(channel: ChannelUi, options: PowerlineOptio
     add('cost', text, <Text color={colors.cost}>{text}</Text>, text)
   }
   if (flags.cwd !== false) {
-    const raw = channel.displayCwd ?? channel.cwd
+    const raw = displayWorkingDirectory(channel)
     const path = options.path === 'basename' ? raw.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || raw
       : options.path === 'abbreviated' && stringWidth(raw) > 40 ? `…/${raw.split(/[\\/]/).slice(-2).join('/')}` : raw
     const text = `${icon('\uf07b', 'dir')}${path}`

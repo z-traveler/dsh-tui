@@ -18,8 +18,20 @@ const [React, { Terminal }, ui, { Chat }, { createChannel }, { QuestionStore }, 
   import('../../src/dsh-adapter/channel.js'), import('../../src/dsh-adapter/questions.js'), import('../../src/dsh-adapter/approvals.js'),
   import('../lib/term-test.mjs'), import('../../src/dsh-adapter/index.js'), import('../../src/dsh-adapter/compat/settings.js'), import('../../src/dsh-adapter/tui-settings.js'), import('../../src/powerline/Status.js'),
 ])
+const { buildPowerlineFields } = await import('../../src/powerline/fields.js')
+const { normalizePowerlineOptions } = await import('../../src/powerline/config.js')
 let checks = 0
 function check(label: string, run: () => void) { run(); console.log(`PASS ${++checks}: ${label}`) }
+check('directory text and detail retain the workspace display name after returning to its root', () => {
+  const channel = { cwd: 'ssh://box', displayCwd: '/srv/app', workingDirectory: 'ssh://box', statusBar: { model: false, cost: false } }
+  const options = normalizePowerlineOptions({ icons: 'none', path: 'full' })
+  const directory = () => buildPowerlineFields(channel as never, options, undefined, undefined, undefined, null).find(field => field.key === 'cwd')!
+  assert.equal(directory().text, '/srv/app')
+  assert.equal(directory().detail, '/srv/app')
+  channel.workingDirectory = '/srv/app/src'
+  assert.equal(directory().text, '/srv/app/src')
+  assert.equal(directory().detail, '/srv/app/src')
+})
 const file = `${process.env.HOME}/powerline.json`
 const settings = createTuiSettingsService({ ns: 'dsh-tui', file, profile: 'fixture', keys: ['statusBar'] })
 const scope = settings.register('dsh-tui', Config)
@@ -117,6 +129,14 @@ for (const backendId of ['codex', 'dsh']) for (const fullscreen of [false, true]
       assert.ok(lines()[draftRow() - 1]!.includes('$0.1250'))
       assert.ok(lines()[draftRow() + 2]!.includes('project'))
     })
+    receive!([{ type: 'session.cwd', cwd: '/fixture/project/moved' }], { replay: false })
+    assert.ok(await settled(() => lines().some(line => line.includes('moved'))), lines().join('\n'))
+    check(`HUD follows session directory changes without changing project identity (${backendId},${fullscreen},${columns})`, () => {
+      assert.equal(channel.cwd, '/fixture/project')
+      assert.equal(channel.workingDirectory, '/fixture/project/moved')
+    })
+    receive!([{ type: 'session.cwd', cwd: '/fixture/project' }], { replay: false })
+    assert.ok(await settled(() => lines().some(line => line.includes('project')) && !lines().some(line => line.includes('moved'))))
     receive!([{ type: 'session.title', title: '验收会话', source: 'user' }], { replay: false })
     channel.setPromptSessionLabel(true)
     assert.ok(await settled(() => lines()[draftRow() - 1]?.includes('验收会话') === true))

@@ -51,6 +51,7 @@ ASCII 模式统一为 `model`，none 模式隐藏图标。真实字体仍需人�
 
 先预留右组，再按左组顺序放入完整字段。默认 `drop` 在首个溢出行遇到不适合的字段就停止，`wrap` 继续换行（`maxRows` 1–32）；字段过宽不强行缩小。
 `padding` 为每组两侧 HUD 留白（0–8），不是每字段留白。路径为 `basename/abbreviated/full`，上下文为 `full/percent`；阈值默认严格超过 70/90 黄/红。
+目录字段及悬停详情跟随后端上报的当前工作目录；未切换时保留工作区显示名称。切换目录不改变会话的项目归属。
 `modelColors` 是首个匹配的颜色规则，提供列表会替换预设；高强度静态彩虹可由 `colors.thinking` 覆盖。
 `colors` 支持宿主颜色格式，键为 `marker/model/path/gitClean/gitDirty/context/warning/error/separator/border/cost/thinking/plugin/agent/quota`；`quota` 为健康剩余额度色，默认 success，低余额用 warning/error。
 可选字段 `tokens/cache/tps/sessionTitle/sessionId` 还须开启对应原生开关；缺失的 Shell/Agent 不占位。
