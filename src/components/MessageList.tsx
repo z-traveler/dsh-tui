@@ -2158,7 +2158,8 @@ function TranscriptRow({
       )
     case 'subagent':
       if (!subagent) return null
-      if (isPinnedLiveSubagent(pinLiveSubagents, subagent)) return <PinnedSubagentReference subagent={subagent} boxRef={ref} onClick={openSubagent} />
+      if (isPinnedLiveSubagent(pinLiveSubagents, subagent)) return <PinnedSubagentReference subagent={subagent} marginTopOnTurn={marginTopOnTurn} boxRef={ref} onClick={openSubagent}
+        onOpenView={onOpenSubagentView === undefined ? undefined : () => onOpenSubagentView(subagent.agentId, rowId)} />
       return (
         <Box flexDirection="column" ref={ref}>
           <SubagentMessage

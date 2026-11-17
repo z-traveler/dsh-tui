@@ -67,10 +67,13 @@ function clipLine(text: string, maxWidth: number): string {
  * working-activity preset (`/activity`), so the indicator follows the same
  * setting as the main spinner. Pi-like always uses a single-cell braille spinner.
  */
-export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onClick, onOpenView, density, grouped = false }: {
+export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onClick, onOpenView, density, grouped = false, still = false }: {
   subagent: SubagentRow | SubagentState
   /** Absent = unchanged transcript card; dock densities use this same renderer. */
   density?: SubagentCardDensity
+  /** History copy of a docked live card: no animation and no live counters,
+   *  so its row never changes while the docked card updates. */
+  still?: boolean
   /** The dock owns the single surrounding surface and already narrowed its columns. */
   grouped?: boolean
   marginTopOnTurn: boolean
@@ -92,7 +95,7 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
   const size = useTerminalSize()
   const columns = grouped ? size.columns : card.columns
   const piLike = card.preset === 'pi-like'
-  const [viewportRef, time] = useAnimationFrame(settled ? null : piLike ? THINKING_SPINNER_INTERVAL_MS : 120)
+  const [viewportRef, time] = useAnimationFrame(settled || still ? null : piLike ? THINKING_SPINNER_INTERVAL_MS : 120)
   const info = { ...status(subagent), ...(piLike ? compactStatusMarker(subagent.status, isMinimalUiMode()) : {}) }
   const [hovered, setHovered] = React.useState(false)
   const clickable = onClick !== undefined
@@ -112,7 +115,7 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
     : preset.frames[Math.floor(time / preset.intervalMs) % preset.frames.length] ?? '·'
   const { indent, compact, headerWrap, showStatus, showModel, showCounts } = subagentCardBudget(card, columns, { grouped, docked: density !== undefined })
   const rowWidth = Math.max(20, (columns ?? 80) - indent - WATERFALL_GUTTER)
-  const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled ? info.glyph : piLike ? runningGlyph : ` ${runningGlyph}`}</Text>
+  const statusGlyph = <Text color={hovered && clickable ? 'accent' : info.color}>{settled || still ? info.glyph : piLike ? runningGlyph : ` ${runningGlyph}`}</Text>
 
   // 点击打开详情场景；hover 不刷整行背景（转录视觉保持安静），只把状态
   // glyph 提亮为品牌色作为可点指示。
@@ -135,13 +138,13 @@ export function SubagentMessage({ subagent, marginTopOnTurn, activityFrames, onC
       {showModel && <>
         <Text dimColor>·</Text><Text wrap={headerWrap}>{subagent.model ?? subagent.provider ?? 'default'}</Text>
         {subagent.effort && <><Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.effort}</Text></>}
-        <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{duration(elapsed)}</Text>
+        {!still && <><Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{duration(elapsed)}</Text></>}
       </>}
-      {showCounts && <>
+      {showCounts && !still && <>
         <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{tokens(subagent)}</Text>
         <Text dimColor>·</Text><Text wrap={headerWrap} dimColor>{subagent.toolCalls.length} tools</Text>
       </>}
-      {showStatus && <><Text dimColor>·</Text><Text wrap={headerWrap} color={info.color}>{info.label}</Text></>}
+      {showStatus && <><Text dimColor>·</Text><Text wrap={headerWrap} color={info.color}>{still ? t('subagent-pinned-card-status') : info.label}</Text></>}
       {onOpenView !== undefined && (
         <Box
           flexShrink={0}

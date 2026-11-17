@@ -1,4 +1,4 @@
-/** Pinned history references must retain their one-row virtual extent.
+/** Pinned history static cards must retain their fixed virtual extent.
  * node --import tsx/esm scripts/downstream/verify-subagent-reference-height.tsx */
 import '../lib/fake-home.mjs'
 import assert from 'node:assert/strict'
@@ -21,17 +21,19 @@ const node = <ui.ThemeProvider theme="dark"><Chat channel={h.channel as never} q
 const app = await ui.render(node, { stdout: output as never, stderr: output as never, stdin: input as never, patchConsole: false, exitOnCtrlC: false })
 const lines = () => viewportLines(terminal, 18)
 const frame = () => lines().join('\n')
+// The static history card and the live dock card share the title; the static one is the extra copy.
+const titles = () => lines().filter(line => line.includes('Subagent: DOCK_TASK_CACHE')).length
 const notes = () => {
   try { return readFileSync(process.env.DSH_TUI_GEOMETRY_TRACE!, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line) as { list: ListGeometryNote | null }) } catch { return [] }
 }
 try {
   h.beginTurn(); h.start('CACHE'); h.progress('CACHE', 'CACHE_OLD')
-  assert.ok(await settled(() => frame().includes('Subagent reference:') && frame().includes('CACHE_OLD')), frame())
+  assert.ok(await settled(() => titles() === 2 && frame().includes('CACHE_OLD')), frame())
   for (let i = 0; i < 45; i++) h.reply(`CACHE_MAIN_${i}`)
   assert.ok(await settled(() => frame().includes('CACHE_MAIN_44')), frame())
   const before = notes().findLast(note => note.list)?.list
   assert.ok(before)
-  assert.ok(!frame().includes('Subagent reference:'), 'the measured reference must be offscreen')
+  assert.equal(titles(), 1, 'the measured static card must be offscreen')
   const inputRow = lines().findIndex(line => line.includes('⌸ ❯'))
   assert.ok(inputRow >= 0)
   const mark = notes().length
@@ -40,7 +42,7 @@ try {
   const after = notes().slice(mark).flatMap(note => note.list ? [note.list] : [])
   assert.ok(after.length > 0)
   console.log(JSON.stringify({ before, after }))
-  assert.ok(after.every(list => list.total === before.total), 'unchanged static reference must not alter estimated transcript height')
+  assert.ok(after.every(list => list.total === before.total), 'unchanged static card must not alter estimated transcript height')
   assert.equal(lines().findIndex(line => line.includes('⌸ ❯')), inputRow, 'activity-only changes must not move the input')
-  console.log('PASS pinned reference: activity-only changes retain virtual height and input position')
+  console.log('PASS pinned static card: activity-only changes retain virtual height and input position')
 } finally { await app.unmount(); h.cleanup(); terminal.dispose(); input.destroy() }

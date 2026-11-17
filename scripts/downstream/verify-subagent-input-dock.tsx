@@ -161,8 +161,13 @@ for (const preset of ['legacy', 'pi-like'] as const) for (const fullscreen of [f
       assert.equal(cell(where('Subagents · 12 running'), columns - 1)?.isBgDefault(), preset === 'legacy', frame())
     })
     controller.current!.append('\nline 2\nline 3\nline 4\nLAST_DRAFT_ROW')
-    assert.ok(await settled(() => frame().includes('LAST_DRAFT_ROW') && frame().includes('Subagents · 12 running')), frame())
-    check(`short terminal keeps a five-line composer usable (${tag})`, () => assert.ok(frame().includes('LAST_DRAFT_ROW')))
+    // The dock sits above the whole bottom chrome: when a five-line composer and
+    // the working line fill a short terminal, the dock yields first, whole.
+    assert.ok(await settled(() => frame().includes('LAST_DRAFT_ROW')), frame())
+    check(`short terminal keeps a five-line composer and its working line (${tag})`, () => {
+      assert.ok(frame().includes('LAST_DRAFT_ROW'), frame())
+      assert.ok(lines().some(line => /… \(\d+[ms]/.test(line)), frame())
+    })
     controller.current!.clear()
     controller.current!.append('DRAFT_KEEP')
     output.rows = rows

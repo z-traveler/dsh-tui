@@ -7364,6 +7364,12 @@ export function Chat({
             onClick={() => handle?.scrollToBottom()}
           />
         )}
+        {/* 运行中的子代理固定区紧贴转录底部：运行状态行、todo、审批与输入簇浮层
+            都留在它下方，继续贴着输入框（下游 subagent-input-dock）。 */}
+        {pinLiveSubagents && (
+          <SubagentInputDock subagents={channel.subagents} activityFrames={channel.activityFrames}
+            onOpen={setSubagentDetailId} onOpenView={agentId => { openAgentView(agentId, { kind: 'chat', returnFocus: 'prompt' }) }} onOpenDashboard={openSubagentDashboard} />
+        )}
         {channel.working && powerlineHud(channel) ? (
           <PowerlineWorking channel={channel}
             line={activitySlot && workingActivity?.phase !== 'idle' ? workingActivity?.line : undefined}
@@ -7546,10 +7552,6 @@ export function Chat({
         ) : questionPanelNode !== null ? (
           questionPanelNode
         ) : null}
-        {pinLiveSubagents && (
-          <SubagentInputDock subagents={channel.subagents} activityFrames={channel.activityFrames}
-            onOpen={setSubagentDetailId} onOpenView={agentId => { openAgentView(agentId, { kind: 'chat', returnFocus: 'prompt' }) }} onOpenDashboard={openSubagentDashboard} />
-        )}
         <HudPlacement placement={channel.minimalUi ? 'below' : channel.statusBar?.placement}
           style={channel.minimalUi ? 'native' : channel.statusBar?.style} powerline={channel.statusBar?.powerline} suspended={promptReplacementOpen} statusText={statusEntries.map(entry => entry.text).join(' · ')}>
         <PromptInput
