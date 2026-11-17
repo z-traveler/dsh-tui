@@ -7,7 +7,7 @@ import { subagentMessageHeight, subagentMessageContentRows, type SubagentCardDen
 import { CardContent, cardMarginTop, useCardSurface } from './cardSurface.js'
 
 /** Relocate the original live card presentation; the transcript keeps a
- * static reference. The backend still owns every fact and history anchor. */
+ * static card. The backend still owns every fact and history anchor. */
 export function SubagentInputDock({ subagents, activityFrames, onOpen, onOpenView, onOpenDashboard }: {
   subagents: readonly SubagentState[]
   activityFrames?: string
