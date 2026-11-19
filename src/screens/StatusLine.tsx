@@ -216,9 +216,11 @@ function toFieldPart(field: TuiStatusFieldEntry): FieldPart {
     key: id,
     ...(field.detail === undefined ? {} : { id }),
     ...(field.onClick === undefined ? {} : { onClick: field.onClick }),
-    node: color === undefined
-      ? <Text dimColor>{field.text}</Text>
-      : <Text color={color}>{field.text}</Text>,
+    node: field.segments?.length
+      ? <>{field.segments.map((segment, index) => <Text key={index} color={FIELD_TONE_COLOR[segment.tone]} dimColor={segment.tone === 'dim'}>{segment.text}</Text>)}</>
+      : color === undefined
+        ? <Text dimColor>{field.text}</Text>
+        : <Text color={color}>{field.text}</Text>,
   }
 }
 

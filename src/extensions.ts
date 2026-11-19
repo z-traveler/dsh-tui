@@ -53,6 +53,8 @@ export { TuiStatusRuntime, TuiStatusStore } from './dsh-adapter/status.js'
 export type {
   TuiStatusEntry,
   TuiStatusFieldOptions,
+  TuiStatusFieldSegment,
+  TuiStatusFieldNormalizedSegment,
   TuiStatusFieldSlot,
   TuiStatusFieldTone,
   TuiStatusViewDescriptor,

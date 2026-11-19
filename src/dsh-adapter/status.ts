@@ -17,6 +17,7 @@
 import type React from 'react'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { cleanScalarText, cleanStatusFieldText } from './sanitize.js'
+import { normalizeStatusFieldSegments } from './status-field-segments.js'
 import { activationFiber, assertCallerContext, bindCallerEffect, compositionRoot, concreteService, requirePluginCaller } from './host-access.js'
 import { componentIdentityOf } from './component-identity.js'
 import {
@@ -137,10 +138,23 @@ export type TuiStatusFieldSlot = 'left-tail' | 'right-head' | 'right-tail'
  *  plugin cannot paint a one-off cell that ignores the active theme. */
 export type TuiStatusFieldTone = 'dim' | 'accent' | 'success' | 'warning' | 'error'
 
-/** Options for `tuiStatus.setField`. Every key is optional; on update an
- *  omitted key keeps that field's previous value (a fresh key starts from the
- *  defaults documented below). */
+/** One optional semantic-colour segment of a footer field. */
+export interface TuiStatusFieldSegment {
+  readonly text: string
+  readonly tone?: TuiStatusFieldTone
+}
+
+/** A segment after host sanitization and tone inheritance. */
+export interface TuiStatusFieldNormalizedSegment {
+  readonly text: string
+  readonly tone: TuiStatusFieldTone
+}
+
+/** Options for `tuiStatus.setField`. Omitted keys keep their previous values,
+ *  except `segments`, which must be supplied again with every text update. */
 export interface TuiStatusFieldOptions {
+  /** Segments must concatenate to the sanitized field text; omitted clears them. */
+  readonly segments?: readonly TuiStatusFieldSegment[]
   /** Default `'left-tail'`. */
   readonly slot?: TuiStatusFieldSlot
   /** Default `'dim'`. */
@@ -162,6 +176,7 @@ export interface TuiStatusFieldOptions {
 export interface TuiStatusFieldEntry {
   readonly key: string
   readonly text: string
+  readonly segments?: readonly TuiStatusFieldNormalizedSegment[]
   readonly slot: TuiStatusFieldSlot
   readonly tone: TuiStatusFieldTone
   readonly maxCells: number
@@ -383,6 +398,9 @@ declare module '@deepseek-ai/cordis' {
  * a status contribution must never take the TUI down.
  */
 export class TuiStatusRuntime extends Service {
+  /** Capability probe: old hosts silently ignore the `segments` option. */
+  readonly fieldSegmentsVersion = 1
+
   constructor(ctx: Context) {
     super(ctx, 'tuiStatus')
     compositionRoot(ctx)
@@ -622,6 +640,7 @@ export class TuiStatusRuntime extends Service {
     // must take the documented reject-and-warn path instead of escaping into
     // the caller. Read every option once, inside one guard: the checks below
     // then cannot re-trigger a getter.
+    let optionSegments: unknown
     let optionMaxCells: number | undefined
     let optionSlot: TuiStatusFieldSlot | undefined
     let optionTone: TuiStatusFieldTone | undefined
@@ -629,6 +648,7 @@ export class TuiStatusRuntime extends Service {
     let optionDetail: string | undefined
     let optionOnClick: (() => void) | undefined
     try {
+      optionSegments = rawOptions.segments
       optionMaxCells = rawOptions.maxCells
       optionSlot = rawOptions.slot
       optionTone = rawOptions.tone
@@ -668,6 +688,11 @@ export class TuiStatusRuntime extends Service {
         return noop
       }
       tone = optionTone
+    }
+    const segments = normalizeStatusFieldSegments(optionSegments, text, cleaned, maxCells, tone, FIELD_TONES)
+    if (segments === null) {
+      logger.warn(`dsh-tui: tuiStatus.setField rejected "${normalized}" — invalid segments`)
+      return noop
     }
     let minColumns = prev?.minColumns ?? 0
     if (optionMinColumns !== undefined) {
@@ -733,6 +758,7 @@ export class TuiStatusRuntime extends Service {
     const entry: TuiStatusFieldEntry = Object.freeze({
       key: normalized,
       text: cleaned,
+      ...(segments === undefined ? {} : { segments }),
       slot,
       tone,
       maxCells,

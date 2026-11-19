@@ -60,6 +60,8 @@ export type {
   TuiDialogSnapshot,
   TuiStatusEntry,
   TuiStatusFieldOptions,
+  TuiStatusFieldSegment,
+  TuiStatusFieldNormalizedSegment,
   TuiStatusFieldSlot,
   TuiStatusFieldTone,
   TuiShortcutKey,
