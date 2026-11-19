@@ -5,6 +5,7 @@
  * (`projection.ts`), which hands every card event to `apply`, re-indexes the
  * card ledger before a replay and clears it on reset.
  */
+import { markChannelReadDirty } from '../adapter/channel/read-view.js'
 import type { ChatRow } from '../adapter/ports/channel-view.js'
 import type { AgentEventOf } from '../agent/events.js'
 import type { TuiCardRecord, TuiCardView } from '../agent/cards.js'
@@ -16,14 +17,15 @@ export type SessionCardEvent = AgentEventOf<'command.result' | 'skill.invocation
 
 /**
  * The card half of one projector. `state` and `deps` are the projector's own
- * objects (read on every event); `appendRow`/`touchRow` are its row append and
- * in-place change marks.
+ * objects (read on every event). `liveStepRows` supplies only the current
+ * step's tracked rows, and none during replay.
  */
 export function createSessionCardProjection(
   state: Pick<ProjectionState, 'rows'>,
   deps: Pick<ChannelProjectionDeps, 'rowIds' | 'sessionCards' | 'renderer'>,
   appendRow: (row: ChatRow) => void,
   touchRow: (row: ChatRow) => void,
+  liveStepRows: () => readonly (ChatRow | undefined)[],
 ) {
   /**
    * Custom Card rows by their business `(type, id)` identity: a committed
@@ -49,6 +51,42 @@ export function createSessionCardProjection(
       return row
     }
     return undefined
+  }
+
+  const insertCardRow = (row: ChatRow): void => {
+    const { seq } = row
+    if (seq === undefined) return appendRow(row)
+    const { rows } = state
+    const provisionalIndices: number[] = []
+    for (const provisional of liveStepRows()) {
+      if (provisional === undefined || provisional.seq !== undefined) continue
+      const index = rows.lastIndexOf(provisional)
+      if (index !== -1) provisionalIndices.push(index)
+    }
+    if (provisionalIndices.length === 0) return appendRow(row)
+    provisionalIndices.sort((a, b) => b - a)
+
+    // Older durable rows may have arrived after streaming began. The card
+    // belongs after them, but before the provisional rows that settle in place.
+    let lastOlder = -1
+    for (let i = rows.length - 1; i > provisionalIndices.at(-1)!; i--) {
+      const olderSeq = rows[i]!.seq
+      if (olderSeq !== undefined && olderSeq < seq) {
+        lastOlder = i
+        break
+      }
+    }
+    let insertAt = rows.length
+    const displaced: ChatRow[] = []
+    for (const index of provisionalIndices) {
+      if (index > lastOlder) insertAt = index
+      else {
+        displaced.unshift(...rows.splice(index, 1))
+        insertAt--
+      }
+    }
+    rows.splice(insertAt, 0, row, ...displaced)
+    markChannelReadDirty(rows)
   }
 
   /**
@@ -77,7 +115,7 @@ export function createSessionCardProjection(
       id: record.id,
       latestSeq: event.seq,
     })
-    appendRow(row)
+    insertCardRow(row)
     cardRows.set(key, row)
     deps.rowIds.value += 1
   }

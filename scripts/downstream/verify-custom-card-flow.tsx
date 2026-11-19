@@ -11,7 +11,7 @@
  * 覆盖：
  *   1. 翻译器：有效/坏载荷/非本载体；同 id 更新序列；
  *   2. 共享投影：同 id 同卡更新、不同类型同 id 隔离、旧 seq/重放不重复、
- *      无 presenter/异常 presenter 降级、sessionCards 关闭、reset 隔离；
+ *      流式卡片与落定回复的顺序、无 presenter/异常 presenter 降级、开关、reset；
  *   3. 恢复：真实 Session 重放与分叉取最新状态；DSH foldRows/foldBack（含折叠
  *      期间到达的更新）；中性 transcript 翻页（restoreFoldedRows/
  *      projectHistorySlice/prependHistoryRows 的身份去重）；
@@ -35,7 +35,7 @@ import assert from 'node:assert/strict'
 import { PassThrough, Writable } from 'node:stream'
 import type { Session as DshSession, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AgentSession, SessionCapabilities } from '../../src/agent/session.js'
-import type { AgentEvent } from '../../src/agent/events.js'
+import type { AgentEvent, AgentEventOf } from '../../src/agent/events.js'
 import type { TuiCardRecord, TuiCardView } from '../../src/agent/cards.js'
 import type { ChatRow } from '../../src/adapter/ports/channel-view.js'
 
@@ -181,6 +181,11 @@ await admitted.context.inject(['tuiRenderers'], (ctx) => {
     return reportView(record.title, record.summary ?? '', record.body ?? 'TAIL-OF-CARD-BODY')
   })
   renderers.registerCard('acme/throw', () => { throw new Error('presenter failed') })
+  renderers.registerCard('acme/context', () => ({
+    label: 'context',
+    title: 'Context ready',
+    blocks: [{ kind: 'text', text: 'CONTEXT-BODY' }],
+  }))
   // 原始 HTML 包装的正文：块级 wrapper 与行内 XML 都是记录里的事实。
   renderers.registerCard('acme/html', () => ({
     title: 'HTML 卡',
@@ -363,6 +368,178 @@ const cardIdentity = (row: ChatRow) => `${row.card?.type}/${row.card?.id}`
   check('投影：卡片不投递模型输入，也不成为用户/助手行',
     session.submits.length === 0 && channel.rows.every(row => row.kind === 'card'))
   channel.releaseContributions()
+}
+
+const step: AgentEventOf<'step.start'> = { type: 'step.start', turn: 1, step: 1 }
+const attempt: AgentEventOf<'assistant.attempt.start'> = { type: 'assistant.attempt.start', attemptId: 'a1', turn: 1, step: 1 }
+const reasoningDelta: AgentEventOf<'assistant.delta'> = {
+  type: 'assistant.delta', attemptId: 'a1', index: 0, time: 2, delta: { kind: 'reasoning', text: 'Checking the context' },
+}
+const textDelta: AgentEventOf<'assistant.delta'> = {
+  type: 'assistant.delta', attemptId: 'a1', index: 1, time: 3, delta: { kind: 'text', text: 'Assistant reply' },
+}
+const reply: AgentEventOf<'assistant.message'> = {
+  type: 'assistant.message', seq: 10, anchor: '10', turn: 1, step: 1, attemptId: 'a1', time: 10, canonical: true,
+  blocks: [{ type: 'reasoning', text: 'Checking the context' }, { type: 'text', text: 'Assistant reply' }],
+}
+const card: AgentEventOf<'card.upsert'> = {
+  type: 'card.upsert', record: cardRecord({ type: 'acme/context', id: 'step-context' }), seq: 9, time: 9,
+}
+const tool: AgentEventOf<'tool.call'> = {
+  type: 'tool.call', seq: 11, time: 11, turn: 1, step: 1, callId: 'fixture-call', name: 'fixture-tool', argsJson: '{}',
+}
+const rowOrder = (channel: { rows: readonly ChatRow[] }) => channel.rows.map(row => row.kind).join(',')
+
+{
+  const session = fakeSession('card-order-live')
+  const live = open(session)
+  const replay = open(fakeSession('card-order-replay'), { history: [step, card, reply] })
+  session.emit([step, attempt, reasoningDelta, textDelta])
+  check('顺序：首个正文增量折叠思考，但两行都仍未落定',
+    live.rows[0]?.kind === 'reasoning' && live.rows[0].streaming === false && live.rows.every(row => row.seq === undefined)
+      && live.rows[1]?.kind === 'assistant' && live.rows[1].streaming === true)
+  session.emit([card])
+  check('顺序：新卡在折叠但未落定的思考与正文之前（无需等待落定）',
+    rowOrder(live) === 'card,reasoning,assistant', rowOrder(live))
+  session.emit([reply])
+  check('顺序：先到的卡片仍在落定回复之前，与持久记录回放一致',
+    rowOrder(live) === 'card,reasoning,assistant' && rowOrder(live) === rowOrder(replay),
+    `live=${rowOrder(live)} replay=${rowOrder(replay)}`)
+  live.releaseContributions()
+  replay.releaseContributions()
+}
+
+const durableNotice: AgentEventOf<'context.notice'> = {
+  type: 'context.notice', id: 'notice-1', seq: 1, time: 4, source: 'acme/context', summary: 'Saved notice', body: 'Notice body',
+}
+
+{
+  const session = fakeSession('card-order-durable-notice')
+  const live = open(session)
+  const newCard = { ...card, seq: 2, time: 5 }
+  const settledReply = { ...reply, seq: 3, time: 6, anchor: '3', blocks: reply.blocks.slice(1) }
+  session.emit([step, attempt, textDelta])
+  session.emit([durableNotice])
+  assert.equal(rowOrder(live), 'assistant,context-notice')
+  assert.equal(live.rows[0]?.seq, undefined)
+  session.emit([newCard])
+  check('顺序：流式回复期间，新卡不能越过已提交的通知',
+    rowOrder(live) === 'context-notice,card,assistant', rowOrder(live))
+  session.emit([settledReply])
+  const replay = open(fakeSession('card-order-durable-notice-replay'), { history: [step, durableNotice, newCard, settledReply] })
+  const durableOrder = (channel: { rows: readonly ChatRow[] }) => channel.rows.map(row => `${row.kind}:${row.seq}`).join(',')
+  check('顺序：通知、新卡、落定回复的提交顺序与回放一致',
+    durableOrder(live) === 'context-notice:1,card:2,assistant:3' && durableOrder(live) === durableOrder(replay),
+    `live=${durableOrder(live)} replay=${durableOrder(replay)}`)
+  live.releaseContributions()
+  replay.releaseContributions()
+}
+
+{
+  const session = fakeSession('card-order-interleaved-notice')
+  const live = open(session)
+  session.emit([
+    { ...durableNotice, id: 'earlier', seq: 0, time: 1 },
+    step, attempt, reasoningDelta, durableNotice, textDelta,
+  ])
+  const provisionalIds = live.rows.filter(row => row.seq === undefined).map(row => row.id)
+  session.emit([card])
+  check('顺序：新卡位于两条持久通知之后，临时思考与正文保留身份及相对顺序',
+    rowOrder(live) === 'context-notice,context-notice,card,reasoning,assistant'
+      && live.rows.slice(3).map(row => row.id).join(',') === provisionalIds.join(','), rowOrder(live))
+  live.releaseContributions()
+}
+
+{
+  // No text delta: an active reasoning row is the only insertion anchor.
+  const session = fakeSession('card-order-tool-only')
+  const live = open(session)
+  const toolOnlyReply = { ...reply, blocks: [reply.blocks[0]!, { type: 'tool-call' }] }
+  const replay = open(fakeSession('card-order-tool-only-replay'), { history: [step, card, toolOnlyReply] })
+  session.emit([step, attempt, reasoningDelta, card])
+  check('顺序：仅有活动思考时，新卡在思考之前', rowOrder(live) === 'card,reasoning', rowOrder(live))
+  session.emit([toolOnlyReply])
+  check('顺序：仅工具调用的回复落定后不生成空助手行，仍与回放一致',
+    rowOrder(live) === 'card,reasoning' && rowOrder(live) === rowOrder(replay))
+  live.releaseContributions()
+  replay.releaseContributions()
+}
+
+{
+  const session = fakeSession('card-order-text-only')
+  const live = open(session)
+  // A channel attached mid-step can see a delta without the attempt start.
+  session.emit([step, textDelta, card])
+  check('顺序：只收到正文增量时，新卡在未落定正文之前', rowOrder(live) === 'card,assistant', rowOrder(live))
+  live.releaseContributions()
+}
+
+{
+  const replay = createProjectorHarness({ sessionCards: true })
+  replay.apply([step, attempt, reasoningDelta])
+  replay.apply([step, card, reply], true)
+  check('顺序：覆盖已绘制转录的回放不应用实时插入规则',
+    rowOrder(replay.state) === 'reasoning,card,assistant', rowOrder(replay.state))
+}
+
+{
+  const session = fakeSession('card-order-tool-execution')
+  const live = open(session)
+  const replyWithTool = { ...reply, blocks: [...reply.blocks, { type: 'tool-call' }] }
+  const toolCard = { ...card, seq: 12, time: 12 }
+  const replay = open(fakeSession('card-order-tool-execution-replay'), { history: [step, replyWithTool, tool, toolCard] })
+  session.emit([step, attempt, reasoningDelta, textDelta, replyWithTool, tool, toolCard])
+  check('顺序：同一步的工具执行期间，新卡追加在已落定回复与工具之后，与回放一致',
+    rowOrder(live) === 'reasoning,assistant,tool,card' && rowOrder(live) === rowOrder(replay), rowOrder(live))
+
+  const originalId = cardRows(live)[0]?.id
+  session.emit([
+    { type: 'step.end', turn: 1, step: 1 },
+    { type: 'notice', level: 'info', text: 'Between steps' },
+    { ...step, step: 2 }, { ...attempt, step: 2, attemptId: 'a2' }, { ...textDelta, attemptId: 'a2' },
+    { ...toolCard, seq: 13, time: 13 },
+  ])
+  check('顺序：下一步仍在流式输出时，同身份更新也不把原卡移到新的插入点',
+    rowOrder(live) === 'reasoning,assistant,tool,card,notice,assistant'
+      && originalId !== undefined && cardRows(live)[0]?.id === originalId && cardRows(live)[0]?.card?.latestSeq === 13,
+    rowOrder(live))
+  live.releaseContributions()
+  replay.releaseContributions()
+}
+
+{
+  const session = fakeSession('card-order-settled-count')
+  const live = open(session)
+  session.emit([
+    step, attempt, { ...reasoningDelta, delta: { kind: 'reasoning-tokens', estimated: 24 } }, textDelta,
+    { ...reply, blocks: reply.blocks.slice(1) }, { ...card, seq: 11 },
+  ])
+  check('顺序：已落定的计数摘要没有序号，但不再是插入点',
+    live.rows[0]?.seq === undefined && rowOrder(live) === 'reasoning,assistant,card', rowOrder(live))
+  live.releaseContributions()
+}
+
+{
+  const session = fakeSession('card-order-retry')
+  const live = open(session)
+  session.emit([
+    { type: 'notice', level: 'info', text: 'A local notice' },
+    step, attempt, reasoningDelta, textDelta,
+    { type: 'assistant.attempt.end', attemptId: 'a1', outcome: 'abandoned' },
+    card,
+  ])
+  check('顺序：放弃的尝试不残留插入点，无序号的通知也不参与排序',
+    rowOrder(live) === 'notice,card', rowOrder(live))
+  live.releaseContributions()
+}
+
+{
+  const session = fakeSession('card-order-legacy-tail')
+  const live = open(session, { history: [step, { ...reasoningDelta, turn: 1, step: 1, seq: 2 }, card] })
+  session.emit([cardSnapshot(10, 'Another card', 'OTHER-BODY')])
+  check('顺序：未完成的旧版持久化增量仍按日志顺序展示，新卡不能越过它',
+    rowOrder(live) === 'reasoning,card,card', rowOrder(live))
+  live.releaseContributions()
 }
 
 {
@@ -786,6 +963,93 @@ async function mountChat(node: React.ReactNode, columns: number, fullscreen: boo
       return cell.isBgPalette() ? `palette:${cell.getBgColor()}` : `rgb:${cell.getBgColor() & 0xffffff}`
     },
     async close() { await instance.unmount(); terminal.dispose(); input.destroy() },
+  }
+}
+
+for (const fullscreen of [true, false]) {
+  const label = fullscreen ? 'fullscreen' : 'inline'
+  const session = fakeSession(`card-order-screen-${label}`)
+  const channel = open(session)
+  if (fullscreen) channel.pushLocal('Earlier history', Array.from({ length: 60 }, (_, index) => `History line ${index}`))
+  const h = await mountChat(
+    <Chat channel={channel as never} questionStore={new QuestionStore()} approvalStore={new ApprovalStore()}
+      fullscreen={fullscreen} trajectorySeen onExit={() => undefined} promptControllerRef={{ current: null }} />,
+    40, fullscreen,
+  )
+  const cardBeforeReply = () => {
+    const lines = h.lines()
+    const cardLine = lines.findIndex(line => line.includes('[context] Context ready'))
+    return cardLine >= 0 && cardLine < lines.findIndex(line => line.includes('Assistant reply'))
+  }
+  const pageUp = async () => {
+    h.input.write('\x1b[5~')
+    await settle(() => h.screen().includes('↓ 回到底部') && !h.screen().includes('Assistant reply'))
+  }
+  try {
+    session.emit([step, attempt, reasoningDelta, textDelta])
+    assert.ok(await settled(() => h.screen().includes('Assistant reply')), `${label}: provisional reply did not paint`)
+    if (fullscreen) await pageUp()
+    session.emit([card])
+    if (fullscreen) {
+      check('顺序：上滚时，插入的卡只计一条新消息，不重复计算后方的旧行',
+        await settled(() => h.screen().includes('↓ 1 条新消息')),
+        h.lines().find(line => line.includes('↓')))
+      h.input.write('\x1b[F')
+    }
+    check(`顺序：${label} 40 列在回复落定前显示 [context]，且位于已经显示的正文之前`,
+      await settled(cardBeforeReply), h.lines().filter(line => /context|Assistant reply|↓/i.test(line)).join(' | '))
+    if (fullscreen) await pageUp()
+    session.emit(fullscreen ? [reply, tool] : [reply])
+    if (fullscreen) {
+      check('顺序：看过插入的卡后再上滚，只有此后出现的工具行计为新消息',
+        await settled(() => h.screen().includes('↓ 1 条新消息')),
+        h.lines().find(line => line.includes('↓')))
+      h.input.write('\x1b[F')
+    }
+    check(`顺序：${label} 40 列落定后 [context] 仍在助手正文之前`, await settled(cardBeforeReply))
+  } finally {
+    await h.close()
+    channel.releaseContributions()
+  }
+}
+
+{
+  const session = fakeSession('card-order-scroll-anchor')
+  const channel = open(session)
+  const h = await mountChat(
+    <Chat channel={channel as never} questionStore={new QuestionStore()} approvalStore={new ApprovalStore()}
+      fullscreen trajectorySeen onExit={() => undefined} promptControllerRef={{ current: null }} />,
+    40, true,
+  )
+  const text = Array.from({ length: 64 }, (_, index) => `Reply paragraph ${index + 1}.`).join('\n\n')
+  const firstParagraph = () => h.lines().findIndex(line => /Reply paragraph \d+\./.test(line))
+  try {
+    session.emit([step, attempt, { ...textDelta, delta: { kind: 'text', text } }])
+    assert.ok(await settled(() => h.screen().includes('Reply paragraph 64.')), 'long provisional reply did not paint')
+    const bottomParagraph = h.lines()[firstParagraph()]
+    h.input.write('\x1b[<64;10;10M') // One wheel notch, with no multi-frame Page Up debt.
+    assert.ok(await settled(() => {
+      const line = h.lines()[firstParagraph()]
+      return h.screen().includes('↓ 回到底部') && line !== undefined && line !== bottomParagraph
+    }), 'wheel-up must park the viewport inside the provisional reply')
+    const anchorLine = firstParagraph()
+    const before = h.lines()[anchorLine] ?? ''
+    assert.match(before, /^\s+Reply paragraph \d+\./)
+
+    // The offscreen notice makes the same update observable in the pill even
+    // when a correctly anchored viewport has no visible change from the card.
+    session.emit([card, { type: 'notice', level: 'info', text: 'Below the reply' }])
+    assert.equal(rowOrder(channel), 'card,assistant,notice')
+    assert.equal(channel.rows[1]?.streaming, true)
+    const updated = await settled(() => h.screen().includes('↓ 1 条新消息'))
+    const afterLine = firstParagraph()
+    const after = h.lines()[afterLine] ?? ''
+    check('顺序：fullscreen 在流式回复上方插入卡片时，第一段可见正文留在原位',
+      updated && afterLine === anchorLine && after === before,
+      `${anchorLine}:${before.trim()} → ${afterLine}:${after.trim()}`)
+  } finally {
+    await h.close()
+    channel.releaseContributions()
   }
 }
 

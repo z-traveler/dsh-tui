@@ -2316,10 +2316,10 @@ export function Chat({
   // "N new messages" pill: new rows whose top edge is still BELOW the
   // viewport bottom. The count decrements as the user scrolls down through
   // them and hits 0 (pill hides) once every new row has been on screen —
-  // no need to wait for the exact-bottom sticky restore. Chat anchors the
-  // "seen up to" point by ROW ID (stable across loadOlder prepends, unlike
-  // a rows.length index); MessageList owns the row offsets, so it computes
-  // how many rows past that anchor lie below the viewport and reports it.
+  // no need to wait for the exact-bottom sticky restore. On scroll-away,
+  // remember the highest allocated row id, not the displayed tail's id:
+  // a live card can already be above that tail, and prepended history gets
+  // lower ids. MessageList measures which newer rows are still offscreen.
   const lastSeenRowIdRef = React.useRef<number | null>(null)
   const [unseenCount, setUnseenCount] = React.useState(0)
   React.useEffect(() => {
@@ -2327,9 +2327,7 @@ export function Chat({
       lastSeenRowIdRef.current = null
       setUnseenCount(0)
     } else if (lastSeenRowIdRef.current === null) {
-      lastSeenRowIdRef.current = channel.rows.length
-        ? channel.rows[channel.rows.length - 1]!.id
-        : -1
+      lastSeenRowIdRef.current = channel.rows.reduce((latest, row) => Math.max(latest, row.id), -1)
     }
   }, [isSticky, channel.rows])
   // The pill shows whenever the view is off the bottom (one-click return

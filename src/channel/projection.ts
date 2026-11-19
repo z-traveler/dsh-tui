@@ -245,7 +245,15 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
   /** The live toast of each notice key (a repeat replaces it). */
   const keyedToasts = new Map<string, () => void>()
   const appendRow = (row: ChatRow): void => { state.rows.push(row); markChannelReadDirty(state.rows) }
-  const factCards = createSessionCardProjection(state, deps, appendRow, touchRow)
+  const factCards = createSessionCardProjection(state, deps, appendRow, touchRow, () => {
+    const step = replaying ? undefined : activeAttempt ?? openStep
+    if (step === undefined) return []
+    // Both live rows are indexed by step, even after reasoning has folded.
+    return [
+      lastReasoningRow?.turn === step.turn && lastReasoningRow.step === step.step ? lastReasoningRow.row : undefined,
+      assistantRowsByStep.get(stepKey(step.turn, step.step)),
+    ]
+  })
   const removeRow = (row: ChatRow): void => {
     const index = state.rows.indexOf(row)
     if (index !== -1) {
@@ -635,6 +643,8 @@ export function createChannelProjection(state: ProjectionState, deps: ChannelPro
         // its one-line summary instead of vanishing with the empty block.
         if (canonical && settledReasoning.reasoningTokens === undefined) removeRow(settledReasoning)
         else if (anchor !== undefined && settledReasoning.anchor === undefined) settledReasoning.anchor = anchor
+        // A retained summary can be seq-less even after the message settled.
+        if (settledReasoning.seq === undefined && lastReasoningRow?.row === settledReasoning) lastReasoningRow = undefined
       } else {
         settledReasoning.text = reasoningText
         settledReasoning.seq ??= event.seq
