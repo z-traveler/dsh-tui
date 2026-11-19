@@ -1022,15 +1022,18 @@ export function MessageList({
   const sticky = scrollHandle?.isSticky() ?? true
   const base = baseRef.current ?? DEFAULT_HEADER_LINES
   const prevAnchor = anchorRef.current
+  // The cached index is just a fast path: insertion can move the same row.
+  const anchorIndex = prevAnchor === null || prevAnchor.top > prevAnchor.scrollTop
+    ? -1
+    : visibleRows[prevAnchor.index]?.id === prevAnchor.id
+      ? prevAnchor.index
+      : visibleRows.findIndex(row => row.id === prevAnchor.id)
   let anchorCorrection = 0
   if (
-    scrollHandle && prevAnchor !== null && prevAnchor.top <= prevAnchor.scrollTop &&
+    scrollHandle && prevAnchor !== null && anchorIndex !== -1 &&
     !sticky && pending === 0 && scrollTopRaw === prevAnchor.scrollTop
   ) {
-    const anchored = visibleRows[prevAnchor.index]
-    if (anchored !== undefined && anchored.id === prevAnchor.id) {
-      anchorCorrection = prevAnchor.top - (base + (offsets[prevAnchor.index] ?? 0))
-    }
+    anchorCorrection = prevAnchor.top - (base + (offsets[anchorIndex] ?? 0))
   }
   const scrollTop = Math.max(0, scrollTopRaw - anchorCorrection)
 
@@ -1234,21 +1237,14 @@ export function MessageList({
     rowCount: visibleRows.length,
   })
 
-  // New-messages pill count: rows past the seen-anchor whose top edge is
-  // still below the viewport bottom. Same rows-space math as the window
-  // (offsets are rows-space, scrollTop content-space — subtract the header
-  // base). Decrements as the user scrolls down through the new rows; 0 once
-  // every new row has appeared on screen. Reported post-commit (parent
-  // setState with an unchanged value is a React no-op, so the per-render
-  // effect only re-renders on actual count changes).
+  // New-messages pill: count each newer row below the viewport bottom.
+  // Row ids track creation, not display order (a card can precede a live reply).
+  // Offsets are in rows-space, so subtract the header from the viewport edge.
   let unseenCount = 0
   if (newSinceRowId !== null && newSinceRowId !== undefined) {
-    const firstNew = visibleRows.findIndex(row => row.id > newSinceRowId)
-    if (firstNew !== -1) {
-      const seenBottom = scrollTop + viewport - base
-      for (let i = firstNew; i < visibleRows.length; i++) {
-        if (offsets[i]! >= seenBottom) unseenCount++
-      }
+    const seenBottom = scrollTop + viewport - base
+    for (let i = visibleRows.length - 1; i >= 0 && offsets[i]! >= seenBottom; i--) {
+      if (visibleRows[i]!.id > newSinceRowId) unseenCount++
     }
   }
   const lastUnseenReportRef = React.useRef(-1)
@@ -1485,8 +1481,7 @@ export function MessageList({
       const anchorBase = baseRef.current ?? base
       let anchoredTop = scrollHandle.getScrollTop()
       if (
-        prevAnchor !== null && prevAnchor.top <= prevAnchor.scrollTop &&
-        visibleRows[prevAnchor.index]?.id === prevAnchor.id &&
+        prevAnchor !== null && anchorIndex !== -1 &&
         !scrollHandle.isSticky() && scrollHandle.getPendingDelta() === 0 &&
         anchoredTop === prevAnchor.scrollTop
       ) {
