@@ -21,6 +21,42 @@ Claude:  claude-sonnet-4-5:high 5h:80% (2h) week:24% (6d)
 - **悬停详情**：悬停在模型字段上可以查看原有的模型信息、窗口用量以及完整的本地重置日期时间。
 - **字段归属**：订阅数据与模型名称/推理强度共用**一个不可拆分的字段**，空间不足时随模型字段一起溢出或隐藏，且不依赖费用开关。早先独立的 `quota` 字段已弃用，配置里的 `left`/`right` 应保留 `model`。没有上报数据时界面不造数；额度查询在 DSH 的 provider 内完成，不新增登录流程，也不做费用或币种换算。时间戳由生产者统一规范化为毫秒，UI 端不做单位猜测。
 
+## 插件状态字段多段语义色
+
+插件可以在同一个 `tuiStatus.setField` 字段中提供多段文本及语义色，原生与 Powerline 状态栏都会按段显示。旧宿主会静默忽略未知的 `segments` 选项；需要多色的插件必须先检查版本探针：
+
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import type { TuiStatusFieldSegment } from '@deepseek-harness-tui/dsh-tui/api'
+
+export const inject = ['tuiStatus']
+export function apply(ctx: Context) {
+  if (ctx.tuiStatus.fieldSegmentsVersion !== 1) {
+    throw new Error('This plugin requires status field segments v1')
+  }
+  const segments: readonly TuiStatusFieldSegment[] = [
+    { text: 'API', tone: 'accent' },
+    { text: ' · ' },
+    { text: '42%', tone: 'success' },
+  ]
+  ctx.tuiStatus.setField('example:status', 'API · 42%', {
+    tone: 'dim', maxCells: 32, segments,
+  })
+}
+```
+
+- `segments` 为 1–8 个 `{ text, tone? }`；`tone` 使用现有的 `dim`、`accent`、`success`、`warning`、`error`，省略时继承字段的 `tone`。分段只影响着色，不会拆分字段或在 Powerline 段间插入分隔符。
+- 字段与各段均清除不安全控制符、ANSI 和 bidi 标记并折叠空白；段内或段间有意保留的空格可分配给对应段，但只裁剪整串的首尾空白。清洗后的分段拼接必须与未截断的字段文本完全相同；分段边界不得切开字素（例如 ZWJ emoji、旗帜或组合字符），且各段宽度之和必须等于整串宽度。不符合任一条件时拒绝写入并警告。
+- 所有段共享字段的终端列宽上限（默认 16，范围 1–32）；截断结果及省略号与普通字段一致。宿主冻结规范化的段数组和段对象，更新字段时必须重新传入 `segments`；省略或显式设为 `undefined` 会清除旧分段，其他选项仍按原有规则继承。
+
+回归验证（运行前先安装依赖并执行 `pnpm build`）：
+
+```sh
+pnpm run verify:status-fields
+node --import tsx/esm scripts/downstream/verify-status-field-segments.tsx
+node --import tsx/esm scripts/downstream/verify-powerline-input.tsx
+```
+
 ## 模型图标
 
 未做额外配置时，默认使用通用图标 ``。离线演示脚本中按确认使用了 `DeepSeek ◆`、`GPT ◉`、`Claude ✳` 这组自定义映射，请注意它们只是演示配置，并非官方品牌图标或出厂默认值。

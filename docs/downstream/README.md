@@ -11,6 +11,7 @@
 | 功能 | 启用方式 | 文档 | 主要模块 |
 | --- | --- | --- | --- |
 | Powerline 输入区与 HUD | `/settings` → 状态栏 → 输入区域风格 `powerline` | [input-region.md](input-region.md) | `src/powerline/`、`src/hudLayout.ts`、`src/components/PromptChrome.tsx`、`HudPlacement.tsx`、`src/dsh-adapter/powerline-settings.ts` |
+| 插件状态字段多段语义色 | `ctx.tuiStatus.setField` 的 `segments`（`fieldSegmentsVersion === 1`） | [input-region.md](input-region.md#插件状态字段多段语义色) | `src/dsh-adapter/status-field-segments.ts`、`src/screens/StatusLine.tsx`、`src/powerline/Status.tsx` |
 | 会话事实卡片（命令结果、显式技能） | `sessionCards`，默认开启 | [session-cards.md](session-cards.md) | `src/dsh-adapter/backend/session-card-facts.ts`（数据解码）、`src/channel/session-card-projection.ts`（状态映射）、`src/dsh-adapter/channel/session-card-restore.ts`（历史恢复）、`src/components/messages/SessionCardRow.tsx`、`CommandCardRow.tsx` |
 | 插件输入补全与上下文通知卡 | 插件注册 `ctx.tuiInputCompletions` | [input-completions.md](input-completions.md) | `src/input-completions.ts`、`src/dsh-adapter/input-completions.ts`、`src/components/useInputCompletions.ts`、`InputCompletionSuggestions.tsx`、`messages/ContextNoticeCardRow.tsx` |
 | 命令结果写稿 | 插件注册 `ctx.tuiInput.registerCommandDraft` | [command-drafts.md](command-drafts.md) | `src/tui-input.ts`、`src/dsh-adapter/command-drafts.ts`、`src/components/commandDraftFill.ts`、`src/components/PromptInput.tsx`、`src/dsh-adapter/channel/external-commands.ts` |

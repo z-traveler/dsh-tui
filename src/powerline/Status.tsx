@@ -72,7 +72,9 @@ export function PowerlineStatus({ channel, fields: native, pluginFields, used, c
   const pluginLeft: string[] = [], pluginHead: string[] = [], pluginTail: string[] = []
   for (const entry of pluginFields) {
     const key = `plugins:${entry.key}`
-    fields.push({ key, text: entry.text, width: stringWidth(entry.text), node: <Text color={tone[entry.tone]} dimColor={entry.tone === 'dim'}>{entry.text}</Text>,
+    fields.push({ key, text: entry.text, width: stringWidth(entry.text), node: entry.segments?.length
+      ? <Text>{entry.segments.map((segment, index) => <Text key={index} color={tone[segment.tone]} dimColor={segment.tone === 'dim'}>{segment.text}</Text>)}</Text>
+      : <Text color={tone[entry.tone]} dimColor={entry.tone === 'dim'}>{entry.text}</Text>,
       detail: entry.detail, onClick: entry.onClick, plugin: true })
     ;(entry.slot === 'left-tail' ? pluginLeft : entry.slot === 'right-head' ? pluginHead : pluginTail).push(key)
   }
