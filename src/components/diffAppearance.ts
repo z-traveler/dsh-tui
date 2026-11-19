@@ -30,6 +30,8 @@ import type { Theme } from '../theme.js'
 import { contrastRatio, parseFixedColor } from '../theme.js'
 import { mix } from '../trajectory/motion.js'
 import type { CardSurface } from './cardSurface.js'
+import { piLikePresentSurface } from '../cardStyles.js'
+import type { PresentCardSurface } from './messages/presentCardBackground.js'
 import { isPatchDiff } from './diffPatch.js'
 import type { ToolFileDiff } from '../dsh-adapter/channel.js'
 import type { ToolBackground } from '../tuiDisplayPrefs.js'
@@ -319,20 +321,22 @@ export function diffBodyAppearance(
 }
 
 /**
- * 工具卡（`AssistantToolUseMessage`）接入卡面后的三份底色数据：根行的普通
- * 底色（卡面）、split 上下文窗格沿用的 `toolBackground`，以及 diff 正文呈现。
- * 选中/悬停的根行高亮仍由卡片自己优先；这里按同一组条件解析出真实高亮底，
- * 供 diff 词色对比使用，二者不会不一致。
+ * 工具卡（`AssistantToolUseMessage`）的普通与悬停底色、split 上下文窗格的
+ * `toolBackground`，以及 diff 正文呈现。交付卡按方案与覆盖选择专用底色；
+ * 选中仍由卡片优先。普通 diff 的高亮底按原条件解析，供词色对比使用。
  */
 export function toolCardAppearance(card: CardSurface, options: {
   readonly toolBackground: ToolBackground
   readonly isSelected: boolean
   readonly isExpanded: boolean
   readonly hoverTint: boolean
+  readonly presentSurface?: PresentCardSurface | undefined
+  readonly isError?: boolean
   /** diff 卡的正文行；不是 diff 卡或是错误正文时为 `undefined`。 */
   readonly diffs: readonly ToolFileDiff[] | undefined
 }): {
   readonly ordinaryBackground: Color | undefined
+  readonly hoverBackground: Color | keyof Theme
   readonly ordinaryToolBackground: ToolBackground
   readonly diffBody: DiffBodyAppearance
 } {
@@ -353,10 +357,13 @@ export function toolCardAppearance(card: CardSurface, options: {
   })
   // pi-like 与个人卡面让上下文窗格透出卡面；默认 legacy 卡保留原来的折叠
   // 上下文底色（含悬停）。
-  const legacyBackground = toolBackground === 'subtle' ? theme.toolCardBackgroundDim
-    : toolBackground === 'strong' ? theme.toolCardBackground : undefined
-  const ordinaryToolBackground = card.preset === 'legacy' && !isSelected && !isExpanded
-    && card.style.states === undefined && card.backgroundColor === legacyBackground
-    ? toolBackground : 'none'
-  return { ordinaryBackground: card.backgroundColor, ordinaryToolBackground, diffBody }
+  const legacyDefault = card.preset === 'legacy' && !card.explicitFace
+  const ordinaryToolBackground = legacyDefault && !isSelected && !isExpanded ? toolBackground : 'none'
+  const deliveryFace = options.presentSurface === undefined ? undefined
+    : legacyDefault ? options.presentSurface
+      : card.preset === 'pi-like' && card.presetFace && !options.isError ? piLikePresentSurface(card.themeName)
+        : undefined
+  const ordinaryBackground = (deliveryFace?.background as Color | undefined) ?? card.backgroundColor
+  const hoverBackground: Color | keyof Theme = (deliveryFace?.hover as Color | undefined) ?? 'toolCardBackground'
+  return { ordinaryBackground, hoverBackground, ordinaryToolBackground, diffBody }
 }

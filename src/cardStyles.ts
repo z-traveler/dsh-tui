@@ -42,6 +42,7 @@ import type { Theme, ThemeName } from './theme.js'
 import { isLightThemeActive, isThemeColorKey, normalizeThemeKey, parseFixedColor } from './theme.js'
 import { isValidThemeColor } from './customTheme.js'
 import { mix } from './trajectory/motion.js'
+import { lightenColor, mixColor } from './utils/colorMix.js'
 import { createLiveSetting, type ToolBackground } from './tuiDisplayPrefs.js'
 
 /** Transcript 内容类型（覆盖范围见本文件头的方案说明）。纯呈现分类：
@@ -133,6 +134,8 @@ export interface CardStyle {
   readonly foreground?: string
   readonly bold?: boolean
   readonly background: CardBackground | undefined
+  /** True when background was explicitly configured, including `none`. */
+  readonly explicitBackground?: true
   readonly border: CardBorder | undefined
   readonly paddingX: number
   readonly paddingY: number
@@ -470,6 +473,7 @@ function resolveKind(
   const requestedProgress = pick(layers, 'progressStyle')
   return {
     background,
+    ...(requested === undefined ? {} : { explicitBackground: true as const }),
     border: border === undefined
       ? preset === 'pi-like' && kind === 'notice'
         ? { style: 'single', color: pick(layers, 'borderColor') ?? 'merged', leftOnly: true }
@@ -639,6 +643,18 @@ function presetUserColor(tone: string | undefined, polarity: PalettePolarity, te
   const mixed = mix(base, fixedRgb(tone), USER_SURFACE_RATIO)
   if (chalk.level >= 3 && mixed !== base) return mixed
   return chalk.level >= 2 ? greySlot(mixed) : undefined
+}
+
+/** Warm delivery face and hover, or no dedicated face when the tier cannot express it. */
+export function piLikePresentSurface(themeName: ThemeName): { readonly background: string; readonly hover?: string } | undefined {
+  const light = isLightThemeActive(themeName)
+  if (chalk.level >= 3) {
+    const background = light ? '#f6eee4' : '#221A12'
+    return { background, hover: light ? mixColor(background, '#000000', 0.05) : lightenColor(background, 0.04) }
+  }
+  // Explicit slots avoid quantizing the subtle truecolour face into a brighter block.
+  if (chalk.level === 2) return { background: light ? 'ansi256(223)' : 'ansi256(58)' }
+  return undefined
 }
 
 /**

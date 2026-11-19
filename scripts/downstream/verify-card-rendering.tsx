@@ -15,6 +15,7 @@
  *     馈）；unified 与 split 共用呈现，split 的增删行在普通/选中/悬停都保留
  *     各自的内容衬底，增删词在三档都保持语义色且可读（16 色档只断言 ≥2:1）；
  *     悬停经真实 stdin SGR 指针移动驱动
+ *   - 交付文件卡：暖色面、悬停/选中、失败、覆盖、极简界面、原版、文件点击与窄屏
  *   - 状态底色：真彩、256、16 色三档下三态两两可辨、正文对比达标（真彩档是
  *     低饱和豆沙色表，256 档是有色槽位，16 档是受限的可辨槽位；见
  *     `src/cardStyles.ts` 的 `PRESET_STATE_COLORS` / `TIER_STATE_FILLS`）
@@ -47,7 +48,7 @@ process.env.HOME = isolatedHome
 process.env.USERPROFILE = isolatedHome
 mkdirSync(joinPath(isolatedHome, '.dsh-tui'), { recursive: true })
 
-const [{ Writable, PassThrough }, React, { Terminal: XTerm }, uiMod, listMod, stylesMod, themeMod, termTest, diffMod, jobsPanelMod] =
+const [{ Writable, PassThrough }, React, { Terminal: XTerm }, uiMod, listMod, stylesMod, themeMod, termTest, diffMod, jobsPanelMod, toolMessageMod, minimalUiMod, presentMod] =
   await Promise.all([
     import('node:stream'),
     import('react'),
@@ -59,6 +60,9 @@ const [{ Writable, PassThrough }, React, { Terminal: XTerm }, uiMod, listMod, st
     import('../lib/term-test.mjs'),
     import('../../src/components/diffAppearance.js'),
     import('../../src/components/JobsPanel.js'),
+    import('../../src/components/messages/AssistantToolUseMessage.js'),
+    import('../../src/minimalUiMode.js'),
+    import('../../src/components/messages/presentCardBackground.js'),
   ])
 
 const { render, Box, Text, ThemeProvider, AlternateScreen, useInput } = uiMod as unknown as {
@@ -75,6 +79,9 @@ const { applyCardStyles, cardBackgroundColor, normalizeCardStyleConfig, resolveC
 const { getTheme, isLightThemeActive, THEME_NAMES } = themeMod as unknown as typeof import('../../src/theme.js')
 const { diffBodyAppearance } = diffMod as unknown as typeof import('../../src/components/diffAppearance.js')
 const { JobsPanel } = jobsPanelMod as unknown as { JobsPanel: React.ComponentType<Record<string, unknown>> }
+const { AssistantToolUseMessage } = toolMessageMod
+const { setMinimalUiMode } = minimalUiMod
+const { presentCardSurface } = presentMod
 const { settled, viewportLines } = termTest as unknown as {
   settled(pred: () => boolean, opts?: { timeoutMs?: number }): Promise<boolean>
   viewportLines(term: InstanceType<typeof XTerm>, rows?: number): string[]
@@ -154,6 +161,7 @@ interface Frame {
    *  coordinates; the sequence itself is 1-indexed). Only a fullscreen
    *  (`AlternateScreen`) tree dispatches it as onMouseEnter/onMouseLeave. */
   mouseMove(x: number, y: number): void
+  mouseClick(x: number, y: number): void
 }
 
 /** The real Chat always mounts `useInput` consumers; without a subscriber the
@@ -195,6 +203,7 @@ async function withTerminal(
     paintsInRow: (y) => new Set(Array.from({ length: cols }, (_, x) => paintOf(cell(x, y)))),
     rerender: (node) => { instance.rerender(node) },
     mouseMove: (x, y) => { stdin.write(`\x1b[<35;${x + 1};${y + 1}M`) },
+    mouseClick: (x, y) => { stdin.write(`\x1b[<0;${x + 1};${y + 1}M\x1b[<0;${x + 1};${y + 1}m`) },
   }
   try {
     await run(frame)
@@ -485,6 +494,312 @@ check('参考采样：三种执行状态在默认主题里两两不同且都不�
 check('参考采样：用户卡面不是悬停/选中高亮',
   face.user !== face.userHover && face.user !== face.selection,
   `user=${face.user} hover=${face.userHover} selection=${face.selection}`)
+
+const deliveredFiles = [
+  { path: 'reports/report.pdf', target: '/workspace/reports/report.pdf', description: 'Quarterly delivery', size: 4096 },
+  { path: 'reports/data.csv', target: '/workspace/reports/data.csv', size: 1024 },
+]
+function presentElement(
+  status: 'running' | 'ok' | 'error' = 'ok',
+  overrides: Partial<React.ComponentProps<typeof AssistantToolUseMessage>> = {},
+  files: readonly (typeof deliveredFiles)[number][] = deliveredFiles,
+): React.ReactNode {
+  const view = { card: 'files' as const, files }
+  return React.createElement(AssistantToolUseMessage, {
+    tool: {
+      callId: 'delivery', name: 'present', argsText: '{}', status, startedAt: NOW - 100,
+      ...(status === 'running' ? {} : { durationMs: 100 }),
+      ...(status === 'error' ? { errorText: 'delivery failed' } : {}),
+      callView: view, ...(status === 'ok' ? { resultView: view } : {}),
+    },
+    marginTopOnTurn: false, verbose: false, onClick: () => {}, ...overrides,
+  })
+}
+
+console.log('--- PR: delivery card surfaces ---')
+{
+  applyCardStyles({ preset: 'pi-like' })
+  let worstDefault = Infinity
+  let worstTheme = Infinity
+  let worstIdeRest = Infinity
+  let worstIdeHover = Infinity
+  for (const themeName of THEME_NAMES) {
+    const theme = getTheme(themeName)
+    const light = isLightThemeActive(themeName)
+    const expectedColor = chalk.level >= 3 ? (light ? '#f6eee4' : '#221A12')
+      : chalk.level === 2 ? (light ? 'ansi256(223)' : 'ansi256(58)')
+        : cardBackgroundColor(piStyles.kinds.tool.states?.success, theme, themeName)
+    const otherColors = [
+      ...(['running', 'success', 'failure'] as const).map(status => cardBackgroundColor(piStyles.kinds.tool.states?.[status], theme, themeName)),
+      cardBackgroundColor(piStyles.kinds.notice.background, theme, themeName),
+      cardBackgroundColor(piStyles.kinds.custom.background, theme, themeName),
+    ]
+    const samples = await samplePaints([expectedColor, ...otherColors])
+    const expected = samples.get(expectedColor ?? NONE)
+    await withTerminal(80, () => React.createElement(
+      ThemeProvider, { theme: themeName },
+      React.createElement(Text, { color: 'text' }, 'Theme text probe'),
+      presentElement('ok', { verbose: true, onOpenFile: () => {} }),
+      React.createElement(MessageList, listProps([
+        readRow(91),
+        editRow(92, [{ path: '/tmp/edit.ts', oldText: 'before', newText: 'after' }]),
+        editRow(93, [{ path: '/tmp/write.ts', oldText: null, newText: 'written' }], 'ok', 'write'),
+      ])),
+    ), async (frame) => {
+      check(`PR ${themeName}：交付卡头和文件行使用预期底色`, await ready(frame, 'report.pdf', 'data.csv', 'Theme text probe', 'Read /tmp/read.ts', 'Edit /tmp/edit.ts', 'Write /tmp/write.ts')
+        && frame.bg(0, frame.rowOf('Present(')) === expected
+        && frame.bg(0, frame.rowOf('report.pdf')) === expected
+        && frame.bg(79, frame.rowOf('data.csv')) === expected,
+      `header=${frame.bg(0, frame.rowOf('Present('))} file=${frame.bg(0, frame.rowOf('report.pdf'))} want=${expected}`)
+      if (chalk.level >= 2) {
+        check(`PR ${themeName}：交付面区别于状态、通知与自定义卡面`,
+          otherColors.every(color => samples.get(color ?? NONE) !== expected),
+          otherColors.map(color => `${color}=${samples.get(color ?? NONE)}`).join(' / '))
+        const tools = ['Read /tmp/read.ts', 'Edit /tmp/edit.ts', 'Write /tmp/write.ts']
+        check(`PR ${themeName}：交付面区别于实际 Read/Edit/Write 卡面`, tools.every(needle => frame.bg(0, frame.rowOf(needle)) !== expected),
+          tools.map(needle => `${needle}=${frame.bg(0, frame.rowOf(needle))}`).join(' / '))
+      }
+      const bg = paintColor(frame.bg(0, frame.rowOf('report.pdf')))
+      const fallback = light ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 }
+      const fileY = frame.rowOf('report.pdf')
+      const fileX = (frame.lines()[fileY] ?? '').indexOf('report.pdf')
+      const actualText = paintColor(frame.fg(fileX, fileY)) ?? fallback
+      const themeY = frame.rowOf('Theme text probe')
+      const themeText = paintColor(frame.fg(0, themeY)) ?? fallback
+      const contrast = (fg: { r: number; g: number; b: number }, behind = bg): number => {
+        if (behind === undefined) return 0
+        const a = luminance(fg), b = luminance(behind)
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+      }
+      const defaultRatio = contrast(actualText)
+      const themeRatio = contrast(themeText)
+      worstDefault = Math.min(worstDefault, defaultRatio)
+      worstTheme = Math.min(worstTheme, themeRatio)
+      check(`PR ${themeName}：默认正文对比度 ≥ 4.5:1`, defaultRatio >= 4.5, `${defaultRatio.toFixed(3)}:1`)
+      check(`PR ${themeName}：主题正文色对比度 ≥ 4.5:1`, themeRatio >= 4.5, `${themeRatio.toFixed(3)}:1`)
+      if (chalk.level >= 3 && !light) {
+        const pathY = frame.rowOf('/workspace/reports/report.pdf')
+        const pathLine = frame.lines()[pathY] ?? ''
+        const pathX = stringWidth(pathLine.slice(0, pathLine.indexOf('/workspace/reports/report.pdf')))
+        const badgeLine = frame.lines()[fileY] ?? ''
+        const badgeX = stringWidth(badgeLine.slice(0, badgeLine.indexOf('PDF')))
+        const ide = paintColor(frame.fg(pathX, pathY))
+        const rest = ide === undefined ? 0 : contrast(ide, paintColor(frame.bg(pathX, pathY)))
+        check(`PR ${themeName}：展开路径和 PDF 徽标使用相同前景`, pathY >= 0
+          && badgeLine.includes('PDF') && ide !== undefined && frame.fg(pathX, pathY) === frame.fg(badgeX, fileY)
+          && frame.bg(pathX, pathY) === expected)
+        if (!themeName.endsWith('-ansi')) worstIdeRest = Math.min(worstIdeRest, rest)
+        if (themeName === 'dark') {
+          check('PR dark：展开路径的真彩前景对比度 ≥ 4.5:1', rest >= 4.5, `${rest.toFixed(6)}:1`)
+        }
+        frame.mouseMove(70, fileY)
+        const hoverReady = await settled(() => (frame.lines()[frame.rowOf('Present(')] ?? '').includes('▾')
+          && frame.bg(pathX, pathY) !== expected)
+        const hoverBg = paintColor(frame.bg(pathX, pathY))
+        const hover = ide === undefined ? 0 : contrast(ide, hoverBg)
+        if (!themeName.endsWith('-ansi')) worstIdeHover = Math.min(worstIdeHover, hover)
+        check(`PR ${themeName}：悬停时暖色底面确实提亮`, hoverReady
+          && bg !== undefined && hoverBg !== undefined && luminance(hoverBg) > luminance(bg),
+        `ide rest=${rest.toFixed(6)}:1 hover=${hover.toFixed(6)}:1`)
+      }
+    }, { fullscreen: true })
+  }
+  console.log(`  delivery contrast: default >= ${worstDefault.toFixed(3)}:1; theme text >= ${worstTheme.toFixed(3)}:1`)
+  if (chalk.level >= 3) console.log(`  RGB dark IDE contrast: rest >= ${worstIdeRest.toFixed(3)}:1; hover >= ${worstIdeHover.toFixed(3)}:1`)
+
+  for (const themeName of ['dark', 'light'] as const) {
+    const theme = getTheme(themeName)
+    const light = themeName === 'light'
+    const hoverColor = chalk.level >= 3 ? (light ? 'rgb(234,226,217)' : 'rgb(43,35,27)') : theme.toolCardBackground
+    const runningColor = chalk.level >= 3 ? (light ? '#f6eee4' : '#221A12')
+      : chalk.level === 2 ? (light ? 'ansi256(223)' : 'ansi256(58)')
+        : cardBackgroundColor(piStyles.kinds.tool.states?.running, theme, themeName)
+    const colors = await samplePaints([hoverColor, theme.toolCardBackground, theme.messageActionsBackground, runningColor,
+      cardBackgroundColor(piStyles.kinds.tool.states?.failure, theme, themeName), '#123456'])
+    const paint = (color: string | undefined): Paint => colors.get(color ?? NONE) ?? 'default'
+    const wrap = (node: React.ReactNode): React.ReactNode => React.createElement(ThemeProvider, { theme: themeName }, node)
+    await withTerminal(80, () => wrap(presentElement('running')), async (frame) => {
+      check(`PR ${themeName}：运行中交付卡使用交付面或低色档状态面`, await ready(frame, 'report.pdf')
+        && frame.bg(0, frame.rowOf('report.pdf')) === paint(runningColor),
+      `got=${frame.bg(0, frame.rowOf('report.pdf'))} want=${paint(runningColor)}`)
+    })
+    await withTerminal(80, () => wrap(presentElement()), async (frame) => {
+      await ready(frame, 'report.pdf')
+      const header = frame.rowOf('Present('), file = frame.rowOf('report.pdf')
+      frame.mouseMove(10, file)
+      check(`PR ${themeName}：真实悬停保留预期底色`, await settled(() => (frame.lines()[header] ?? '').includes('▾')
+        && frame.bg(0, header) === paint(hoverColor) && frame.bg(0, file) === paint(hoverColor)),
+      `hover=${frame.bg(0, file)} want=${paint(hoverColor)}`)
+      if (chalk.level >= 3) check(`PR ${themeName}：真彩悬停不换成通用工具色`, paint(hoverColor) !== paint(theme.toolCardBackground))
+    }, { fullscreen: true })
+    await withTerminal(80, () => wrap(presentElement('ok', { isSelected: true })), async (frame) => {
+      await ready(frame, 'report.pdf')
+      const file = frame.rowOf('report.pdf'), header = frame.rowOf('Present(')
+      frame.mouseMove(10, file)
+      check(`PR ${themeName}：选中优先于交付卡面和悬停`, await settled(() => (frame.lines()[header] ?? '').includes('▾')
+        && frame.bg(0, header) === paint(theme.messageActionsBackground) && frame.bg(0, file) === paint(theme.messageActionsBackground)))
+    }, { fullscreen: true })
+    await withTerminal(80, () => wrap(presentElement('error')), async (frame) => {
+      const failureColor = cardBackgroundColor(piStyles.kinds.tool.states?.failure, theme, themeName)
+      check(`PR ${themeName}：失败保留状态面与错误正文`, await ready(frame, 'delivery failed')
+        && frame.bg(0, frame.rowOf('Present(')) === paint(failureColor)
+        && frame.bg(0, frame.rowOf('delivery failed')) === paint(failureColor))
+      const header = frame.rowOf('Present('), body = frame.rowOf('delivery failed')
+      frame.mouseMove(10, body)
+      check(`PR ${themeName}：失败时悬停回到普通工具反馈`, await settled(() => (frame.lines()[header] ?? '').includes('▾')
+        && frame.bg(0, body) === paint(theme.toolCardBackground)))
+    }, { fullscreen: true })
+    applyCardStyles({ preset: 'pi-like', kinds: { tool: { states: { success: '#123456' } } } })
+    await withTerminal(80, () => wrap(presentElement()), async (frame) => {
+      check(`PR ${themeName}：显式状态覆盖优先`, await ready(frame, 'report.pdf')
+        && frame.bg(0, frame.rowOf('report.pdf')) === paint('#123456'))
+      const file = frame.rowOf('report.pdf'), header = frame.rowOf('Present(')
+      frame.mouseMove(10, file)
+      check(`PR ${themeName}：显式覆盖悬停使用普通反馈`, await settled(() => (frame.lines()[header] ?? '').includes('▾')
+        && frame.bg(0, file) === paint(theme.toolCardBackground)))
+    }, { fullscreen: true })
+    applyCardStyles({ preset: 'pi-like', kinds: { tool: {
+      background: '#123456', states: { running: 'none', success: 'none', failure: 'none' },
+    } } })
+    await withTerminal(80, () => wrap(presentElement()), async (frame) => {
+      check(`PR ${themeName}：显式背景在状态面关闭后优先`, await ready(frame, 'report.pdf')
+        && frame.bg(0, frame.rowOf('report.pdf')) === paint('#123456'))
+    })
+    applyCardStyles({ preset: 'pi-like' })
+    setMinimalUiMode(true)
+    try {
+      const ordinary = cardBackgroundColor(piStyles.kinds.tool.states?.success, theme, themeName)
+      const expected = (await samplePaints([ordinary])).get(ordinary ?? NONE)
+      await withTerminal(80, () => wrap(presentElement()), async (frame) => {
+        check(`PR ${themeName}：简洁模式去掉交付面并保留普通状态面`, await ready(frame, 'report.pdf')
+          && frame.bg(0, frame.rowOf('report.pdf')) === expected)
+      })
+    } finally {
+      setMinimalUiMode(false)
+    }
+  }
+
+  applyCardStyles(undefined)
+  for (const themeName of ['dark', 'light'] as const) {
+    const theme = getTheme(themeName)
+    for (const mode of ['none', 'subtle', 'strong'] as const) {
+      const surface = presentCardSurface(mode, theme)
+      const colors = await samplePaints([surface.background, surface.hover])
+      const wrap = (node: React.ReactNode): React.ReactNode => React.createElement(ThemeProvider, { theme: themeName }, node)
+      await withTerminal(80, () => wrap(presentElement('ok', { toolBackground: mode })), async (frame) => {
+        check(`PR legacy/${themeName}/${mode}：原交付面未改变`, await ready(frame, 'report.pdf')
+          && frame.bg(0, frame.rowOf('report.pdf')) === colors.get(surface.background))
+        const file = frame.rowOf('report.pdf'), header = frame.rowOf('Present(')
+        frame.mouseMove(10, file)
+        check(`PR legacy/${themeName}/${mode}：原悬停色未改变`, await settled(() => (frame.lines()[header] ?? '').includes('▾')
+          && frame.bg(0, file) === colors.get(surface.hover)))
+      }, { fullscreen: true })
+    }
+  }
+  {
+    const surface = presentCardSurface('subtle', dark)
+    const expected = (await samplePaints([surface.background])).get(surface.background)
+    await withTerminal(80, () => presentElement('error', { toolBackground: 'subtle' }), async (frame) => {
+      check('PR legacy：失败状态仍保持原交付面', await ready(frame, 'delivery failed')
+        && frame.bg(0, frame.rowOf('Present(')) === expected)
+    })
+  }
+  applyCardStyles({ preset: 'legacy', kinds: { tool: { background: '#123456' } } })
+  {
+    const custom = (await samplePaints(['#123456'])).get('#123456')
+    await withTerminal(80, () => presentElement('ok', { toolBackground: 'subtle' }), async (frame) => {
+      check('PR legacy：显式背景覆盖交付面', await ready(frame, 'report.pdf') && frame.bg(0, frame.rowOf('report.pdf')) === custom)
+    })
+  }
+
+  applyCardStyles({ preset: 'legacy', kinds: { tool: { background: 'none' } } })
+  await withTerminal(80, () => presentElement('ok', { toolBackground: 'none' }), async (frame) => {
+    check('PR legacy：显式透明背景不使用交付面', await ready(frame, 'report.pdf')
+      && frame.bg(0, frame.rowOf('report.pdf')) === 'default')
+    const file = frame.rowOf('report.pdf'), header = frame.rowOf('Present(')
+    frame.mouseMove(10, file)
+    check('PR legacy：显式透明背景悬停使用普通反馈', await settled(() => (frame.lines()[header] ?? '').includes('▾')
+      && frame.bg(0, file) === face.hover))
+  }, { fullscreen: true })
+  applyCardStyles({ preset: 'legacy', kinds: { tool: { background: 'toolCardBackgroundDim' } } })
+  await withTerminal(80, () => presentElement('ok', { toolBackground: 'subtle' }), async (frame) => {
+    check('PR legacy：显式设置与旧底色相同也覆盖交付面', await ready(frame, 'report.pdf')
+      && frame.bg(0, frame.rowOf('report.pdf')) === face.block)
+    const file = frame.rowOf('report.pdf'), header = frame.rowOf('Present(')
+    frame.mouseMove(10, file)
+    check('PR legacy：同色显式覆盖悬停使用普通反馈', await settled(() => (frame.lines()[header] ?? '').includes('▾')
+      && frame.bg(0, file) === face.hover))
+  }, { fullscreen: true })
+  applyCardStyles({ preset: 'legacy', kinds: { tool: { states: { failure: '#3a2028' } } } })
+  {
+    const legacyFace = presentCardSurface('subtle', dark)
+    const colors = await samplePaints(['#3a2028', legacyFace.background])
+    await withTerminal(80, () => presentElement('error', { toolBackground: 'subtle' }), async (frame) => {
+      check('PR legacy：单独覆盖失败状态时失败使用指定颜色', await ready(frame, 'delivery failed')
+        && frame.bg(0, frame.rowOf('delivery failed')) === colors.get('#3a2028'))
+    })
+    await withTerminal(80, () => presentElement('ok', { toolBackground: 'subtle' }), async (frame) => {
+      check('PR legacy：单独覆盖失败状态时成功保留交付面', await ready(frame, 'report.pdf')
+        && frame.bg(0, frame.rowOf('report.pdf')) === colors.get(legacyFace.background))
+    })
+  }
+
+  applyCardStyles({ preset: 'pi-like' })
+  {
+    const opened: string[] = []
+    let toggles = 0
+    await withTerminal(80, () => presentElement('ok', { onOpenFile: path => opened.push(path), onClick: () => { toggles += 1 } }), async (frame) => {
+      check('PR 文件行：折叠预览保留 PDF/CSV 徽标', await ready(frame, 'report.pdf', 'data.csv')
+        && frame.screen().includes('▍PDF') && frame.screen().includes('▍CSV') && !frame.screen().includes('Quarterly delivery'))
+      const y = frame.rowOf('report.pdf'), line = frame.lines()[y] ?? ''
+      const x = stringWidth(line.slice(0, line.indexOf('report.pdf')))
+      frame.mouseClick(x, y)
+      check('PR 文件行：点击打开目标而不切换折叠', await settled(() => opened.length === 1)
+        && opened[0] === '/workspace/reports/report.pdf' && toggles === 0, JSON.stringify({ opened, toggles }))
+      frame.mouseClick(70, frame.rowOf('Present('))
+      check('PR 卡头：仍可点击切换折叠', await settled(() => toggles === 1))
+    }, { fullscreen: true })
+    await withTerminal(80, () => presentElement('ok', { verbose: true }), async (frame) => {
+      check('PR 展开：显示完整路径和描述', await ready(frame, '/workspace/reports/report.pdf', 'Quarterly delivery'))
+    })
+  }
+  applyCardStyles({ preset: 'pi-like', kinds: { tool: { border: 'round', paddingX: 2 } } })
+  await withTerminal(36, () => presentElement(), async (frame) => {
+    check('PR 36列描边与内边距：文件行仍在内容区', await ready(frame, 'report.pdf', 'data.csv')
+      && ['report.pdf', 'data.csv'].every(needle => {
+        const line = frame.lines()[frame.rowOf(needle)] ?? ''
+        return line.startsWith('│  ') && line.trimEnd().endsWith('│') && stringWidth(line.trimEnd()) <= 36
+      }), JSON.stringify(frame.lines().slice(0, 8)))
+    check('PR 36列描边：文件保持各占一行', frame.rowOf('data.csv') === frame.rowOf('report.pdf') + 1)
+    check('PR 36列描边：文件元数据按扣除边框和内边距后的列宽对齐',
+      (frame.lines()[frame.rowOf('report.pdf')] ?? '').indexOf('4 KB') === 26,
+      JSON.stringify(frame.lines()[frame.rowOf('report.pdf')]))
+  })
+  applyCardStyles({ preset: 'pi-like', kinds: { tool: { border: 'round', paddingX: 8 } } })
+  {
+    const opened: string[] = []
+    await withTerminal(36, () => presentElement('ok', { onOpenFile: path => opened.push(path) }), async (frame) => {
+      const rendered = await ready(frame, 'rep…df', 'dat…sv')
+      const file = frame.rowOf('rep…df'), next = frame.rowOf('dat…sv')
+      const line = frame.lines()[file] ?? ''
+      check('PR 36列最大内边距：可点击文件名在框内单行截断且不分裂', rendered
+        && line.includes('PDF') && line.includes('rep…df') && next === file + 1
+        && !frame.screen().includes('report.4') && !frame.screen().includes('4 KB')
+        && line.startsWith('│        ') && line.trimEnd().endsWith('│') && stringWidth(line.trimEnd()) === 36,
+      JSON.stringify(frame.lines().slice(0, 10)))
+      if (file >= 0) frame.mouseClick(stringWidth(line.slice(0, line.indexOf('rep…df'))), file)
+      check('PR 36列最大内边距：截断文件行仍打开完整目标', await settled(() => opened.length === 1)
+        && opened[0] === '/workspace/reports/report.pdf', JSON.stringify(opened))
+    }, { fullscreen: true })
+    await withTerminal(36, () => presentElement('ok', { onOpenFile: () => {} }, [deliveredFiles[0]!]), async (frame) => {
+      check('PR 36列最大内边距：单文件目录预览留在框内', await ready(frame, 'rep…df', 'rep…s/')
+        && frame.rowOf('rep…s/') === frame.rowOf('rep…df') + 1
+        && frame.lines().filter(line => line.includes('│')).every(line => stringWidth(line.trimEnd()) === 36)
+        && !frame.screen().includes('report.4'), JSON.stringify(frame.lines().slice(0, 10)))
+    })
+  }
+  applyCardStyles({ preset: 'pi-like' })
+}
 
 console.log('--- T: the user face follows the provider\'s terminal background ---')
 applyCardStyles({ preset: 'pi-like' })

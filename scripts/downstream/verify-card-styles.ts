@@ -24,11 +24,14 @@ import {
   cardStyleConfigFrom,
   getCardStyleConfig,
   normalizeCardStyleConfig,
+  piLikePresentSurface,
   resolveCardStyles,
   subscribeCardStyles,
   type ResolvedCardStyles,
 } from '../../src/cardStyles.js'
-import { diffBodyAppearance } from '../../src/components/diffAppearance.js'
+import { diffBodyAppearance, toolCardAppearance } from '../../src/components/diffAppearance.js'
+import type { CardSurface } from '../../src/components/cardSurface.js'
+import { presentCardSurface } from '../../src/components/messages/presentCardBackground.js'
 
 let checks = 0
 function check(label: string, test: () => void) { test(); console.log(`PASS ${++checks}: ${label}`) }
@@ -42,6 +45,137 @@ chalk.level = 3
 const legacy = (toolBackground: 'none' | 'subtle' | 'strong' = 'none') => resolveCardStyles(DEFAULT_CARD_STYLE_CONFIG, { toolBackground })
 const pi = (value: unknown = { preset: 'pi-like' }, toolBackground: 'none' | 'subtle' | 'strong' = 'none') =>
   resolveCardStyles(normalizeCardStyleConfig(value), { toolBackground })
+
+check('delivery faces keep warm hues at each supported colour tier', () => {
+  const savedLevel = chalk.level
+  try {
+    chalk.level = 3
+    assert.deepEqual(piLikePresentSurface('dark'), { background: '#221A12', hover: 'rgb(43,35,27)' })
+    assert.deepEqual(piLikePresentSurface('light'), { background: '#f6eee4', hover: 'rgb(234,226,217)' })
+    chalk.level = 2
+    assert.deepEqual(piLikePresentSurface('dark'), { background: 'ansi256(58)' })
+    assert.deepEqual(piLikePresentSurface('light'), { background: 'ansi256(223)' })
+    for (const level of [1, 0] as const) {
+      chalk.level = level
+      assert.equal(piLikePresentSurface('dark'), undefined)
+      assert.equal(piLikePresentSurface('light'), undefined)
+    }
+  } finally {
+    chalk.level = savedLevel
+  }
+})
+
+check('delivery faces remain distinct from routine and notice surfaces', () => {
+  const styles = pi()
+  for (const name of THEME_NAMES) {
+    const theme = getTheme(name)
+    const face = piLikePresentSurface(name)!.background
+    const surfaces = [
+      ...(['running', 'success', 'failure'] as const).map(status => cardBackgroundColor(styles.kinds.tool.states?.[status], theme, name)),
+      cardBackgroundColor(styles.kinds.notice.background, theme, name),
+      cardBackgroundColor(styles.kinds.custom.background, theme, name),
+      ...['Read', 'Edit', 'Write'].map(tool => cardBackgroundColor(styles.kinds.tool.states?.success, theme, name, undefined, tool)),
+    ]
+    for (const other of surfaces) {
+      assert.notEqual(other, face, `${name}: delivery differs from ${other}`)
+      const channels = channelsOf(other)
+      if (channels !== undefined) assert.notDeepEqual(channelsOf(face), channels, `${name}: delivery is not the same RGB as ${other}`)
+    }
+  }
+})
+
+check('delivery appearance respects preset, errors, overrides and minimal UI', () => {
+  const theme = getTheme('dark')
+  const legacyFace = presentCardSurface('subtle', theme)
+  const makeCard = (styles: ResolvedCardStyles, status: 'running' | 'success' | 'failure', explicitFace = false): CardSurface => {
+    const style = styles.kinds.tool
+    const background = cardBackgroundOf(styles, 'tool', status)
+    const backgroundColor = cardBackgroundColor(background, theme, 'dark') as CardSurface['backgroundColor']
+    return {
+      style, preset: styles.preset, theme, themeName: 'dark', terminalBackground: '#000000', explicitFace,
+      presetFace: styles.preset === 'pi-like' && (background?.presetFace === true || background?.presetState !== undefined),
+      backgroundColor, foregroundColor: undefined, columns: 80, contentSize: { columns: 80, rows: 40 }, narrowed: false,
+      box: { backgroundColor, borderStyle: undefined, borderColor: undefined, paddingX: 0, paddingY: 0 },
+    }
+  }
+  const options = { toolBackground: 'subtle', isSelected: false, isExpanded: false, hoverTint: false, diffs: undefined } as const
+  const legacyDefault = makeCard(legacy('subtle'), 'success')
+  const original = toolCardAppearance(legacyDefault, { ...options, presentSurface: legacyFace })
+  assert.equal(original.ordinaryBackground, legacyFace.background)
+  assert.equal(original.hoverBackground, legacyFace.hover)
+  assert.equal(original.ordinaryToolBackground, 'subtle')
+  const legacyOverride = makeCard(pi({ preset: 'legacy', kinds: { tool: { background: '#123456' } } }, 'subtle'), 'success', true)
+  const overriddenLegacy = toolCardAppearance(legacyOverride, { ...options, presentSurface: legacyFace })
+  assert.equal(overriddenLegacy.ordinaryBackground, '#123456')
+  assert.equal(overriddenLegacy.hoverBackground, 'toolCardBackground')
+  assert.equal(overriddenLegacy.ordinaryToolBackground, 'none')
+
+  const noFaceStyles = pi({ preset: 'legacy', kinds: { tool: { background: 'none' } } }, 'none')
+  assert.equal(noFaceStyles.kinds.tool.explicitBackground, true)
+  const noFace = toolCardAppearance(makeCard(noFaceStyles, 'success', true), {
+    ...options, toolBackground: 'none', presentSurface: presentCardSurface('none', theme),
+  })
+  assert.equal(noFace.ordinaryBackground, undefined)
+  assert.equal(noFace.hoverBackground, 'toolCardBackground')
+  assert.equal(noFace.ordinaryToolBackground, 'none')
+
+  const sameFaceStyles = pi({ preset: 'legacy', kinds: { tool: { background: 'toolCardBackgroundDim' } } }, 'subtle')
+  assert.equal(sameFaceStyles.kinds.tool.explicitBackground, true)
+  const sameFace = toolCardAppearance(makeCard(sameFaceStyles, 'success', true), { ...options, presentSurface: legacyFace })
+  assert.equal(sameFace.ordinaryBackground, theme.toolCardBackgroundDim)
+  assert.equal(sameFace.hoverBackground, 'toolCardBackground')
+  assert.equal(sameFace.ordinaryToolBackground, 'none')
+
+  const failureOnlyStyles = pi({ preset: 'legacy', kinds: { tool: { states: { failure: '#3a2028' } } } }, 'subtle')
+  assert.equal(failureOnlyStyles.kinds.tool.explicitBackground, undefined)
+  assert.deepEqual(failureOnlyStyles.kinds.tool.states?.failure, { fill: '#3a2028' })
+  const explicitFailure = toolCardAppearance(makeCard(failureOnlyStyles, 'failure', true), { ...options, presentSurface: legacyFace })
+  assert.equal(explicitFailure.ordinaryBackground, '#3a2028')
+  assert.equal(explicitFailure.hoverBackground, 'toolCardBackground')
+  assert.equal(explicitFailure.ordinaryToolBackground, 'none')
+  const normalSuccess = toolCardAppearance(makeCard(failureOnlyStyles, 'success'), { ...options, presentSurface: legacyFace })
+  assert.equal(normalSuccess.ordinaryBackground, legacyFace.background)
+  assert.equal(normalSuccess.hoverBackground, legacyFace.hover)
+  assert.equal(normalSuccess.ordinaryToolBackground, 'subtle')
+  for (const status of ['running', 'success'] as const) {
+    const card = makeCard(pi(), status)
+    const appearance = toolCardAppearance(card, { ...options, presentSurface: legacyFace })
+    assert.equal(appearance.ordinaryBackground, '#221A12')
+    assert.equal(appearance.hoverBackground, 'rgb(43,35,27)')
+    const minimal = toolCardAppearance(card, { ...options, presentSurface: undefined })
+    assert.equal(minimal.ordinaryBackground, card.backgroundColor)
+    assert.equal(minimal.hoverBackground, 'toolCardBackground')
+    assert.deepEqual(appearance.diffBody, minimal.diffBody)
+    assert.equal(appearance.ordinaryToolBackground, minimal.ordinaryToolBackground)
+  }
+  const failure = makeCard(pi(), 'failure')
+  const error = toolCardAppearance(failure, { ...options, presentSurface: legacyFace, isError: true })
+  assert.equal(error.ordinaryBackground, '#21161d')
+  assert.equal(error.hoverBackground, 'toolCardBackground')
+  const custom = makeCard(pi({ preset: 'pi-like', kinds: { tool: { states: { success: '#123456' } } } }), 'success')
+  const overridden = toolCardAppearance(custom, { ...options, presentSurface: legacyFace })
+  assert.equal(overridden.ordinaryBackground, '#123456')
+  assert.equal(overridden.hoverBackground, 'toolCardBackground')
+  const diffs = [{ path: '/tmp/test.ts', oldText: 'before', newText: 'after' }]
+  const card = makeCard(pi(), 'success')
+  const regularDiff = toolCardAppearance(card, { ...options, diffs, hoverTint: true })
+  const deliveryDiff = toolCardAppearance(card, { ...options, diffs, hoverTint: true, presentSurface: legacyFace })
+  assert.deepEqual(deliveryDiff.diffBody, regularDiff.diffBody)
+  assert.equal(deliveryDiff.ordinaryToolBackground, regularDiff.ordinaryToolBackground)
+  const savedLevel = chalk.level
+  try {
+    chalk.level = 2
+    const tier256 = toolCardAppearance(card, { ...options, presentSurface: legacyFace })
+    assert.equal(tier256.ordinaryBackground, 'ansi256(58)')
+    assert.equal(tier256.hoverBackground, 'toolCardBackground')
+    chalk.level = 1
+    const tier16 = toolCardAppearance(card, { ...options, presentSurface: legacyFace })
+    assert.equal(tier16.ordinaryBackground, card.backgroundColor)
+    assert.equal(tier16.hoverBackground, 'toolCardBackground')
+  } finally {
+    chalk.level = savedLevel
+  }
+})
 
 check('tool families keep their selected dark faces without overriding failures or user colours', () => {
   const styles = pi()

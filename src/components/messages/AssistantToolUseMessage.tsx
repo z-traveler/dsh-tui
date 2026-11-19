@@ -20,7 +20,6 @@ import type { ToolBackground } from '../../tuiDisplayPrefs.js'
 import { getNerdFontIcons, subscribeNerdFontIcons } from '../../tuiDisplayPrefs.js'
 import { getTheme, type Theme } from '../../theme.js'
 import type { ClickEvent } from '../../ink/events/click-event.js'
-import type { Color } from '../../ink/styles.js'
 import { revealLinesOf, scopeRevealKey, snapReveal } from '../smoothReveal.js'
 import { useRevealScope } from '../revealScope.js'
 import { useRevealVersion } from '../../hooks/useRevealVersion.js'
@@ -596,7 +595,7 @@ function presentedFileLines(
   icons: boolean,
   expanded: boolean,
 ): BodyLine[] {
-  const rowBudget = Math.max(24, columns - 6)
+  const rowBudget = Math.max(1, columns - 6)
   const lines: BodyLine[] = []
   for (const file of files) {
     const displayName = presentText(basename(file.path))
@@ -615,7 +614,7 @@ function presentedFileLines(
       metaParts.pop()
     }
     const meta = metaParts.join(' \u00b7 ')
-    const nameBudget = Math.max(12, rowBudget - PRESENT_LEAD_WIDTH - (meta === '' ? 0 : stringWidth(meta) + 2))
+    const nameBudget = Math.max(1, rowBudget - PRESENT_LEAD_WIDTH - (meta === '' ? 0 : stringWidth(meta) + 2))
     const shownName = truncateMiddle(displayName, nameBudget)
     const gap = meta === '' ? 0 : Math.max(2, rowBudget - PRESENT_LEAD_WIDTH - stringWidth(shownName) - stringWidth(meta))
     lines.push({
@@ -638,7 +637,7 @@ function presentedFileLines(
     const { dir, description } = presentDetail(file)
     if (dir === '' && description === undefined) continue
     const detailBudget = rowBudget - PRESENT_LEAD_WIDTH
-    const dirShown = dir === '' ? '' : truncateMiddle(dir, Math.max(8, Math.floor(detailBudget * 0.55)))
+    const dirShown = dir === '' || detailBudget <= 0 ? '' : truncateMiddle(dir, Math.max(1, Math.min(detailBudget, Math.max(8, Math.floor(detailBudget * 0.55)))))
     const descRoom = detailBudget - stringWidth(dirShown) - (dirShown === '' ? 0 : stringWidth(PRESENT_DETAIL_SEPARATOR))
     const desc = description !== undefined && descRoom >= 6
       ? (stringWidth(description) > descRoom ? `${truncateToWidth(description, descRoom - 1)}\u2026` : description)
@@ -1266,12 +1265,10 @@ export function AssistantToolUseMessage({
   const hoverTint = interactive && hovered && !isSelected
   // The card face stays on while the row is expanded; selection/hover still
   // own the row. The diff body's presentation follows the same backdrop.
-  const { ordinaryBackground, ordinaryToolBackground, diffBody } = toolCardAppearance(card, {
-    toolBackground, isSelected, isExpanded, hoverTint,
+  const { ordinaryBackground, hoverBackground, ordinaryToolBackground, diffBody } = toolCardAppearance(card, {
+    toolBackground, isSelected, isExpanded, hoverTint, presentSurface, isError,
     diffs: !isError && view?.card === 'diff' ? view.diffs : undefined,
   })
-  // Legacy delivery cards retain their upstream face and hover tint.
-  const legacyPresentSurface = card.preset === 'legacy' ? presentSurface : undefined
   // SendMessage 结果行：状态只取结果里明确给出的值；resumedAgentId/pin
   // 显示为「已唤醒 <短id>」；没有明确状态时注明送达状态未知。
   const sendMessageState = sendMessage === undefined ? undefined : sendMessageCardState(tool)
@@ -1287,7 +1284,7 @@ export function AssistantToolUseMessage({
       onClick={onClick}
       // Only selection paints a highlight; the configured treatment applies
       // to an ordinary card. Diff line tints stay - they are content, not chrome.
-      backgroundColor={isSelected ? 'messageActionsBackground' : hoverTint ? (legacyPresentSurface?.hover as Color | undefined) ?? 'toolCardBackground' : (legacyPresentSurface?.background as Color | undefined) ?? ordinaryBackground}
+      backgroundColor={isSelected ? 'messageActionsBackground' : hoverTint ? hoverBackground : ordinaryBackground}
       onMouseEnter={interactive ? () => setHovered(true) : undefined}
       onMouseLeave={interactive ? () => setHovered(false) : undefined}
     >

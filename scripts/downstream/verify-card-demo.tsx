@@ -168,6 +168,7 @@ const BODY_NEEDLES: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['用户', TOP_NEEDLES.slice(0, 1)],
   ['助手正文', ['无边框']],
   ['工具diff正文', ['const a']],
+  ['交付文件', ['report.pdf']],
   ['工具实时输出', ['42 passed']],
   ['工具错误正文', ['exit code 1']],
   // Settled subagents are title-only; the description is clipped on narrow

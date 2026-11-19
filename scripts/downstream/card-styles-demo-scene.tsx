@@ -144,6 +144,27 @@ const DEMO_ROWS = [
     },
   }),
   row({
+    id: 55,
+    kind: 'tool',
+    text: 'present',
+    tool: {
+      callId: 'demo-present',
+      name: 'present',
+      argsText: '{"files":[{"path":"reports/report.pdf"},{"path":"reports/data.csv"}]}',
+      status: 'ok',
+      startedAt: NOW - 1800,
+      durationMs: 120,
+      resultView: {
+        card: 'files',
+        files: [
+          { path: 'reports/report.pdf', target: '/workspace/reports/report.pdf', description: '季度报告与主要发现', size: 245_760 },
+          { path: 'reports/data.csv', target: '/workspace/reports/data.csv', description: '报告使用的数据', size: 24_576 },
+        ],
+      },
+      resultFull: 'Presented files',
+    },
+  }),
+  row({
     id: 54,
     kind: 'tool',
     text: 'edit',
